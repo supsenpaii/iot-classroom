@@ -1,0 +1,13 @@
+node_modules
+dist
+data
+backups
+.env
+.env.*
+.git
+*.sqlite*
+*.provision.json
+test-results
+playwright-report
+*.png
+artifacts/

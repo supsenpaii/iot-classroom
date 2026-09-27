@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+data/
+backups/
+*.sqlite*
+*.provision.json
+test-results/
+playwright-report/
+artifacts/

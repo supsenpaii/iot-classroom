@@ -1,0 +1,7 @@
+{$PUBLIC_ORIGIN} {
+    encode zstd gzip
+    request_body {
+        max_size 6MB
+    }
+    reverse_proxy app:3000
+}

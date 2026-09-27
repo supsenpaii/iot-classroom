@@ -1,0 +1,59 @@
+name: classroom
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    init: true
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?Set HTTPS PUBLIC_ORIGIN}
+      SESSION_SECRET: ${SESSION_SECRET:?Set random SESSION_SECRET}
+      TRUST_PROXY: 1
+      ENABLE_SIMULATOR: 'false'
+      DATABASE_PATH: /data/app.sqlite
+      BACKUP_DIR: /backups
+      MAX_UPLOAD_BYTES: 5242880
+    volumes:
+      - app_data:/data
+      - backups:/backups
+    expose:
+      - '3000'
+    mem_limit: 512m
+    cpus: 2
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    environment:
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?Set HTTPS PUBLIC_ORIGIN}
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+volumes:
+  app_data:
+  backups:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,48 @@
+{
+  "name": "lop-hoc-tuong-tac",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.21.0 <25"
+  },
+  "scripts": {
+    "build": "npm run typecheck && vite build --config client/vite.config.ts && tsc -p tsconfig.server.json && cp server/import-worker.mjs dist/server/server/ && cp -r server/migrations dist/server/server/",
+    "start": "node --env-file-if-exists=.env dist/server/server/index.js",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
+    "db:migrate": "node --env-file-if-exists=.env dist/server/scripts/admin.js migrate",
+    "teacher:create": "node --env-file-if-exists=.env dist/server/scripts/admin.js create",
+    "teacher:reset-password": "node --env-file-if-exists=.env dist/server/scripts/admin.js reset",
+    "db:backup": "node --env-file-if-exists=.env dist/server/scripts/admin.js backup",
+    "db:restore": "node --env-file-if-exists=.env dist/server/scripts/admin.js restore"
+  },
+  "dependencies": {
+    "@fontsource/be-vietnam-pro": "5.3.0",
+    "better-sqlite3": "13.0.3",
+    "csv-parse": "7.0.3",
+    "exceljs": "4.4.0",
+    "express": "5.2.1",
+    "express-session": "1.19.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "ws": "8.21.3",
+    "yauzl": "3.4.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "9.6.0",
+    "@types/express": "5.0.6",
+    "@types/express-session": "1.19.0",
+    "@types/node": "26.6.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/ws": "8.18.1",
+    "typescript": "6.0.3",
+    "vite": "8.3.1"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "11.1.1"
+    }
+  }
+}
