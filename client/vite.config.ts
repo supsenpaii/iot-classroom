@@ -3,7 +3,7 @@ export default defineConfig({
   root: "client",
   build: { outDir: "../dist/client", emptyOutDir: true },
   server: {
-    host: "127.0.0.1",
+    host: "localhost",
     proxy: {
       "/api": "http://127.0.0.1:3000",
       "/health": "http://127.0.0.1:3000",

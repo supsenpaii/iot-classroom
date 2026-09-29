@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { Data } from "./api";
+import { signedOut } from "./api";
 export const socketUrl = () =>
   `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`;
 export function useSessionSocket(id: string, projectionToken?: string) {
   const [data, setData] = useState<Data | null>(null),
     [status, setStatus] = useState("Đang kết nối…"),
     [offset, setOffset] = useState(0),
+    [syncedAt, setSyncedAt] = useState<number | null>(null),
     [epoch, setEpoch] = useState(0);
   const socket = useRef<WebSocket | null>(null);
   useEffect(() => {
@@ -35,6 +37,7 @@ export function useSessionSocket(id: string, projectionToken?: string) {
             !old || m.data.state_version >= old.state_version ? m.data : old,
           );
           setOffset(m.data.server_time - Date.now());
+          setSyncedAt(Date.now());
           setStatus("Đã kết nối");
         } else if (m.type === "error")
           setStatus("Không thể đồng bộ. Kiểm tra quyền truy cập.");
@@ -42,7 +45,10 @@ export function useSessionSocket(id: string, projectionToken?: string) {
       ws.onclose = (e) => {
         if (stopped) return;
         if (e.code === 4001) {
-          setStatus("Quyền truy cập đã hết hạn. Mở lại từ bảng điều khiển.");
+          setData(null);
+          if (projectionToken)
+            setStatus("Quyền trình chiếu đã hết hạn. Mở lại từ bảng điều khiển.");
+          else signedOut();
           return;
         }
         setStatus("Mất kết nối · đang nối lại…");
@@ -60,7 +66,7 @@ export function useSessionSocket(id: string, projectionToken?: string) {
       socket.current?.close();
     };
   }, [id, projectionToken, epoch]);
-  return { data, status, offset, reconnect: () => setEpoch((n) => n + 1) };
+  return { data, status, offset, syncedAt, reconnect: () => setEpoch((n) => n + 1) };
 }
 export function useClock(data: Data | null, offset: number) {
   const [now, setNow] = useState(Date.now());

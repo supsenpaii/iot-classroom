@@ -46,6 +46,10 @@ export type PublicQuestion = {
   question_order: number;
   deadline_at: number | null;
   remaining_ms: number | null;
+  results?: {
+    counts: Record<string, number>;
+    correct_answer: string;
+  } | null;
 };
 export type Snapshot = {
   id: string;

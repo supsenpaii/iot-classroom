@@ -1,5 +1,14 @@
 export type Data = Record<string, any>; // JSON API documents; inputs are validated by shared Zod schemas on the server.
 let csrf = "";
+const authChannel = new BroadcastChannel("classroom-auth");
+authChannel.onmessage = (event) => {
+  if (event.data === "signed-out") window.location.replace("/login");
+};
+export function signedOut() {
+  csrf = "";
+  authChannel.postMessage("signed-out");
+  window.location.replace("/login");
+}
 export function setCsrf(value: string) {
   csrf = value;
 }
@@ -28,6 +37,8 @@ export async function api<T = any>(
   const data = await res.json().catch(() => null);
   if (!data) throw new Error("Không đọc được phản hồi máy chủ. Thử lại sau.");
   if (!res.ok) {
+    if (res.status === 401 && !["/auth/login", "/auth/me", "/presentation/exchange"].includes(path))
+      signedOut();
     const error = new Error(
       (data.message || "Không kết nối được máy chủ") +
         (res.status >= 500 && data.requestId
@@ -67,12 +78,16 @@ export const eventLabel: Record<string, string> = {
   next: "Chuyển câu",
   "close-question": "Giáo viên đóng câu",
   "question.closed": "Câu đã đóng",
+  "question.opened": "Mở câu hỏi",
   "question.voided": "Loại câu khỏi tính điểm",
   "device.test": "Bấm thử thiết bị",
   "device.connected": "Thiết bị kết nối",
   "device.disconnected": "Thiết bị mất kết nối",
   "server.recovered": "Khôi phục máy chủ",
   "binding.changed": "Thay đổi ghép thiết bị",
+  "answer.saved": "Đã lưu đáp án",
+  "answer.rejected": "Đáp án không hợp lệ",
+  "reveal-results": "Công bố kết quả lên màn chiếu",
 };
 export const errorLabel: Record<string, string> = {
   QUESTION_CLOSED: "Câu đã đóng hoặc hết giờ",
@@ -82,5 +97,6 @@ export const errorLabel: Record<string, string> = {
   ANSWER_LOCKED: "Đã khóa lựa chọn đầu tiên",
   REQUEST_REUSED: "Mã gửi lại không khớp nội dung",
   INVALID_PAYLOAD: "Nội dung gửi không hợp lệ",
+  INVALID_STATE: "Chỉ thử nút khi ở phòng chờ hoặc tạm dừng",
   STORAGE_ERROR: "Chưa lưu được đáp án; sẽ thử lại",
 };

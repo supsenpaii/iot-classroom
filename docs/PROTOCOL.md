@@ -34,6 +34,10 @@ Server gửi ngay sau kết nối và khi có thay đổi (gom trong tối đa k
 
 Chưa ghép hoặc buổi đã kết thúc: `data.state = WAITING`. Không gửi tên/mã học sinh, đề đúng, lời giải hoặc secret cho thiết bị. Projection nhận nội dung câu/bốn lựa chọn/tổng số trả lời, không có roster hoặc lựa chọn cá nhân. Trạng thái chính: LOBBY/RUNNING/PAUSED/FINISHED/CANCELLED. Câu: OPEN/CLOSED. Full snapshot luôn là nguồn khôi phục; bỏ snapshot có version cũ. `server_time`/`deadline_at` là milliseconds UTC, thời gian client không có giá trị quyết định hạn.
 
+Khi giáo viên chủ động bấm **Công bố kết quả** sau lúc câu đã đóng, snapshot của màn chiếu mới có `question.results = {counts:{A,B,C,D},correct_answer}`. Trước thời điểm đó `results:null`; firmware vẫn chỉ nhận snapshot tối giản, không nhận đáp án đúng. Snapshot giáo viên có thêm danh sách học sinh, trạng thái đáp án đã commit theo câu, thời điểm ghi nhận và tín hiệu màn chiếu đang kết nối; dữ liệu này không gửi cho projection/device.
+
+Lệnh công bố áp dụng khi buổi còn RUNNING/PAUSED và câu đã CLOSED. Câu cuối đang tự kết thúc buổi ngay khi đóng theo quy tắc hiện tại, nên xem phân bố của câu đó trong báo cáo; không còn phiên trình chiếu để công bố.
+
 ## Đáp án và ACK
 
 ```json
@@ -54,10 +58,10 @@ Chỉ giữ một request chờ ACK/device. Các lần bấm tiếp theo lưu l�
 
 ## Thử nút / heartbeat / nối lại
 
-Phòng chờ hoặc tạm dừng: `{v:1,type:"button.test",choice:"A"}`. Server ghi sự kiện cho giáo viên, trả `{v:1,type:"button.ack",assigned:true}`. Không chấm điểm.
+Phòng chờ hoặc tạm dừng: `{v:1,type:"button.test",choice:"A"}`. Server ghi sự kiện cho giáo viên, trả `{v:1,type:"button.ack",assigned:true}`. Không chấm điểm. Khi buổi đang RUNNING hoặc đã kết thúc, server trả `INVALID_STATE`, không ghi sự kiện và không gửi `button.ack`. Thiết bị chưa ghép nhận `button.ack` với `assigned:false` để kiểm tra kết nối vật lý.
 
 Server gửi WebSocket ping mỗi 5 giây; firmware trả pong (phần lớn thư viện làm tự động). Mất pong quá 15 giây bị ngắt. Có thể gửi ứng dụng `{v:1,type:"heartbeat"}` để nhận server_time. Reconnect 1/2/4/8/10 giây và jitter. Gửi `{v:1,type:"snapshot.request"}` nếu cần đồng bộ lại. Mã đóng 4001: quyền hết hiệu lực; 4002: kết nối mới thay thế; 1008: quá giới hạn message; 1013: client đọc quá chậm.
 
-Thay thiết bị: giáo viên pause, bỏ binding cũ, ghép thiết bị mới, thử nút rồi resume. Đáp án cũ giữ theo học sinh; thiết bị cũ không gửi tiếp. Restart server chuyển buổi RUNNING sang PAUSED; câu hết hạn được đóng, không tự chạy chuỗi câu. Firmware chờ snapshot mới, không khôi phục đồng hồ từ bộ nhớ riêng.
+Thay thiết bị: giáo viên pause, bỏ binding cũ, ghép thiết bị mới, thử nút rồi resume. Thu hồi thiết bị trong trang quản lý vô hiệu secret và ticket, bỏ ghép hiện tại sau commit rồi ngắt socket; thiết bị đã dùng chỉ được lưu lịch sử/ẩn bằng bộ lọc, không xóa vĩnh viễn. Đáp án cũ giữ theo học sinh; thiết bị cũ không gửi tiếp. Restart server chuyển buổi RUNNING sang PAUSED; câu hết hạn được đóng, không tự chạy chuỗi câu. Firmware chờ snapshot mới, không khôi phục đồng hồ từ bộ nhớ riêng.
 
 Phần firmware chưa triển khai: board/GPIO, debounce khoảng 40 ms cần đo, LED/âm báo chỉ xác nhận sau ACK, Wi-Fi provisioning, TLS CA, mất nguồn và kiểm thử access point thật.

@@ -1,11 +1,14 @@
 import { useState } from "react";
-import { api, fmt, stateLabel, eventLabel, type Data } from "../api";
+import { api, fmt, stateLabel, eventLabel, errorLabel, type Data } from "../api";
 import { Empty, Head, Status, useApp, useResource } from "../components";
 export function Reports({ id }: { id?: string }) {
   const r = useResource<Data>(id ? `/sessions/${id}/report` : "/sessions"),
     { run } = useApp(),
     [search, setSearch] = useState(""),
-    [selected, setSelected] = useState("");
+    [selected, setSelected] = useState(""),
+    [matrixFilter, setMatrixFilter] = useState("all"),
+    [eventStep, setEventStep] = useState(0),
+    [selectedCell, setSelectedCell] = useState<{ student: string; question: string } | null>(null);
   if (!r.data) return <Status loading error={r.error} />;
   const d = r.data;
   if (!id)
@@ -52,13 +55,47 @@ export function Reports({ id }: { id?: string }) {
         </section>
       </>
     );
-  const student = d.students.find((s: Data) => s.id === selected);
+  const student = d.students.find((s: Data) => s.id === selected),
+    scoredStudents = d.students.filter((s: Data) => s.score != null),
+    answeredQuestions = d.questions.filter((q: Data) => q.status !== "PENDING"),
+    totals = d.students
+      .filter((s: Data) => !s.absent)
+      .reduce(
+        (sum: { correct: number; wrong: number; blank: number }, s: Data) => ({
+          correct: sum.correct + s.C,
+          wrong: sum.wrong + s.W,
+          blank: sum.blank + s.U,
+        }),
+        { correct: 0, wrong: 0, blank: 0 },
+      ),
+    attempts = totals.correct + totals.wrong + totals.blank,
+    visibleQuestions = d.questions.filter((q: Data) => matrixFilter === "all" ||
+      (matrixFilter === "voided" ? !!q.voided :
+        matrixFilter === "early" ? q.status === "PENDING" :
+        d.students.some((st: Data) => {
+          const a = st.details.find((item: Data) => item.question_id === q.id);
+          return matrixFilter === "blank" ? !st.absent && q.status === "CLOSED" && !q.voided && !a?.choice : !!a?.incidents?.length;
+        }))),
+    reviewItems = d.students.flatMap((st: Data) => st.absent ? [] : st.details
+      .filter((a: Data) => a.status === "CLOSED" && !a.voided && !a.choice && a.incidents.length)
+      .map((a: Data) => ({ student: st, detail: a }))),
+    cellStudent = d.students.find((st: Data) => st.id === selectedCell?.student),
+    cellDetail = cellStudent?.details.find((a: Data) => a.question_id === selectedCell?.question),
+    activeEvent = d.events[Math.min(eventStep, d.events.length - 1)],
+    activeEventDetail = activeEvent ? JSON.parse(activeEvent.detail) : null,
+    activeEventStudent = d.students.find((st: Data) => st.id === (activeEventDetail?.student_id || activeEventDetail?.student)),
+    replayEvents = d.events.slice(0, Math.min(eventStep, d.events.length - 1) + 1),
+    replayOpened = [...replayEvents].reverse().find((e: Data) => e.type === "question.opened"),
+    replayQuestion = d.questions.find((q: Data) => q.id === (replayOpened ? JSON.parse(replayOpened.detail).question_id : null)),
+    replayClosed = replayOpened && replayEvents.some((e: Data) => e.id > replayOpened.id && e.type === "question.closed" && JSON.parse(e.detail).question_id === replayQuestion?.id),
+    replayAnswers = replayQuestion ? new Set(replayEvents.filter((e: Data) => e.type === "answer.saved" && JSON.parse(e.detail).question_id === replayQuestion.id).map((e: Data) => JSON.parse(e.detail).student_id)).size : 0,
+    replayState = [...replayEvents].reverse().find((e: Data) => ["start", "pause", "resume", "finish", "cancel"].includes(e.type));
   return (
     <>
       <Head
         eyebrow="BÁO CÁO BUỔI KIỂM TRA"
         title={d.session.name}
-        description={`${d.session.class_name} · ${stateLabel[d.session.state]} · ${d.N}/${d.session.config.count} câu tính điểm${d.session.early_finish ? " · Kết thúc sớm" : ""}`}
+        description={`${d.session.class_name} · ${stateLabel[d.session.state]} · ${d.N}/${d.session.config.count} câu đã đóng hợp lệ${d.session.early_finish ? " · Kết thúc sớm" : ""}`}
       >
         <a className="button primary" href={`/api/sessions/${id}/export.xlsx`}>
           Xuất Excel ↓
@@ -100,52 +137,103 @@ export function Reports({ id }: { id?: string }) {
           </small>
         </div>
       </div>
-      <div className="two-col">
-        <section className="card">
-          <h2>Phân bố điểm</h2>
-          <div className="histogram">
-            {d.stats.distribution.map((count: number, i: number) => (
-              <div key={i}>
-                <span>{count}</span>
-                <div
-                  className="hist-bar"
-                  style={{
-                    height: Math.max(
-                      2,
-                      (count / Math.max(1, ...d.stats.distribution)) * 120,
-                    ),
-                  }}
-                />
-                <small>
-                  {["[0, 2)", "[2, 4)", "[4, 6)", "[6, 8)", "[8, 10]"][i]}
-                </small>
+      <section className="card report-visuals">
+        <h2>Biểu đồ tổng quan</h2>
+        <div className="report-chart-grid">
+          <div className="chart-panel">
+            <h3>Phân bố điểm</h3>
+            {scoredStudents.length ? (
+              <div className="histogram" role="img" aria-label={`Phân bố điểm: ${d.stats.distribution.join(", ")} học sinh theo năm khoảng điểm từ 0 đến 10`}>
+                {d.stats.distribution.map((count: number, i: number) => (
+                  <div key={i}>
+                    <span>{count}</span>
+                    <div className="hist-bar" style={{ height: `${(count / Math.max(1, ...d.stats.distribution)) * 120}px` }} />
+                    <small>{["0–2", "2–4", "4–6", "6–8", "8–10"][i]}</small>
+                  </div>
+                ))}
               </div>
-            ))}
+            ) : <p className="muted">Chưa có điểm để vẽ biểu đồ.</p>}
+            <p className="chart-caption">{scoredStudents.length} học sinh có điểm · Trung vị {fmt(d.stats.median)} · Cao nhất {fmt(d.stats.max)} · Thấp nhất {fmt(d.stats.min)}</p>
           </div>
-        </section>
-        <section className="card">
-          <h2>Thống kê lớp</h2>
-          <dl className="metrics">
-            <div>
-              <dt>Trung vị</dt>
-              <dd>{fmt(d.stats.median)}</dd>
+          <div className="chart-panel">
+            <h3>Đúng, sai và bỏ trống</h3>
+            {attempts ? <>
+              <div className="stacked-bar" role="img" aria-label={`${totals.correct} đúng, ${totals.wrong} sai, ${totals.blank} bỏ trống trong ${attempts} lượt của các câu đã đóng hợp lệ`}>
+                <span className="correct" style={{ width: `${totals.correct / attempts * 100}%` }} />
+                <span className="wrong" style={{ width: `${totals.wrong / attempts * 100}%` }} />
+                <span className="blank" style={{ width: `${totals.blank / attempts * 100}%` }} />
+              </div>
+              <div className="chart-legend"><span><i className="correct" />{totals.correct} đúng</span><span><i className="wrong" />{totals.wrong} sai</span><span><i className="blank" />{totals.blank} bỏ trống</span></div>
+            </> : <p className="muted">Chưa có câu tính điểm để tổng hợp lượt trả lời.</p>}
+            <p className="chart-caption">{d.N} câu đã đóng hợp lệ · {d.stats.participants} học sinh dự thi</p>
+          </div>
+        </div>
+      </section>
+      <section className="card report-scores">
+        <h2>Điểm theo học sinh</h2>
+        {scoredStudents.length ? scoredStudents.map((s: Data) => (
+          <div className="score-row" key={s.id}>
+            <span>{s.full_name}<small>{s.student_code}</small></span>
+            <div className="score-track" role="img" aria-label={`${s.full_name}: ${fmt(s.score)} trên 10 điểm`}><span style={{ width: `${Math.max(0, Math.min(100, s.score * 10))}%` }} /></div>
+            <strong>{fmt(s.score)}/10</strong>
+          </div>
+        )) : <p className="muted">Chưa có điểm học sinh. Học sinh vắng và buổi đã hủy không có điểm chính thức.</p>}
+        {d.students.length > scoredStudents.length && <p className="chart-caption">{d.students.length - scoredStudents.length} học sinh không có điểm; xem lý do ở bảng chi tiết bên dưới.</p>}
+      </section>
+      <section className="card report-questions-chart">
+        <h2>Kết quả theo câu hỏi</h2>
+        {answeredQuestions.length ? answeredQuestions.map((q: Data) => {
+          const correct = q.counts[q.data.correct_answer] || 0,
+            wrong = Object.values(q.counts).reduce((n: number, value) => n + Number(value), 0) - correct,
+            blank = Math.max(0, q.blank || 0),
+            total = correct + wrong + blank;
+          return <div className="question-chart-row" key={q.id}>
+            <div><strong>Câu {q.question_order}. {q.data.question}</strong>{!!q.voided && <span className="badge">Đã loại khỏi điểm</span>}</div>
+            <div className="stacked-bar" role="img" aria-label={`Câu ${q.question_order}: ${correct} đúng, ${wrong} sai, ${blank} bỏ trống`}>
+              <span className="correct" style={{ width: `${total ? correct / total * 100 : 0}%` }} />
+              <span className="wrong" style={{ width: `${total ? wrong / total * 100 : 0}%` }} />
+              <span className="blank" style={{ width: `${total ? blank / total * 100 : 0}%` }} />
             </div>
-            <div>
-              <dt>Cao nhất</dt>
-              <dd>{fmt(d.stats.max)}</dd>
-            </div>
-            <div>
-              <dt>Thấp nhất</dt>
-              <dd>{fmt(d.stats.min)}</dd>
-            </div>
-          </dl>
-          <p className="muted">
-            Học sinh vắng không nằm trong thống kê điểm. Học sinh dự thi nhưng
-            mất kết nối vẫn tính bỏ trống.
-          </p>
-        </section>
-      </div>
+            <small>{correct} đúng · {wrong} sai · {blank} bỏ trống{q.voided ? " · Không tính điểm" : ""}</small>
+          </div>;
+        }) : <p className="muted">Chưa có câu đã mở để vẽ biểu đồ.</p>}
+      </section>
+      <section className="card result-matrix">
+        <div className="row spread">
+          <div><h2>Ma trận kết quả</h2><p className="muted">Chọn một ô để xem thời điểm lưu đáp án và sự cố liên quan.</p></div>
+          <label>Lọc câu
+            <select aria-label="Lọc ma trận kết quả" value={matrixFilter} onChange={(e) => setMatrixFilter(e.target.value)}>
+              <option value="all">Tất cả</option><option value="blank">Có bỏ trống</option><option value="incident">Có sự cố</option><option value="early">Chưa mở do kết thúc sớm</option><option value="voided">Câu bị loại</option>
+            </select>
+          </label>
+        </div>
+        {visibleQuestions.length ? <div className="table-scroll">
+          <table className="matrix-table">
+            <thead><tr><th>Học sinh</th>{visibleQuestions.map((q: Data) => <th key={q.id}>Câu {q.question_order}</th>)}</tr></thead>
+            <tbody>{d.students.map((st: Data) => <tr key={st.id}>
+              <th scope="row">{st.full_name}<small>{st.student_code}</small></th>
+              {visibleQuestions.map((q: Data) => {
+                const a = st.details.find((item: Data) => item.question_id === q.id);
+                const label = st.absent ? "Vắng" : q.status === "PENDING" ? "Chưa mở" : q.voided ? "Đã loại" : !a.choice ? "Bỏ trống" : a.choice === a.correct_answer ? "Đúng" : "Sai";
+                return <td key={q.id}><button className={`matrix-cell ${label === "Đúng" ? "is-correct" : label === "Sai" ? "is-wrong" : label === "Bỏ trống" ? "is-blank" : ""}`} aria-label={`${st.full_name}, câu ${q.question_order}: ${label}${a.incidents.length ? ", có sự cố cần xem xét" : ""}`} onClick={() => setSelectedCell({ student: st.id, question: q.id })}>{label}{a.incidents.length > 0 && <span title="Có sự kiện cần xem xét"> · !</span>}</button></td>;
+              })}
+            </tr>)}</tbody>
+          </table>
+        </div> : <p className="muted">Không có câu phù hợp bộ lọc.</p>}
+        {cellStudent && cellDetail && <div className="matrix-detail" role="region" aria-label="Bằng chứng kết quả">
+          <div className="row spread"><h3>{cellStudent.full_name} · câu {cellDetail.order}</h3><button onClick={() => setSelectedCell(null)}>Đóng</button></div>
+          <p>Trạng thái: <b>{cellStudent.absent ? "Vắng" : cellDetail.status === "PENDING" ? "Chưa mở" : cellDetail.voided ? "Đã loại khỏi điểm" : !cellDetail.choice ? "Bỏ trống" : cellDetail.choice === cellDetail.correct_answer ? "Đúng" : "Sai"}</b> · Lựa chọn: {cellDetail.choice || "Không có đáp án lưu"} · Đáp án đúng: {cellDetail.correct_answer}</p>
+          <p>Mở câu: {cellDetail.opened_at ? new Date(cellDetail.opened_at).toLocaleString("vi-VN") : "Chưa mở"} · Đóng câu: {cellDetail.closed_at ? new Date(cellDetail.closed_at).toLocaleString("vi-VN") : "Chưa đóng"} · Lưu đáp án: {cellDetail.received_at ? new Date(cellDetail.received_at).toLocaleString("vi-VN") : "Không có"}</p>
+          <p>Thiết bị đã lưu: {cellDetail.device_label || "Không có"} · Sự kiện liên quan: {cellDetail.incidents.length || "Không có"}</p>
+          {cellDetail.incidents.map((e: Data) => <p key={e.id} className="warning">{new Date(e.created_at).toLocaleString("vi-VN")} · {eventLabel[e.type] || e.type}{e.code ? ` · ${errorLabel[e.code] || e.code}` : ""}</p>)}
+          {!!cellDetail.incidents.length && <small>Sự kiện trùng thời gian chỉ là dấu hiệu cần xem xét, không chứng minh học sinh đã bấm nút.</small>}
+        </div>}
+      </section>
       <section className="card">
+        <h2>Cần giáo viên xem xét <span className="badge">{reviewItems.length}</span></h2>
+        {reviewItems.length ? reviewItems.map(({ student: st, detail: a }: { student: Data; detail: Data }) => <button className="review-item" key={`${st.id}:${a.question_id}`} onClick={() => setSelectedCell({ student: st.id, question: a.question_id })}>{st.full_name} · câu {a.order} bỏ trống · {a.incidents.length} sự kiện liên quan →</button>) : <p className="muted">Không có câu bỏ trống trùng với sự kiện đã ghi nhận. Điều này không loại trừ sự cố chưa được thiết bị gửi tới máy chủ.</p>}
+      </section>
+      <section className="card report-students-table">
         <div className="row spread">
           <h2>Kết quả học sinh</h2>
           <input
@@ -314,13 +402,19 @@ export function Reports({ id }: { id?: string }) {
       </section>
       <details className="card">
         <summary>Nhật ký buổi và sự cố ({d.events.length})</summary>
-        {d.events.map((e: Data) => (
-          <p key={e.id}>
-            {new Date(e.created_at).toLocaleString("vi-VN")} ·{" "}
-            {eventLabel[e.type] || "Sự kiện buổi kiểm tra"}{" "}
-            {JSON.parse(e.detail).reason || JSON.parse(e.detail).message || ""}
-          </p>
-        ))}
+        {!!d.events.length && <div className="event-replay">
+          <label>Đọc theo dòng thời gian · sự kiện {Math.min(eventStep, d.events.length - 1) + 1}/{d.events.length}
+            <input type="range" min="0" max={Math.max(0, d.events.length - 1)} value={Math.min(eventStep, d.events.length - 1)} onChange={(e) => setEventStep(Number(e.target.value))} />
+          </label>
+          <p>{new Date(activeEvent.created_at).toLocaleString("vi-VN")} · {eventLabel[activeEvent.type] || "Sự kiện buổi kiểm tra"}{activeEventStudent ? ` · ${activeEventStudent.full_name}` : ""}{activeEventDetail?.device_id ? ` · thiết bị …${activeEventDetail.device_id.slice(-6)}` : ""}{activeEventDetail?.code ? ` · ${errorLabel[activeEventDetail.code] || activeEventDetail.code}` : ""}</p>
+          <p>{replayQuestion ? `Câu ${replayQuestion.question_order}: ${replayClosed ? "đã đóng" : "đang mở"} · ${replayAnswers}/${d.stats.participants} học sinh có đáp án lưu đến mốc này` : "Chưa có mốc mở câu để dựng trạng thái."} · {replayState?.type === "pause" ? "Tạm dừng" : replayState?.type === "finish" ? "Đã kết thúc" : replayState?.type === "cancel" ? "Đã hủy" : replayQuestion ? "Đang diễn ra" : "Phòng chờ"}</p>
+          <small>Chỉ đọc sự kiện đã lưu; không chạy lại bài hoặc tính lại điểm. Buổi cũ thiếu mốc/sự kiện sẽ không có đầy đủ trạng thái phát lại.</small>
+        </div>}
+        {d.events.map((e: Data) => {
+          const detail = JSON.parse(e.detail),
+            who = d.students.find((st: Data) => st.id === (detail.student_id || detail.student));
+          return <p key={e.id}>{new Date(e.created_at).toLocaleString("vi-VN")} · {eventLabel[e.type] || "Sự kiện buổi kiểm tra"}{who ? ` · ${who.full_name}` : ""}{detail.choice ? ` · ${detail.choice}` : ""}{detail.code ? ` · ${errorLabel[detail.code] || detail.code}` : ""}{detail.device_id ? ` · thiết bị …${detail.device_id.slice(-6)}` : ""}{detail.reason || detail.message ? ` · ${detail.reason || detail.message}` : ""}</p>;
+        })}
       </details>
     </>
   );

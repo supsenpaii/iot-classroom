@@ -4,6 +4,8 @@ Giáo viên chiếu một câu hỏi chung; học sinh bấm A/B/C/D trên thi�
 
 **Đây là phần mềm website/backend. Chưa kèm firmware ESP32.** Thiết bị cần firmware thực hiện giao thức ở [docs/PROTOCOL.md](docs/PROTOCOL.md); website không trực tiếp đọc chân GPIO. Phần mềm đã được kiểm thử với thiết bị giả lập, chưa nghiệm thu bằng ESP32 thật.
 
+Giao diện hiện dùng tông neon nền xanh đêm. Bảng giáo viên hiển thị thiết bị và màn chiếu đang kết nối, học sinh đã/chưa có đáp án được backend lưu, thời điểm ghi nhận và cảnh báo mất kết nối. Sau khi đóng câu, giáo viên có thể công bố phân bố A/B/C/D lên màn chiếu. Báo cáo có biểu đồ, ma trận học sinh × câu, dấu vết sự cố và xuất Excel/PDF.
+
 ## Cài đặt
 
 Cần Node **24.21.0** và npm. Nếu có nvm, chạy `nvm install && nvm use` trong thư mục đã tải về.

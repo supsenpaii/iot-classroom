@@ -17,6 +17,7 @@ export function SessionPage({ id }: { id: string }) {
     devices = useResource<Data[]>("/devices"),
     live = useSessionSocket(id),
     [search, setSearch] = useState(""),
+    [studentFilter, setStudentFilter] = useState("all"),
     [configOpen, setConfigOpen] = useState(false),
     [busy, setBusy] = useState(false);
   const s = live.data || initial.data,
@@ -24,6 +25,10 @@ export function SessionPage({ id }: { id: string }) {
   if (!s) return <Status loading error={initial.error} />;
   const ready = s.students.filter((st: Data) => !st.absent && st.online).length,
     participants = s.students.filter((st: Data) => !st.absent).length,
+    unbound = s.students.filter((st: Data) => !st.absent && !st.device_id).length,
+    offline = s.students.filter((st: Data) => !st.absent && st.device_id && !st.online).length,
+    untested = s.students.filter((st: Data) => !st.absent && st.device_id && !st.tested_at).length,
+    unanswered = s.question ? s.students.filter((st: Data) => !st.absent && !st.answer_received_at).length : 0,
     finished = ["FINISHED", "CANCELLED"].includes(s.state);
   const command = (action: string) => {
     if (busy) return;
@@ -73,16 +78,8 @@ export function SessionPage({ id }: { id: string }) {
     <>
       <Head
         eyebrow="PHÒNG KIỂM TRA"
-        title={
-          s.state === "LOBBY"
-            ? "Sẵn sàng cho giờ học."
-            : s.state === "PAUSED"
-              ? "Tạm dừng để kết nối lại."
-              : finished
-                ? "Giờ học đã khép lại."
-                : "Mỗi lựa chọn đều được ghi nhận."
-        }
-        description="Mỗi câu trả lời đều được lắng nghe."
+        title={s.name}
+        description={`${s.class_name} · ${stateLabel[s.state]} · ${s.config.auto_next ? "Tự chuyển câu" : "Giáo viên chuyển câu"}`}
       >
         {!finished && (
           <button onClick={() => void run(present)}>
@@ -101,11 +98,59 @@ export function SessionPage({ id }: { id: string }) {
       >
         ● {live.status} · {stateLabel[s.state]}
         {live.status !== "Đã kết nối" && (
-          <button onClick={live.reconnect}>Kết nối lại</button>
+          <> · Dữ liệu có thể đã cũ{live.syncedAt ? ` (đồng bộ lần cuối ${new Date(live.syncedAt).toLocaleTimeString("vi-VN")})` : ""}<button onClick={live.reconnect}>Kết nối lại</button></>
         )}
       </div>
-      <div className="room-grid">
-        <section className="hero session-hero">
+      {s.state === "LOBBY" && <section className="card preflight" aria-label="Kiểm tra phòng trước khi bắt đầu">
+        <h2>Kiểm tra phòng trước khi bắt đầu</h2>
+        <div className="preflight-grid">
+          <div><small>Đề &amp; thời gian</small><strong>{s.config.count} câu · {s.config.seconds} giây/câu</strong><span>{s.config.auto_next ? "Tự chuyển câu" : "Giáo viên chuyển câu"} · Đạt từ {s.config.pass_mark}/10</span></div>
+          <div><small>Học sinh</small><strong>{participants} dự thi · {s.students.length - participants} vắng</strong><span>{unbound ? `${unbound} chưa ghép thiết bị` : "Đã ghép đủ học sinh dự thi"}</span></div>
+          <div><small>Thiết bị</small><strong>{ready}/{participants} đang kết nối</strong><span>{!participants ? "Chưa có học sinh dự thi" : untested ? `${untested} chưa bấm thử trong buổi` : unbound === participants ? "Chưa ghép thiết bị" : "Đã bấm thử tất cả thiết bị đã ghép"}</span></div>
+          <div><small>Màn chiếu</small><strong>{s.projection_online ? "Đang kết nối" : "Chưa phát hiện"}</strong><span>{s.projection_online ? "Cửa sổ trình chiếu đã mở" : "Mở màn hình chiếu và kiểm tra hình ảnh"}</span></div>
+        </div>
+      </section>}
+      {s.state !== "LOBBY" && !finished && <section className="card live-controls" aria-label="Điều khiển bài kiểm tra">
+        <div className="live-metric"><Icon name="file" /><span><strong>Câu {s.question?.question_order || 0}/{s.config.count}</strong><small>{s.question?.status === "OPEN" ? "Đang nhận đáp án" : s.state === "PAUSED" ? "Đã tạm dừng" : s.config.auto_next ? "Đang chờ tự chuyển" : "Chờ giáo viên chuyển"}</small></span></div>
+        <div className="live-metric"><Icon name="clock" /><span><strong>{time} giây</strong><small>{s.state === "PAUSED" ? "Đồng hồ tạm dừng" : "Thời gian còn lại"}</small></span></div>
+        <div className="live-metric"><Icon name="users" /><span><strong>{s.answered}/{s.participants}</strong><small>Đã lưu đáp án / dự thi</small></span></div>
+        <div className="live-buttons">
+          {s.state === "PAUSED" ? <button className="primary" disabled={busy || live.status !== "Đã kết nối"} onClick={() => command("resume")}>▶ Tiếp tục</button> : <>
+            <button className="primary" disabled={busy || live.status !== "Đã kết nối" || (s.question?.status !== "OPEN" && !!s.config.auto_next)} onClick={() => command(s.question?.status === "OPEN" ? "close-question" : "next")}>{s.question?.status === "OPEN" ? "Đóng câu" : s.config.auto_next ? "Tự chuyển sau 3 giây" : "Câu tiếp theo →"}</button>
+            <button disabled={busy || live.status !== "Đã kết nối"} onClick={() => command("pause")}>Ⅱ Tạm dừng</button>
+          </>}
+        </div>
+      </section>}
+      {s.state !== "LOBBY" && !finished && <div className="live-alerts" role="status">
+        <span className={s.projection_online ? "ok" : "attention"}>Màn chiếu: {s.projection_online ? "đang kết nối" : "mất kết nối"}</span>
+        {offline > 0 && <span className="attention">{offline} thiết bị mất kết nối · kiểm tra danh sách bên dưới</span>}
+        {s.question?.status === "OPEN" && <span>{unanswered} học sinh chưa có đáp án được lưu</span>}
+      </div>}
+      {s.question && (
+        <section className="card current-question">
+          <div className="row spread">
+            <span className="badge">Câu {s.question.question_order}/{s.config.count} · {stateLabel[s.question.status]}</span>
+            <strong className="countdown">{time}s</strong>
+          </div>
+          <h2>{s.question.question}</h2>
+          <div className="answer-grid">
+            {(["A", "B", "C", "D"] as const).map((c) => <div key={c}><b>{c}</b> {s.question[`option_${c.toLowerCase()}`]}</div>)}
+          </div>
+          <p className="question-hint" role="status">{finished ? "Buổi đã kết thúc. Xem báo cáo để kiểm tra kết quả." : s.state === "PAUSED" ? "Bài đang tạm dừng. Tiếp tục khi lớp đã sẵn sàng." : s.question.status === "CLOSED" ? s.config.auto_next ? "Câu đã đóng. Hệ thống sẽ chuyển câu sau 3 giây." : "Câu đã đóng. Giáo viên bấm Câu tiếp theo để tiếp tục." : `${s.answered}/${s.participants} học sinh đã trả lời.`}</p>
+        </section>
+      )}
+      {s.question?.status === "CLOSED" && !finished && <section className="card teacher-choices" aria-label="Phân bố đáp án">
+        <h2>Phân bố lựa chọn {s.question.results ? "· đã công bố" : "· chỉ giáo viên"}</h2>
+        <div className="choice-counts">
+          {(["A", "B", "C", "D"] as const).map((c) => <span key={c}>{c}: <b>{s.students.filter((st: Data) => !st.absent && st.answer_choice === c).length}</b></span>)}
+          <span>Bỏ trống: <b>{unanswered}</b></span>
+        </div>
+        <small>{s.question.results ? "Đã công bố phân bố và đáp án đúng trên màn chiếu." : "Chưa hiện trên màn chiếu. Chỉ tính câu đã đóng."}</small>
+        <div className="actions"><button disabled={busy || live.status !== "Đã kết nối" || !!s.question.results} onClick={() => command("reveal-results")}>{s.question.results ? "Đã công bố trên màn chiếu" : "Công bố kết quả trên màn chiếu"}</button></div>
+      </section>}
+      {s.state === "LOBBY" && <ol className="setup-steps" aria-label="Các bước chuẩn bị bài"><li className="selected">1. Lớp và bộ đề</li><li className="selected">2. Cấu hình</li><li className="selected">3. Ghép thiết bị</li><li>4. Sẵn sàng</li></ol>}
+      <div className={`room-grid ${s.state === "LOBBY" ? "" : finished ? "is-finished" : "is-live"}`}>
+        {s.state === "LOBBY" && <section className="hero session-hero">
           <div className="row spread">
             <span className="hero-pill">
               {s.class_name.toUpperCase()} · KIỂM TRA
@@ -172,47 +217,9 @@ export function SessionPage({ id }: { id: string }) {
                 </button>
               </>
             )}
-            {s.state === "RUNNING" && (
-              <>
-                <button
-                  className="primary"
-                  disabled={busy || live.status !== "Đã kết nối"}
-                  onClick={() =>
-                    command(
-                      s.question?.status === "OPEN" ? "close-question" : "next",
-                    )
-                  }
-                >
-                  {s.question?.status === "OPEN"
-                    ? "Đóng câu"
-                    : "Câu tiếp theo →"}
-                </button>
-                <button disabled={busy} onClick={() => command("pause")}>
-                  Tạm dừng
-                </button>
-              </>
-            )}
-            {s.state === "PAUSED" && (
-              <button
-                className="primary"
-                disabled={busy || live.status !== "Đã kết nối"}
-                onClick={() => command("resume")}
-              >
-                ▶ Tiếp tục
-              </button>
-            )}
-            {!["LOBBY", "FINISHED", "CANCELLED"].includes(s.state) && (
-              <button
-                className="hero-link"
-                disabled={busy}
-                onClick={() => command("finish")}
-              >
-                Kết thúc bài
-              </button>
-            )}
           </div>
-        </section>
-        <section className="card connection-card">
+        </section>}
+        {!finished && <section className="card connection-card">
           <h2>
             <Icon name="users" /> Kết nối lớp học
           </h2>
@@ -251,9 +258,11 @@ export function SessionPage({ id }: { id: string }) {
           </div>
           <div className="connection-foot">
             <small>
-              {finished
-                ? "Buổi đã kết thúc. Thiết bị đã được giải phóng."
-                : "Có thể bắt đầu với học sinh đã kết nối."}
+              {s.state === "LOBBY"
+                ? "Kiểm tra kết nối trước khi bắt đầu."
+                : s.state === "PAUSED"
+                  ? "Có thể ghép lại thiết bị rồi tiếp tục."
+                  : "Muốn thay thiết bị, hãy tạm dừng bài trước."}
             </small>
             {user.simulator && (
               <a
@@ -266,19 +275,19 @@ export function SessionPage({ id }: { id: string }) {
               </a>
             )}
           </div>
-        </section>
+        </section>}
         <section className="card students-card">
           <div className="row spread">
             <h2>
               <Icon name="users" /> Học sinh trong phòng{" "}
               <span className="badge">{s.students.length} học sinh</span>
             </h2>
-            <input
-              aria-label="Tìm học sinh trong phòng"
-              placeholder="Tìm học sinh…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+            <div className="student-tools">
+              <select aria-label="Lọc học sinh theo trạng thái" value={studentFilter} onChange={(e) => setStudentFilter(e.target.value)}>
+                <option value="all">Tất cả</option><option value="answered">Đã lưu câu này</option><option value="unanswered">Chưa lưu câu này</option><option value="unbound">Chưa ghép</option><option value="offline">Mất kết nối</option><option value="absent">Vắng</option>
+              </select>
+              <input aria-label="Tìm học sinh trong phòng" placeholder="Tìm học sinh…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
           </div>
           {s.state === "LOBBY" && (
             <div className="row pairing-action">
@@ -320,6 +329,8 @@ export function SessionPage({ id }: { id: string }) {
                   <th>Học sinh</th>
                   <th>Thiết bị</th>
                   <th>Trạng thái</th>
+                  <th>Câu hiện tại</th>
+                  <th>Ghi nhận gần nhất</th>
                   <th>Vắng</th>
                 </tr>
               </thead>
@@ -330,6 +341,7 @@ export function SessionPage({ id }: { id: string }) {
                       .toLowerCase()
                       .includes(search.toLowerCase()),
                   )
+                  .filter((st: Data) => studentFilter === "all" || (studentFilter === "absent" ? !!st.absent : studentFilter === "unbound" ? !st.absent && !st.device_id : studentFilter === "offline" ? !st.absent && !!st.device_id && !st.online : studentFilter === "answered" ? !!s.question && !st.absent && !!st.answer_received_at : !!s.question && !st.absent && !st.answer_received_at))
                   .map((st: Data) => (
                     <tr key={st.id}>
                       <td>
@@ -369,12 +381,12 @@ export function SessionPage({ id }: { id: string }) {
                               ?.filter((d) => !d.revoked)
                               .map((d) => (
                                 <option key={d.id} value={d.id}>
-                                  {d.label}
+                                  {d.label} · {d.id.slice(-6)}
                                 </option>
                               ))}
                           </select>
                         ) : (
-                          st.label || "—"
+                          st.device_id ? `${st.label || "Thiết bị"} · ${st.device_id.slice(-6)}` : "—"
                         )}
                       </td>
                       <td>
@@ -392,6 +404,8 @@ export function SessionPage({ id }: { id: string }) {
                                   : "Chưa ghép"}
                         </span>
                       </td>
+                      <td>{st.absent ? "Vắng" : !s.question ? "Chưa mở câu" : st.answer_received_at ? "Đã lưu đáp án" : "Chưa lưu đáp án"}</td>
+                      <td>{st.answer_received_at ? `Lưu lúc ${new Date(st.answer_received_at).toLocaleTimeString("vi-VN")}` : st.last_seen ? `Thiết bị thấy lúc ${new Date(st.last_seen).toLocaleTimeString("vi-VN")}` : "Chưa ghi nhận thiết bị"}</td>
                       <td>
                         <input
                           type="checkbox"
@@ -491,28 +505,6 @@ export function SessionPage({ id }: { id: string }) {
           )}
         </section>
       </div>
-      {s.question && (
-        <section className="card current-question">
-          <div className="row spread">
-            <span className="badge">
-              Câu {s.question.question_order}/{s.config.count} ·{" "}
-              {stateLabel[s.question.status]}
-            </span>
-            <strong className="countdown">{time}s</strong>
-          </div>
-          <h2>{s.question.question}</h2>
-          <div className="answer-grid">
-            {["A", "B", "C", "D"].map((c) => (
-              <div key={c}>
-                <b>{c}</b> {s.question[`option_${c.toLowerCase()}`]}
-              </div>
-            ))}
-          </div>
-          <p>
-            {s.answered}/{s.participants} học sinh đã trả lời
-          </p>
-        </section>
-      )}
       <details className="card">
         <summary>Nhật ký kết nối và thao tác</summary>
         {s.events?.map((e: Data) => {
@@ -534,6 +526,7 @@ export function SessionPage({ id }: { id: string }) {
       <div className="actions no-print">
         {!finished && (
           <>
+            {s.state !== "LOBBY" && <button onClick={() => command("finish")}>Kết thúc và chấm bài</button>}
             <button className="danger" onClick={() => command("cancel")}>
               Hủy buổi
             </button>
@@ -622,7 +615,7 @@ function ProjectionView({ id, token }: { id: string; token: string }) {
           ` · ${stateLabel[s.state]}`}
       </div>
       {!s ? (
-        <Status loading />
+        <Status loading={!live.status.startsWith("Quyền trình chiếu đã hết hạn")} error={live.status.startsWith("Quyền trình chiếu đã hết hạn") ? live.status : undefined} />
       ) : s.state === "LOBBY" ? (
         <div className="projection-wait">
           <p className="eyebrow">SẴN SÀNG CHO GIỜ HỌC</p>
@@ -651,8 +644,13 @@ function ProjectionView({ id, token }: { id: string; token: string }) {
               </div>
             ))}
           </div>
+          {s.question.results && <section className="project-results" aria-label="Kết quả câu đã công bố">
+            <h2>Kết quả câu {s.question.question_order} · đáp án đúng {s.question.results.correct_answer}</h2>
+            <div>{(["A", "B", "C", "D"] as const).map((c) => <span key={c}>{c}: <b>{s.question.results.counts[c]}</b></span>)}</div>
+          </section>}
           <footer>
             {s.answered}/{s.participants} học sinh đã trả lời
+            {s.state === "PAUSED" ? " · Bài đang tạm dừng" : s.question.status === "CLOSED" ? s.config.auto_next ? " · Hết giờ, sắp chuyển câu" : " · Hết giờ, chờ giáo viên chuyển câu" : ""}
             {["FINISHED", "CANCELLED"].includes(s.state) &&
               " · Buổi đã kết thúc"}
           </footer>

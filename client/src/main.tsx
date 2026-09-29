@@ -6,7 +6,7 @@ import "@fontsource/be-vietnam-pro/vietnamese-700.css";
 import "@fontsource/be-vietnam-pro/latin-400.css";
 import "@fontsource/be-vietnam-pro/latin-600.css";
 import "@fontsource/be-vietnam-pro/latin-700.css";
-import { api, fields, setCsrf, type Data } from "./api";
+import { api, fields, setCsrf, signedOut, type Data } from "./api";
 import { Context, Head, Field, Icon, Status } from "./components";
 import { Dashboard, Classes, Banks, Devices, Setup } from "./pages/manage";
 import { SessionPage, Presentation } from "./pages/session";
@@ -40,6 +40,17 @@ function App() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [path]);
+  useEffect(() => {
+    if (!user || path.startsWith("/present/")) return;
+    const verify = () => {
+      if (document.visibilityState === "visible")
+        void fetch("/api/auth/me").then((r) => {
+          if (r.status === 401) signedOut();
+        }).catch(() => {});
+    };
+    document.addEventListener("visibilitychange", verify);
+    return () => document.removeEventListener("visibilitychange", verify);
+  }, [user, path]);
   async function run(fn: () => Promise<unknown>, success = "") {
     setBusy((n) => n + 1);
     setError("");
@@ -132,7 +143,7 @@ function App() {
             const body = fields(e.currentTarget);
             void run(async () => {
               await api("/auth/change-password", "POST", body);
-              window.location.href = "/login";
+              signedOut();
             });
           }}
         >
@@ -177,6 +188,7 @@ function App() {
                 href={href}
                 className={
                   path.startsWith(href) ||
+                  (href === "/devices" && path === "/simulator") ||
                   (href === "/classes" && path.startsWith("/sessions"))
                     ? "active"
                     : ""
@@ -186,15 +198,6 @@ function App() {
                 <span>{label}</span>
               </a>
             ))}
-            {user.simulator && (
-              <a
-                href="/simulator"
-                className={path === "/simulator" ? "active" : ""}
-              >
-                <Icon name="device" />
-                <span>Thiết bị giả lập</span>
-              </a>
-            )}
           </nav>
           <div className="sidebar-bottom">
             <a href="/account">
@@ -208,7 +211,7 @@ function App() {
               onClick={() =>
                 void run(async () => {
                   await api("/auth/logout", "POST");
-                  setUser(null);
+                  signedOut();
                 })
               }
             >

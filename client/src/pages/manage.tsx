@@ -790,7 +790,15 @@ export function Banks({ id }: { id?: string }) {
 export function Devices() {
   const r = useResource<Data[]>("/devices"),
     { run, user } = useApp(),
-    [provision, setProvision] = useState<Data | null>(null);
+    [provision, setProvision] = useState<Data | null>(null),
+    [filter, setFilter] = useState<"active" | "offline" | "revoked">("active");
+  const visible = r.data?.filter((d) =>
+    filter === "revoked"
+      ? d.revoked
+      : filter === "offline"
+        ? !d.revoked && !d.online
+        : !d.revoked,
+  );
   return (
     <>
       <Head
@@ -823,13 +831,21 @@ export function Devices() {
       <div className="two-col">
         <section className="card">
           <h2>Thiết bị đã đăng ký</h2>
+          <div className="device-tabs" role="group" aria-label="Lọc thiết bị">
+            {(["active", "offline", "revoked"] as const).map((key) => (
+              <button key={key} className={filter === key ? "selected" : ""} aria-pressed={filter === key} onClick={() => setFilter(key)}>
+                {{active:"Đang dùng",offline:"Chưa kết nối",revoked:"Đã thu hồi"}[key]}
+              </button>
+            ))}
+          </div>
           <Status loading={!r.data} error={r.error} />
-          {r.data?.map((d) => (
+          {visible?.map((d) => (
             <div className="list-item" key={d.id}>
               <Icon name="device" />
               <div>
                 <strong>{d.label}</strong>
                 <small>
+                  ID {d.id.slice(-6)} · {d.assigned_session ? "Đã ghép vào phòng · " : ""}
                   {d.revoked
                     ? "Đã thu hồi"
                     : d.online
@@ -856,7 +872,7 @@ export function Devices() {
                       });
                   }}
                 >
-                  Cấp lại
+                  {d.revoked ? "Kích hoạt lại" : "Cấp lại"}
                 </button>
                 <button
                   disabled={!!d.revoked}
@@ -864,17 +880,25 @@ export function Devices() {
                     if (confirm(`Thu hồi thiết bị ${d.label}?`))
                       void run(async () => {
                         await api(`/devices/${d.id}/revoke`, "POST");
+                        if (provision?.id === d.id) setProvision(null);
                         r.reload();
                       });
                   }}
                 >
                   Thu hồi
                 </button>
+                {!d.used && <button onClick={() => {
+                  if (confirm(`Xóa vĩnh viễn thiết bị ${d.label}?`)) void run(async () => {
+                    await api(`/devices/${d.id}`, "DELETE");
+                    if (provision?.id === d.id) setProvision(null);
+                    r.reload();
+                  }, "Đã xóa thiết bị chưa từng dùng.");
+                }}>Xóa</button>}
               </div>
             </div>
           ))}
-          {r.data?.length === 0 && (
-            <Empty>Chưa có thiết bị. Đăng ký bên cạnh để bắt đầu.</Empty>
+          {visible?.length === 0 && (
+            <Empty>{filter === "revoked" ? "Chưa có thiết bị đã thu hồi." : "Không có thiết bị trong bộ lọc này. Đăng ký hoặc chọn bộ lọc khác."}</Empty>
           )}
           <button onClick={r.reload}>Cập nhật trạng thái</button>
         </section>
@@ -882,9 +906,11 @@ export function Devices() {
           className="card form"
           onSubmit={(e) => {
             e.preventDefault();
-            const body = fields(e.currentTarget);
+            const form = e.currentTarget,
+              body = fields(form);
             void run(async () => {
               setProvision(await api("/devices", "POST", body));
+              form.reset();
               r.reload();
             }, "Đã đăng ký thiết bị.");
           }}
@@ -904,7 +930,7 @@ export function ConfigFields({ config }: { config?: Data }) {
     count: 20,
     seconds: 30,
     random: true,
-    auto_next: false,
+    auto_next: true,
     allow_change: true,
     pass_mark: 5,
   };
@@ -947,10 +973,11 @@ export function ConfigFields({ config }: { config?: Data }) {
         <input name="random" type="checkbox" defaultChecked={c.random} /> Chọn
         câu ngẫu nhiên, không lặp
       </label>
-      <label className="check">
-        <input name="auto_next" type="checkbox" defaultChecked={c.auto_next} />{" "}
-        Tự chuyển sau khi đóng câu 3 giây
-      </label>
+      <fieldset className="choice-field">
+        <legend>Chuyển câu sau khi hết giờ</legend>
+        <label><input name="auto_next" type="radio" value="true" defaultChecked={!!c.auto_next} /> Tự chuyển sau 3 giây</label>
+        <label><input name="auto_next" type="radio" value="false" defaultChecked={!c.auto_next} /> Giáo viên bấm chuyển câu</label>
+      </fieldset>
       <label className="check">
         <input
           name="allow_change"
@@ -968,7 +995,7 @@ export function readConfig(f: Data) {
     seconds: Number(f.seconds),
     pass_mark: Number(f.pass_mark),
     random: f.random === "on",
-    auto_next: f.auto_next === "on",
+    auto_next: f.auto_next === "true",
     allow_change: f.allow_change === "on",
   };
 }
@@ -997,6 +1024,9 @@ export function Setup() {
         description="Chọn lớp, bộ đề và cách tổ chức bài kiểm tra."
       />
       <Status error={classes.error || banks.error} />
+      <ol className="setup-steps" aria-label="Các bước chuẩn bị bài">
+        <li className="selected">1. Lớp và bộ đề</li><li className="selected">2. Cấu hình</li><li>3. Ghép thiết bị</li><li>4. Sẵn sàng</li>
+      </ol>
       <form className="card form setup" onSubmit={submit}>
         <Field label="Tên buổi kiểm tra">
           <input

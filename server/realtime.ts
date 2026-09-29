@@ -41,15 +41,20 @@ export function attachRealtime(
     }
   };
   const teacherSnapshot = (id: string) => {
-    const s = quiz.get(id);
+    const s = quiz.get(id),
+      q = quiz.current(id);
     return {
       ...quiz.snapshot(id),
       bank_id: s.bank_id,
       students: all(
         db,
-        "SELECT s.*,b.id binding_id,b.device_id,d.label,d.last_seen FROM session_students s LEFT JOIN session_devices b ON b.session_student_id=s.id AND b.active=1 LEFT JOIN devices d ON d.id=b.device_id WHERE s.session_id=? ORDER BY s.student_code",
+        "SELECT s.*,b.id binding_id,b.device_id,d.label,d.last_seen,a.choice answer_choice,a.received_at answer_received_at,(SELECT max(e.created_at) FROM session_events e WHERE e.session_id=s.session_id AND e.type='device.test' AND json_extract(e.detail,'$.device_id')=b.device_id AND e.created_at>=b.created_at) tested_at FROM session_students s LEFT JOIN session_devices b ON b.session_student_id=s.id AND b.active=1 LEFT JOIN devices d ON d.id=b.device_id LEFT JOIN answers a ON a.session_student_id=s.id AND a.session_question_id=? WHERE s.session_id=? ORDER BY s.student_code",
+        q?.id ?? "",
         id,
-      ).map((st) => ({ ...st, online: devices.has(st.device_id) })),
+      ).map((st) => ({ ...st, online: !!st.device_id && devices.has(st.device_id) })),
+      projection_online: [...peers.values()].some(
+        (p) => p.role === "projection" && p.resource === id,
+      ),
       events: all(
         db,
         "SELECT * FROM session_events WHERE session_id=? ORDER BY id DESC LIMIT 20",
@@ -282,6 +287,7 @@ export function attachRealtime(
               p.resource = t.resource_id;
               p.grant = t.hash;
               p.expires = t.expires;
+              schedule();
             } else throw Error("ticket");
           } else if (p.role === "teacher" && p.owner) {
             owned(db, "quiz_sessions", String(msg.session_id), p.owner);
@@ -306,16 +312,21 @@ export function attachRealtime(
             "SELECT session_id FROM session_devices WHERE device_id=? AND active=1",
             p.device,
           );
-          if (b) {
-            quiz.event(b.session_id, "device.test", {
-              device_id: p.device,
-              choice: ["A", "B", "C", "D"].includes(msg.choice)
-                ? msg.choice
-                : "A",
-            });
-            schedule();
+          const state = b && one(db, "SELECT state FROM quiz_sessions WHERE id=?", b.session_id)?.state;
+          if (b && !["LOBBY", "PAUSED"].includes(state))
+            send(ws, { v: 1, type: "error", code: "INVALID_STATE" });
+          else {
+            if (b) {
+              quiz.event(b.session_id, "device.test", {
+                device_id: p.device,
+                choice: ["A", "B", "C", "D"].includes(msg.choice)
+                  ? msg.choice
+                  : "A",
+              });
+              schedule();
+            }
+            send(ws, { v: 1, type: "button.ack", assigned: !!b });
           }
-          send(ws, { v: 1, type: "button.ack", assigned: !!b });
         } else if (msg.type === "snapshot.request") snapshot(ws, p);
         else if (msg.type === "heartbeat") {
           p.alive = Date.now();
@@ -335,6 +346,7 @@ export function attachRealtime(
     ws.on("close", () => {
       peers.delete(ws);
       if (stopping) return;
+      if (p.role === "projection") schedule();
       if (p.device && devices.get(p.device) === ws) {
         devices.delete(p.device);
         const b = one(

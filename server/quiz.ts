@@ -147,6 +147,7 @@ export class Quiz {
         "UPDATE quiz_sessions SET current_order=?,next_transition_at=NULL,transition_remaining=NULL WHERE id=?",
       )
       .run(order, id);
+    this.event(id, "question.opened", { question_id: this.current(id)?.id });
   }
   finish(id: string, state = "FINISHED", early = false) {
     const now = this.now();
@@ -402,6 +403,14 @@ export class Quiz {
             throw new AppError("QUESTION_CLOSED", "Câu đã đóng", 409);
           this.closeQuestion(id);
           break;
+        case "reveal-results":
+          requireState("RUNNING", "PAUSED");
+          if (q?.status !== "CLOSED")
+            throw new AppError("QUESTION_OPEN", "Chỉ công bố khi câu đã đóng", 409);
+          this.db
+            .prepare("UPDATE session_questions SET results_revealed=1 WHERE id=?")
+            .run(q.id);
+          break;
         case "next":
           requireState("RUNNING");
           if (q?.status !== "CLOSED")
@@ -454,6 +463,17 @@ export class Quiz {
         question_order: q.question_order,
         deadline_at: q.deadline_at,
         remaining_ms: q.remaining_ms,
+        results: q.status === "CLOSED" && q.results_revealed
+          ? {
+              counts: Object.fromEntries(
+                ["A", "B", "C", "D"].map((choice) => [
+                  choice,
+                  one(this.db, "SELECT count(*) n FROM answers WHERE session_question_id=? AND choice=?", q.id, choice)!.n,
+                ]),
+              ),
+              correct_answer: d.correct_answer,
+            }
+          : null,
       };
     }
     return {
@@ -605,6 +625,19 @@ export class Quiz {
       this.db
         .prepare("INSERT INTO answer_receipts VALUES (?,?,?,?,?)")
         .run(b.id, p.request_id, digest, JSON.stringify(result), now);
+      this.event(
+        s.id,
+        result.accepted ? "answer.saved" : "answer.rejected",
+        {
+          student_id: b.session_student_id,
+          device_id: device,
+          question_id: p.question_instance_id,
+          binding_id: b.id,
+          request_id: p.request_id,
+          choice: result.accepted ? p.choice : undefined,
+          code: result.accepted ? undefined : result.code,
+        },
+      );
       return result;
     })();
   }
@@ -621,6 +654,23 @@ export class Quiz {
         "SELECT a.* FROM answers a JOIN session_questions q ON q.id=a.session_question_id WHERE q.session_id=?",
         id,
       ),
+      events = all(
+        this.db,
+        "SELECT * FROM session_events WHERE session_id=? ORDER BY id",
+        id,
+      ),
+      bindings = all(
+        this.db,
+        "SELECT b.*,d.label FROM session_devices b JOIN devices d ON d.id=b.device_id WHERE b.session_id=? ORDER BY b.created_at,b.rowid",
+        id,
+      ),
+      eventRecords: Row[] = events.map((e) => ({ ...e, data: JSON.parse(e.detail) })),
+      openingEvents = new Map(eventRecords.filter((e) => e.type === "question.opened").map((e) => [e.data.question_id, e])),
+      closingEvents = new Map(eventRecords.filter((e) => e.type === "question.closed").map((e) => [e.data.question_id, e])),
+      incidentEvents = eventRecords
+        .filter((e) =>
+          ["device.disconnected", "binding.changed", "answer.rejected", "server.recovered"].includes(e.type),
+        ),
       scored = qs.filter((q) => q.status === "CLOSED" && !q.voided),
       N = scored.length;
     const students = all(
@@ -633,12 +683,48 @@ export class Quiz {
           (a) =>
             a.session_student_id === st.id && a.session_question_id === q.id,
         );
+        const openingEvent = openingEvents.get(q.id),
+          closingEvent = closingEvents.get(q.id);
+        const incidents = q.opened_at == null
+          ? []
+          : incidentEvents.filter((e) => {
+              if (openingEvent ? e.id <= openingEvent.id : e.created_at <= q.opened_at)
+                return false;
+              if (closingEvent ? e.id >= closingEvent.id : e.created_at >= (q.closed_at ?? this.now() + 1))
+                return false;
+              if (e.created_at > (q.closed_at ?? this.now()))
+                return false;
+              if (e.type === "server.recovered") return true;
+              if (e.type === "answer.rejected")
+                return e.data.student_id === st.id && e.data.question_id === q.id;
+              if (e.type === "binding.changed") return e.data.student === st.id;
+              const binding = bindings.find((b) =>
+                b.session_student_id === st.id &&
+                b.device_id === e.data.device_id &&
+                b.created_at <= e.created_at,
+              );
+              return !!binding && !incidentEvents.some((later) =>
+                later.type === "binding.changed" &&
+                later.data.student === st.id &&
+                later.created_at > binding.created_at &&
+                later.created_at <= e.created_at &&
+                later.data.device !== binding.device_id,
+              );
+            }).map((e) => ({ id: e.id, type: e.type, created_at: e.created_at, code: e.data.code }));
         return {
           question_id: q.id,
           order: q.question_order,
           choice: a?.choice ?? null,
           correct_answer: JSON.parse(q.data).correct_answer,
           response_ms: a?.response_ms ?? null,
+          received_at: a?.received_at ?? null,
+          binding_id: a?.binding_id ?? null,
+          device_label: bindings.find((b) => b.id === a?.binding_id)?.label ?? null,
+          status: q.status,
+          voided: !!q.voided,
+          opened_at: q.opened_at,
+          closed_at: q.closed_at,
+          incidents,
           scored: q.status === "CLOSED" && !q.voided,
         };
       });
@@ -729,11 +815,7 @@ export class Quiz {
               .length,
         ),
       },
-      events: all(
-        this.db,
-        "SELECT * FROM session_events WHERE session_id=? ORDER BY id",
-        id,
-      ),
+      events,
     };
   }
 }

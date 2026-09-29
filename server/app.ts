@@ -468,15 +468,17 @@ export function createApplication(db: DB, config: AppConfig) {
     res.json(
       all(
         db,
-        "SELECT d.id,d.label,d.revoked,d.last_seen,(SELECT b.session_id FROM session_devices b WHERE b.device_id=d.id AND b.active=1) assigned_session FROM devices d WHERE d.owner_teacher_id=? ORDER BY d.label",
+        "SELECT d.id,d.label,d.revoked,d.last_seen,(SELECT b.session_id FROM session_devices b WHERE b.device_id=d.id AND b.active=1) assigned_session,EXISTS(SELECT 1 FROM session_devices b WHERE b.device_id=d.id) used FROM devices d WHERE d.owner_teacher_id=? ORDER BY d.label",
         owner(req),
-      ).map((d) => ({ ...d, online: realtime.online(d.id) })),
+      ).map((d) => ({ ...d, online: !d.revoked && realtime.online(d.id) })),
     ),
   );
   app.post("/api/devices", (req, res) => {
     const label = nameSchema.parse(req.body.label),
       id = randomUUID(),
       secret = token();
+    if (one(db, "SELECT 1 FROM devices WHERE owner_teacher_id=? AND revoked=0 AND lower(label)=lower(?)", owner(req), label))
+      throw new AppError("DUPLICATE_LABEL", "Nhãn thiết bị đang được sử dụng", 409);
     db.prepare(
       "INSERT INTO devices(id,owner_teacher_id,label,secret_hash) VALUES (?,?,?,?)",
     ).run(id, owner(req), label, hash(secret));
@@ -486,6 +488,8 @@ export function createApplication(db: DB, config: AppConfig) {
     const d = owned(db, "devices", param(req), owner(req));
     switch (req.params.action) {
       case "rotate-secret": {
+        if (d.revoked && one(db, "SELECT 1 FROM devices WHERE owner_teacher_id=? AND id<>? AND revoked=0 AND lower(label)=lower(?)", owner(req), d.id, d.label))
+          throw new AppError("DUPLICATE_LABEL", "Nhãn thiết bị đang được sử dụng", 409);
         const secret = token();
         db.prepare("UPDATE devices SET secret_hash=?,revoked=0 WHERE id=?").run(
           hash(secret),
@@ -499,10 +503,16 @@ export function createApplication(db: DB, config: AppConfig) {
         break;
       }
       case "revoke":
-        db.prepare("UPDATE devices SET revoked=1 WHERE id=?").run(d.id);
-        db.prepare(
-          "DELETE FROM access_tokens WHERE resource_id=? AND kind='simulator'",
-        ).run(d.id);
+        db.transaction(() => {
+          const sessions = all(db, "SELECT DISTINCT session_id FROM session_devices WHERE device_id=? AND active=1", d.id);
+          db.prepare("UPDATE devices SET revoked=1 WHERE id=?").run(d.id);
+          db.prepare("UPDATE session_devices SET active=0 WHERE device_id=? AND active=1").run(d.id);
+          db.prepare("DELETE FROM access_tokens WHERE resource_id=? AND kind='simulator'").run(d.id);
+          for (const s of sessions) {
+            db.prepare("UPDATE quiz_sessions SET state_version=state_version+1 WHERE id=?").run(s.session_id);
+            quiz.event(s.session_id, "binding.changed", { device: null }, owner(req));
+          }
+        })();
         realtime.disconnectDevice(d.id);
         res.json({ ok: true });
         break;
@@ -518,6 +528,18 @@ export function createApplication(db: DB, config: AppConfig) {
       default:
         throw new AppError("NOT_FOUND", "Không tìm thấy thao tác", 404);
     }
+    changed();
+  });
+  app.delete("/api/devices/:id", (req, res) => {
+    const d = owned(db, "devices", param(req), owner(req));
+    if (one(db, "SELECT 1 FROM session_devices WHERE device_id=?", d.id))
+      throw new AppError("DEVICE_HAS_HISTORY", "Thiết bị đã dùng trong buổi học; hãy thu hồi để giữ lịch sử", 409);
+    db.transaction(() => {
+      db.prepare("DELETE FROM access_tokens WHERE resource_id=? AND kind='simulator'").run(d.id);
+      db.prepare("DELETE FROM devices WHERE id=?").run(d.id);
+    })();
+    realtime.disconnectDevice(d.id);
+    res.json({ ok: true });
     changed();
   });
   app.get("/api/sessions", (req, res) =>
@@ -628,6 +650,7 @@ export function createApplication(db: DB, config: AppConfig) {
           "pause",
           "resume",
           "close-question",
+          "reveal-results",
           "next",
           "finish",
           "cancel",
