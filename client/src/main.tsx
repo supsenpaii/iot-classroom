@@ -72,14 +72,26 @@ function App() {
         <Status loading />
       </div>
     );
-  async function login(e: FormEvent<HTMLFormElement>) {
+  const registering = path === "/register";
+  async function submitAuth(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const input = fields(e.currentTarget);
+    if (registering && input.password !== input.confirm) {
+      setError("Hai mật khẩu chưa trùng nhau.");
+      return;
+    }
     await run(async () => {
-      const u = await api("/auth/login", "POST", input);
+      const u = await api(
+        registering ? "/auth/register" : "/auth/login",
+        "POST",
+        registering
+          ? { email: input.email, password: input.password }
+          : input,
+      );
       setCsrf(u.csrf);
       setUser(u);
-      if (path === "/login") window.location.href = "/dashboard";
+      if (path === "/login" || registering)
+        window.location.href = "/dashboard";
     });
   }
   if (!user)
@@ -100,26 +112,55 @@ function App() {
             <span>D</span>
           </div>
         </div>
-        <form onSubmit={login} className="login-form">
+        <form onSubmit={submitAuth} className="login-form">
           <p className="eyebrow">KHÔNG GIAN DẠY HỌC</p>
-          <h2>Chào mừng thầy cô.</h2>
-          <p className="muted">Đăng nhập để bắt đầu giờ học.</p>
+          <h2>{registering ? "Tạo tài khoản giáo viên." : "Chào mừng thầy cô."}</h2>
+          <p className="muted">
+            {registering
+              ? "Đăng ký để tạo lớp học và bắt đầu kiểm tra."
+              : "Đăng nhập để bắt đầu giờ học."}
+          </p>
           <Field label="Email">
             <input name="email" type="email" autoComplete="username" required />
           </Field>
-          <Field label="Mật khẩu">
+          <Field label={registering ? "Mật khẩu (ít nhất 12 ký tự)" : "Mật khẩu"}>
             <input
               name="password"
               type="password"
-              autoComplete="current-password"
+              minLength={registering ? 12 : undefined}
+              maxLength={200}
+              autoComplete={registering ? "new-password" : "current-password"}
               required
             />
           </Field>
+          {registering && (
+            <Field label="Nhập lại mật khẩu">
+              <input
+                name="confirm"
+                type="password"
+                minLength={12}
+                maxLength={200}
+                autoComplete="new-password"
+                required
+              />
+            </Field>
+          )}
           <Status error={error} />
           <button className="primary" disabled={!!busy}>
-            {busy ? "Đang đăng nhập…" : "Đăng nhập →"}
+            {busy
+              ? registering
+                ? "Đang tạo tài khoản…"
+                : "Đang đăng nhập…"
+              : registering
+                ? "Tạo tài khoản →"
+                : "Đăng nhập →"}
           </button>
-          <small>Tài khoản do người vận hành cấp.</small>
+          <small>
+            {registering ? "Đã có tài khoản? " : "Chưa có tài khoản? "}
+            <a href={registering ? "/login" : "/register"}>
+              {registering ? "Đăng nhập" : "Đăng ký ngay"}
+            </a>
+          </small>
         </form>
       </main>
     );

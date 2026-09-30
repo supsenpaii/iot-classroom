@@ -9,6 +9,7 @@ import {
   useApp,
   useResource,
 } from "../components";
+import { socketUrl } from "../socket";
 import { questionSchema } from "../../../shared/protocol";
 export function Dashboard() {
   const sessions = useResource<Data[]>("/sessions"),
@@ -790,7 +791,8 @@ export function Banks({ id }: { id?: string }) {
 export function Devices() {
   const r = useResource<Data[]>("/devices"),
     { run, user } = useApp(),
-    [provision, setProvision] = useState<Data | null>(null),
+    [selectedDevice, setSelectedDevice] = useState(""),
+    [credentials, setCredentials] = useState<Record<string, string>>({}),
     [filter, setFilter] = useState<"active" | "offline" | "revoked">("active");
   const visible = r.data?.filter((d) =>
     filter === "revoked"
@@ -812,22 +814,6 @@ export function Devices() {
           </a>
         )}
       </Head>
-      {provision && (
-        <section className="card">
-          <h2>Thông tin kết nối — chỉ hiển thị một lần</h2>
-          <p>
-            Lưu riêng để provision ESP32. Trình giả lập dùng ticket, không cần
-            secret này.
-          </p>
-          <Field label="Device ID">
-            <input readOnly value={provision.id} />
-          </Field>
-          <Field label="Secret">
-            <input readOnly value={provision.secret} />
-          </Field>
-          <button onClick={() => setProvision(null)}>Đã lưu thông tin</button>
-        </section>
-      )}
       <div className="two-col">
         <section className="card">
           <h2>Thiết bị đã đăng ký</h2>
@@ -840,62 +826,126 @@ export function Devices() {
           </div>
           <Status loading={!r.data} error={r.error} />
           {visible?.map((d) => (
-            <div className="list-item" key={d.id}>
-              <Icon name="device" />
-              <div>
-                <strong>{d.label}</strong>
-                <small>
-                  ID {d.id.slice(-6)} · {d.assigned_session ? "Đã ghép vào phòng · " : ""}
-                  {d.revoked
-                    ? "Đã thu hồi"
-                    : d.online
-                      ? "Đang kết nối"
-                      : "Chưa kết nối"}
-                  {d.last_seen
-                    ? ` · ${new Date(d.last_seen).toLocaleString("vi-VN")}`
-                    : ""}
-                </small>
-              </div>
-              <div className="actions">
-                <button
-                  onClick={() => {
-                    if (
-                      confirm(
-                        "Cấp secret mới sẽ ngắt kết nối hiện tại. Tiếp tục?",
+            <article className="device-entry" key={d.id}>
+              <div className="list-item">
+                <Icon name="device" />
+                <div>
+                  <strong>{d.label}</strong>
+                  <small>
+                    {d.assigned_session ? "Đã ghép vào phòng · " : ""}
+                    {d.revoked
+                      ? "Đã thu hồi"
+                      : d.online
+                        ? "Đang kết nối"
+                        : "Chưa kết nối"}
+                    {d.last_seen
+                      ? ` · ${new Date(d.last_seen).toLocaleString("vi-VN")}`
+                      : ""}
+                  </small>
+                </div>
+                <div className="actions">
+                  <button
+                    className="device-id-button"
+                    aria-expanded={selectedDevice === d.id}
+                    aria-controls={`device-connection-${d.id}`}
+                    onClick={() =>
+                      setSelectedDevice((current) => current === d.id ? "" : d.id)
+                    }
+                  >
+                    Device ID: {d.id.slice(-6)}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (
+                        confirm(
+                          "Cấp secret mới sẽ ngắt kết nối hiện tại. Tiếp tục?",
+                        )
                       )
-                    )
-                      void run(async () => {
-                        setProvision(
-                          await api(`/devices/${d.id}/rotate-secret`, "POST"),
-                        );
-                        r.reload();
+                        void run(async () => {
+                          const credential = await api(
+                            `/devices/${d.id}/rotate-secret`,
+                            "POST",
+                          );
+                          setCredentials((current) => ({
+                            ...current,
+                            [d.id]: credential.secret,
+                          }));
+                          setSelectedDevice(d.id);
+                          r.reload();
+                        });
+                    }}
+                  >
+                    {d.revoked ? "Kích hoạt lại" : "Cấp lại"}
+                  </button>
+                  <button
+                    disabled={!!d.revoked}
+                    onClick={() => {
+                      if (confirm(`Thu hồi thiết bị ${d.label}?`))
+                        void run(async () => {
+                          await api(`/devices/${d.id}/revoke`, "POST");
+                          setCredentials((current) => {
+                            const next = { ...current };
+                            delete next[d.id];
+                            return next;
+                          });
+                          r.reload();
+                        });
+                    }}
+                  >
+                    Thu hồi
+                  </button>
+                  {!d.used && <button onClick={() => {
+                    if (confirm(`Xóa vĩnh viễn thiết bị ${d.label}?`)) void run(async () => {
+                      await api(`/devices/${d.id}`, "DELETE");
+                      if (selectedDevice === d.id) setSelectedDevice("");
+                      setCredentials((current) => {
+                        const next = { ...current };
+                        delete next[d.id];
+                        return next;
                       });
-                  }}
-                >
-                  {d.revoked ? "Kích hoạt lại" : "Cấp lại"}
-                </button>
-                <button
-                  disabled={!!d.revoked}
-                  onClick={() => {
-                    if (confirm(`Thu hồi thiết bị ${d.label}?`))
-                      void run(async () => {
-                        await api(`/devices/${d.id}/revoke`, "POST");
-                        if (provision?.id === d.id) setProvision(null);
-                        r.reload();
-                      });
-                  }}
-                >
-                  Thu hồi
-                </button>
-                {!d.used && <button onClick={() => {
-                  if (confirm(`Xóa vĩnh viễn thiết bị ${d.label}?`)) void run(async () => {
-                    await api(`/devices/${d.id}`, "DELETE");
-                    if (provision?.id === d.id) setProvision(null);
-                    r.reload();
-                  }, "Đã xóa thiết bị chưa từng dùng.");
-                }}>Xóa</button>}
+                      r.reload();
+                    }, "Đã xóa thiết bị chưa từng dùng.");
+                  }}>Xóa</button>}
+                </div>
               </div>
-            </div>
+              {selectedDevice === d.id && (
+                <section
+                  className="device-connection"
+                  id={`device-connection-${d.id}`}
+                  aria-label={`Thông tin kết nối ${d.label}`}
+                >
+                  <div className="row spread">
+                    <div>
+                      <h3>Thông tin kết nối · {d.label}</h3>
+                      <small>ESP32 dùng các giá trị này để mở WebSocket.</small>
+                    </div>
+                    <button onClick={() => setSelectedDevice("")}>Đóng</button>
+                  </div>
+                  <div className="connection-values">
+                    <Field label="WebSocket URL">
+                      <input readOnly value={socketUrl()} />
+                    </Field>
+                    <Field label="Device ID">
+                      <input readOnly value={d.id} />
+                    </Field>
+                    {credentials[d.id] ? (
+                      <Field label="Secret — chỉ hiển thị trong lần này">
+                        <input readOnly value={credentials[d.id]} />
+                      </Field>
+                    ) : (
+                      <p className="device-secret-note">
+                        Secret cũ không thể xem lại vì máy chủ chỉ lưu bản băm.
+                        Bấm <b>Cấp lại</b> nếu cần tạo secret mới.
+                      </p>
+                    )}
+                  </div>
+                  <p className="device-header-hint">
+                    Header firmware: <code>Authorization: Bearer &lt;secret&gt;</code>
+                    {" · "}<code>X-Device-Id: {d.id}</code>
+                  </p>
+                </section>
+              )}
+            </article>
           ))}
           {visible?.length === 0 && (
             <Empty>{filter === "revoked" ? "Chưa có thiết bị đã thu hồi." : "Không có thiết bị trong bộ lọc này. Đăng ký hoặc chọn bộ lọc khác."}</Empty>
@@ -909,7 +959,12 @@ export function Devices() {
             const form = e.currentTarget,
               body = fields(form);
             void run(async () => {
-              setProvision(await api("/devices", "POST", body));
+              const credential = await api("/devices", "POST", body);
+              setCredentials((current) => ({
+                ...current,
+                [credential.id]: credential.secret,
+              }));
+              setSelectedDevice(credential.id);
               form.reset();
               r.reload();
             }, "Đã đăng ký thiết bị.");

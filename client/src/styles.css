@@ -979,6 +979,18 @@ td select {
 .device-tabs { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 9px; }
 .device-tabs button { min-height: 38px; padding: 7px 11px; font-size: 12px; }
 .device-tabs button.selected { background: #e4f1e8; border-color: #86b8a5; color: #155c50; }
+.device-entry { border-bottom: 1px solid var(--border); }
+.device-entry .list-item { border-bottom: 0; }
+.device-id-button { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.device-id-button[aria-expanded="true"] { border-color: var(--jade); color: var(--jade); }
+.device-connection { margin: -4px 0 16px 42px; padding: 16px; border: 1px solid var(--border); border-radius: 9px; background: #16233a; }
+.device-connection h3 { margin: 0 0 4px; font-size: 14px; }
+.device-connection small { color: var(--muted); }
+.connection-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.connection-values .field:last-child { grid-column: 1 / -1; }
+.device-secret-note { grid-column: 1 / -1; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 7px; color: var(--muted); font-size: 12px; }
+.device-header-hint { margin: 12px 0 0; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.device-header-hint code { color: var(--text); }
 .event {
   display: flex;
   gap: 20px;
@@ -1744,6 +1756,12 @@ td { border-bottom-color: var(--border); }
 .event-replay p { margin-bottom: 5px; }
 @media (max-width: 1150px) { .preflight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 700px) { .preflight-grid { grid-template-columns: 1fr; } .live-controls { position: static; } }
+@media (max-width: 700px) {
+  .device-entry .list-item { align-items: flex-start; flex-wrap: wrap; }
+  .device-entry .list-item > .actions { width: 100%; margin-left: 42px; }
+  .device-connection { margin-left: 0; }
+  .connection-values { grid-template-columns: 1fr; }
+}
 @media print {
   :root { color-scheme: light; color: #152c32; background: #fff; --muted: #53626b; --border: #c8d0d4; }
   body { background: white; }

@@ -4,7 +4,7 @@
 
 Dùng Node 24.21.0 hoặc Docker image đã build. Không dùng PM2 cluster, nhiều replica, SQLite trên NFS. Ràng buộc phòng trong DB và guard SQLite ngăn hai process trên cùng file. Backend tự áp dụng migration trước nhận kết nối; trong vận hành chạy `db:migrate` lúc app đã dừng để kiểm tra lỗi trước khi mở dịch vụ.
 
-Cấu hình `PUBLIC_ORIGIN` chính xác, không có dấu `/` cuối; production dùng `https://...`. Chạy trực tiếp bundle dùng `http://localhost:3000`; khi thử LAN dùng đúng IP của máy theo README. Không truy cập bằng hostname khác nếu chưa đổi cấu hình. Cookie secure chỉ bật khi `NODE_ENV=production`. `TRUST_PROXY=1` chỉ dùng khi đúng một Caddy đứng trước app, app không mở cổng ra Internet.
+Cấu hình `PUBLIC_ORIGIN` chính xác, không có dấu `/` cuối; production dùng `https://...`. Chạy trực tiếp bundle dùng `http://localhost:3000`; khi thử LAN dùng đúng IP của máy theo README. Không truy cập bằng hostname khác nếu chưa đổi cấu hình. Cookie secure chỉ bật khi `NODE_ENV=production`. `TRUST_PROXY=1` chỉ dùng khi đúng một reverse proxy tin cậy (Caddy hoặc Tailscale Funnel) đứng trước app và app chỉ nghe trên loopback/mạng nội bộ; không mở cổng app trực tiếp ra Internet.
 
 `SESSION_SECRET` ngẫu nhiên >= 32 ký tự. File `.env` quyền 600, không commit. Không ghi secret vào `VITE_*`. Database/backups đặt trên ổ đĩa bền vững, giữ quyền truy cập hạn chế.
 
@@ -28,9 +28,9 @@ App chạy user `node`; volume `/data`, `/backups` khởi tạo quyền từ ima
 
 ## Tài khoản
 
-`npm run teacher:create` hỏi email và mật khẩu ẩn, tối thiểu 12 ký tự. `npm run teacher:reset-password` hỏi tương tự, thu hồi tất cả cookie phiên và grant của giáo viên. Logout/đổi mật khẩu đóng socket liên quan; reset bằng CLI được phát hiện trên message tiếp theo hoặc heartbeat <= 5 giây. UI `/account` đổi mật khẩu khi biết mật khẩu hiện tại.
+Người dùng có thể tự tạo tài khoản tại `/register` bằng email và mật khẩu tối thiểu 12 ký tự. API giới hạn 5 lượt thử đăng ký mỗi IP trong một giờ và tự đăng nhập sau khi tạo thành công. `npm run teacher:create` vẫn tạo tài khoản qua terminal; `npm run teacher:reset-password` hỏi email và mật khẩu ẩn, thu hồi phiên cũ. Logout/đổi mật khẩu đóng socket liên quan; reset bằng CLI được phát hiện trên message tiếp theo hoặc heartbeat <= 5 giây. UI `/account` đổi mật khẩu khi biết mật khẩu hiện tại.
 
-Không đăng ký công khai, email reset, hoặc tài khoản production mặc định. Bản phân phối không có dữ liệu mẫu hoặc tài khoản mặc định.
+Chưa có xác minh email hoặc tự đặt lại mật khẩu qua email; người vận hành dùng lệnh reset nếu giáo viên quên mật khẩu. Bản phân phối không có dữ liệu mẫu hoặc tài khoản mặc định.
 
 ## Gợi ý ôn tập AI
 

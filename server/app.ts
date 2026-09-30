@@ -91,8 +91,69 @@ export function createApplication(db: DB, config: AppConfig) {
     next();
   });
   const loginAttempts = new Map<string, { count: number; until: number }>();
+  const registrationAttempts = new Map<string, { count: number; until: number }>();
   const studyGuideInFlight = new Set<string>();
   let loginInFlight = 0;
+  let registrationInFlight = 0;
+  app.post("/api/auth/register", async (req, res) => {
+    const key = req.ip || "unknown",
+      now = Date.now();
+    let rate = registrationAttempts.get(key);
+    if (!rate || rate.until < now) {
+      rate = { count: 0, until: now + 60 * 60000 };
+      registrationAttempts.set(key, rate);
+    }
+    if (++rate.count > 5 || registrationInFlight >= 2)
+      throw new AppError(
+        "RATE_LIMIT",
+        "Đăng ký quá nhiều lần; vui lòng thử lại sau",
+        429,
+      );
+    const input = z
+      .object({
+        email: z.string().trim().email().max(200),
+        password: z.string().min(12).max(200),
+      })
+      .strict()
+      .parse(req.body);
+    const email = input.email.toLowerCase();
+    if (one(db, "SELECT 1 FROM teachers WHERE email=?", email))
+      throw new AppError("EMAIL_EXISTS", "Email này đã có tài khoản", 409);
+    registrationInFlight++;
+    let encoded: string;
+    try {
+      encoded = await passwordHash(input.password);
+    } finally {
+      registrationInFlight--;
+    }
+    const id = randomUUID();
+    try {
+      db.prepare("INSERT INTO teachers VALUES (?,?,?,?)").run(
+        id,
+        email,
+        encoded,
+        Date.now(),
+      );
+    } catch (e) {
+      if (
+        typeof (e as { code?: unknown }).code === "string" &&
+        String((e as { code: string }).code).startsWith("SQLITE_CONSTRAINT")
+      )
+        throw new AppError("EMAIL_EXISTS", "Email này đã có tài khoản", 409);
+      throw e;
+    }
+    await new Promise<void>((done, reject) =>
+      req.session.regenerate((e) => (e ? reject(e) : done())),
+    );
+    req.session.teacherId = id;
+    req.session.csrf = token();
+    res.status(201).json({
+      id,
+      email,
+      csrf: req.session.csrf,
+      simulator: config.simulator,
+    });
+  });
   app.post("/api/auth/login", async (req, res) => {
     const key = req.ip || "unknown",
       now = Date.now();
@@ -999,6 +1060,8 @@ export function createApplication(db: DB, config: AppConfig) {
     db.prepare("DELETE FROM access_tokens WHERE expires<?").run(now);
     for (const [key, value] of loginAttempts)
       if (value.until < now) loginAttempts.delete(key);
+    for (const [key, value] of registrationAttempts)
+      if (value.until < now) registrationAttempts.delete(key);
   }, 60000);
   cleanup.unref();
   return {
