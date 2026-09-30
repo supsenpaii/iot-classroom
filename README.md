@@ -78,6 +78,8 @@ Mỗi lần đổi đáp án tăng `seq`, tạo request ID mới. Mất ACK thì
 - `npm run teacher:reset-password`: reset mật khẩu, thu hồi phiên cũ.
 - `npm run db:backup`: backup SQLite nhất quán; nên sao chép backup sang nơi độc lập.
 - `npm run db:restore -- /path/backup.sqlite --confirm-replace`: phục hồi khi app đã dừng, giữ bản database cũ.
+- Báo cáo buổi đã kết thúc có nút tạo gợi ý ôn tập bằng Gemini và Google Search; cấu hình `GEMINI_API_KEY` ở server, xem [runbook](docs/RUNBOOK.md).
+- Trang Báo cáo cho phép nhập kết quả XLSX/CSV đã có để tạo báo cáo lịch sử không cần chạy buổi live; tải mẫu ngay trong trang và xem [runbook](docs/RUNBOOK.md).
 - `npm run typecheck`: kiểm tra TypeScript; `npm run build`: build lại sau sửa source.
 - Có [Dockerfile](deploy/Dockerfile), [Compose](deploy/compose.yml), [Caddyfile](deploy/Caddyfile) để triển khai HTTPS/WSS; xem [runbook](docs/RUNBOOK.md). Cấu hình container/TLS cần kiểm chứng trên hạ tầng thật.
 

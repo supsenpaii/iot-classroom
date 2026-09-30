@@ -638,6 +638,26 @@ export class Quiz {
           code: result.accepted ? undefined : result.code,
         },
       );
+      if (result.accepted && !JSON.parse(s.config).auto_next) {
+        const answered = one(
+            this.db,
+            "SELECT count(*) n FROM answers WHERE session_question_id=?",
+            q!.id,
+          )!.n,
+          participants = one(
+            this.db,
+            "SELECT count(*) n FROM session_students WHERE session_id=? AND absent=0",
+            s.id,
+          )!.n;
+        if (answered === participants) {
+          this.closeQuestion(s.id);
+          this.db
+            .prepare(
+              "UPDATE quiz_sessions SET state_version=state_version+1 WHERE id=?",
+            )
+            .run(s.id);
+        }
+      }
       return result;
     })();
   }
@@ -716,7 +736,7 @@ export class Quiz {
           order: q.question_order,
           choice: a?.choice ?? null,
           correct_answer: JSON.parse(q.data).correct_answer,
-          response_ms: a?.response_ms ?? null,
+          response_ms: s.source === "IMPORT" ? null : a?.response_ms ?? null,
           received_at: a?.received_at ?? null,
           binding_id: a?.binding_id ?? null,
           device_label: bindings.find((b) => b.id === a?.binding_id)?.label ?? null,
@@ -749,7 +769,9 @@ export class Quiz {
         correct_rate: score == null ? null : (C / N) * 100,
         answer_rate: score == null ? null : ((C + W) / N) * 100,
         passed: score == null ? null : score >= cfg.pass_mark,
-        response_ms: times.length
+        response_ms: s.source === "IMPORT"
+          ? null
+          : times.length
           ? times.reduce((a, b) => a + b, 0) / times.length
           : null,
         details,

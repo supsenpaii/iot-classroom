@@ -1,6 +1,244 @@
 import { useState } from "react";
 import { api, fmt, stateLabel, eventLabel, errorLabel, type Data } from "../api";
 import { Empty, Head, Status, useApp, useResource } from "../components";
+type StudyGuide = {
+  summary: string;
+  topic_guides: Array<{
+    topic: string;
+    why: string;
+    activities: string[];
+    resources: Array<{ title: string; reason: string }>;
+  }>;
+  learner_guides: Array<{
+    learner_ref: string;
+    actions: string[];
+  }>;
+  sources: Array<{ title: string; url: string }>;
+};
+function ResultImporter() {
+  const classes = useResource<Data[]>("/classes"),
+    banks = useResource<Data[]>("/question-banks"),
+    { run } = useApp(),
+    [mode, setMode] = useState<"existing" | "new">("existing"),
+    [classId, setClassId] = useState(""),
+    [className, setClassName] = useState(""),
+    [bankId, setBankId] = useState(""),
+    [reportName, setReportName] = useState(""),
+    [passMark, setPassMark] = useState(5),
+    [file, setFile] = useState<File | null>(null),
+    [preview, setPreview] = useState<Data | null>(null),
+    [busy, setBusy] = useState(false);
+  const selectedBank = banks.data?.find((bank) => bank.id === bankId);
+  async function inspectFile() {
+    if (!file) throw Error("Chọn file kết quả trước.");
+    const result = await api<Data>("/imports/results/preview", "POST", file);
+    setPreview(result);
+  }
+  async function createReport() {
+    if (!preview || preview.errors.length)
+      throw Error("Sửa lỗi file trước khi tạo báo cáo.");
+    if (!bankId || !selectedBank)
+      throw Error("Chọn bộ đề trước khi tạo báo cáo.");
+    if (mode === "existing" && !classId)
+      throw Error("Chọn lớp trước khi tạo báo cáo.");
+    if (mode === "new" && !className.trim())
+      throw Error("Nhập tên lớp/nhóm từ file.");
+    setBusy(true);
+    try {
+      await run(async () => {
+        const result = await api<{ id: string }>("/imports/results/commit", "POST", {
+          name: reportName,
+          bank_id: bankId,
+          pass_mark: passMark,
+          answer_key: preview.answerKey,
+          students: preview.students,
+          class:
+            mode === "existing"
+              ? { mode, class_id: classId }
+              : { mode, name: className },
+        });
+        window.location.href = `/reports/${result.id}`;
+      }, "Đã tạo báo cáo từ kết quả đã có.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section className="card result-import">
+      <h2>Tạo báo cáo từ kết quả đã có</h2>
+      <p>
+        Nhập file đáp án để tạo báo cáo hoàn tất mà không cần bắt đầu buổi kiểm
+        tra trực tiếp. Dùng một dòng ANSWER_KEY và mỗi học sinh một dòng STUDENT;
+        tải mẫu theo bộ đề đã chọn.
+      </p>
+      <div className="form-grid">
+        <label className="field">
+          Bộ đề (thứ tự câu phải khớp Q1…Qn)
+          <select value={bankId} onChange={(e) => setBankId(e.target.value)}>
+            <option value="">Chọn bộ đề…</option>
+            {banks.data?.map((bank: Data) => (
+              <option key={bank.id} value={bank.id}>
+                {bank.name} · {bank.question_count} câu
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          Tên báo cáo
+          <input
+            value={reportName}
+            onChange={(e) => setReportName(e.target.value)}
+            maxLength={150}
+            placeholder="Ví dụ: Kiểm tra cuối chương"
+          />
+        </label>
+        <label className="field">
+          Ngưỡng đạt / 10
+          <input
+            type="number"
+            min={0}
+            max={10}
+            step={0.1}
+            value={passMark}
+            onChange={(e) => setPassMark(Number(e.target.value))}
+          />
+        </label>
+      </div>
+      <fieldset className="choice-field">
+        <legend>Danh sách học sinh</legend>
+        <label>
+          <input
+            type="radio"
+            checked={mode === "existing"}
+            onChange={() => setMode("existing")}
+          />{" "}
+          Ghép vào lớp có sẵn theo mã học sinh
+        </label>
+        <label>
+          <input
+            type="radio"
+            checked={mode === "new"}
+            onChange={() => setMode("new")}
+          />{" "}
+          Tạo lớp/nhóm mới từ danh sách trong file
+        </label>
+      </fieldset>
+      {mode === "existing" ? (
+        <label className="field">
+          Lớp
+          <select value={classId} onChange={(e) => setClassId(e.target.value)}>
+            <option value="">Chọn lớp…</option>
+            {classes.data?.map((cls: Data) => (
+              <option key={cls.id} value={cls.id}>
+                {cls.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : (
+        <label className="field">
+          Tên lớp/nhóm mới
+          <input
+            value={className}
+            onChange={(e) => setClassName(e.target.value)}
+            maxLength={150}
+            placeholder="Ví dụ: Nhóm ôn tập tháng 9"
+          />
+        </label>
+      )}
+      <div className="actions result-template-links">
+        <a href={`/api/templates/results.xlsx?count=${selectedBank?.question_count || 3}`}>
+          Tải mẫu Excel
+        </a>
+        <a href={`/api/templates/results.csv?count=${selectedBank?.question_count || 3}`}>
+          Tải mẫu CSV
+        </a>
+      </div>
+      <label className="field">
+        File kết quả (.xlsx hoặc .csv)
+        <input
+          type="file"
+          accept=".xlsx,.csv"
+          onChange={(e) => {
+            setFile(e.target.files?.[0] || null);
+            setPreview(null);
+          }}
+        />
+      </label>
+      <button
+        disabled={!file || busy}
+        onClick={() => {
+          setBusy(true);
+          void run(inspectFile).finally(() => setBusy(false));
+        }}
+      >
+        {busy ? "Đang đọc file…" : "Kiểm tra file"}
+      </button>
+      {preview && (
+        <div className="result-preview">
+          {preview.errors.length ? (
+            <div className="alert">
+              <strong>File có {preview.errors.length} lỗi:</strong>
+              <ul>
+                {preview.errors.slice(0, 20).map((error: Data, index: number) => (
+                  <li key={index}>
+                    Dòng {error.row} · {error.column}: {error.message}
+                  </li>
+                ))}
+              </ul>
+              {preview.errors.length > 20 && <p>Chỉ hiển thị 20 lỗi đầu.</p>}
+            </div>
+          ) : (
+            <>
+              <p>
+                Đã đọc {preview.questionCount} câu và {preview.students.length} học
+                sinh. Đáp án đúng: {preview.answerKey.join(" · ")}.
+              </p>
+              <p>
+                Khi ghép lớp có sẵn, học sinh không có trong file sẽ được đánh dấu
+                vắng trong báo cáo; mã trong file phải tồn tại ở lớp đó.
+              </p>
+              <button
+                className="primary"
+                disabled={busy || !reportName.trim() || !bankId}
+                onClick={() => void createReport()}
+              >
+                {busy ? "Đang tạo báo cáo…" : "Tạo báo cáo từ file"}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+function getWeakTopicSummary(learner: Data | undefined, questions: Data[]) {
+  const byQuestion = new Map(questions.map((question) => [question.id, question])),
+    topics = new Map<
+      string,
+      { total: number; weak: number; questionOrders: number[] }
+    >();
+  if (!learner) return [];
+  for (const answer of learner.details as Data[]) {
+    if (!answer.scored) continue;
+    const question = byQuestion.get(answer.question_id),
+      topic =
+        typeof question?.data.topic === "string" && question.data.topic.trim()
+          ? question.data.topic.trim()
+          : "Chủ đề chưa phân loại",
+      stats = topics.get(topic) || { total: 0, weak: 0, questionOrders: [] };
+    stats.total++;
+    if (!answer.choice || answer.choice !== answer.correct_answer) {
+      stats.weak++;
+      stats.questionOrders.push(answer.order);
+    }
+    topics.set(topic, stats);
+  }
+  return [...topics]
+    .filter(([, stats]) => stats.weak > 0)
+    .map(([topic, stats]) => ({ topic, ...stats }))
+    .sort((a, b) => b.weak - a.weak || a.topic.localeCompare(b.topic, "vi"));
+}
 export function Reports({ id }: { id?: string }) {
   const r = useResource<Data>(id ? `/sessions/${id}/report` : "/sessions"),
     { run } = useApp(),
@@ -8,7 +246,10 @@ export function Reports({ id }: { id?: string }) {
     [selected, setSelected] = useState(""),
     [matrixFilter, setMatrixFilter] = useState("all"),
     [eventStep, setEventStep] = useState(0),
-    [selectedCell, setSelectedCell] = useState<{ student: string; question: string } | null>(null);
+    [selectedCell, setSelectedCell] = useState<{ student: string; question: string } | null>(null),
+    [studyGuideStudent, setStudyGuideStudent] = useState(""),
+    [studyGuide, setStudyGuide] = useState<StudyGuide | null>(null),
+    [studyGuideBusy, setStudyGuideBusy] = useState(false);
   if (!r.data) return <Status loading error={r.error} />;
   const d = r.data;
   if (!id)
@@ -19,6 +260,7 @@ export function Reports({ id }: { id?: string }) {
           title="Hiểu lớp học qua từng câu trả lời."
           description="Xem kết quả, tìm câu cần ôn lại và xuất bảng điểm."
         />
+        <ResultImporter />
         <section className="card">
           <label className="field">
             Tìm buổi kiểm tra
@@ -56,6 +298,18 @@ export function Reports({ id }: { id?: string }) {
       </>
     );
   const student = d.students.find((s: Data) => s.id === selected),
+    studyGuideLearner = d.students.find(
+      (s: Data) => s.id === studyGuideStudent,
+    ),
+    weakTopicSummary = getWeakTopicSummary(studyGuideLearner, d.questions),
+    guideStudents = d.students.filter(
+      (s: Data) =>
+        !s.absent &&
+        s.details.some(
+          (answer: Data) =>
+            answer.scored && answer.choice !== answer.correct_answer,
+        ),
+    ),
     scoredStudents = d.students.filter((s: Data) => s.score != null),
     answeredQuestions = d.questions.filter((q: Data) => q.status !== "PENDING"),
     totals = d.students
@@ -111,6 +365,12 @@ export function Reports({ id }: { id?: string }) {
       {d.session.state === "CANCELLED" && (
         <p className="alert">Buổi đã hủy — không có điểm chính thức.</p>
       )}
+      {d.session.source === "IMPORT" && (
+        <p className="warning">
+          Báo cáo được tạo từ file kết quả có sẵn; thời gian trả lời và nhật ký
+          trực tiếp không có trong dữ liệu nhập.
+        </p>
+      )}
       {!d.N && (
         <p className="warning">
           Chưa có điểm: không có câu đã đóng hợp lệ để tính điểm.
@@ -137,6 +397,161 @@ export function Reports({ id }: { id?: string }) {
           </small>
         </div>
       </div>
+      {d.session.state === "FINISHED" && d.N > 0 && (
+        <section className="card study-guide">
+          <div className="row spread">
+            <div>
+              <h2>Gợi ý ôn tập bằng AI</h2>
+              <p>
+                Chọn một học sinh để tạo gợi ý riêng theo chủ đề em cần củng cố.
+              </p>
+            </div>
+          </div>
+          <div className="study-guide-select">
+            <label className="field">
+              Học sinh
+              <select
+                value={studyGuideStudent}
+                disabled={studyGuideBusy || !guideStudents.length}
+                onChange={(e) => {
+                  setStudyGuideStudent(e.target.value);
+                  setStudyGuide(null);
+                }}
+              >
+                <option value="">Chọn học sinh…</option>
+                {guideStudents.map((learner: Data) => (
+                  <option key={learner.id} value={learner.id}>
+                    {learner.full_name} · {learner.student_code}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {!guideStudents.length && (
+            <p className="muted">
+              Không có học sinh nào sai hoặc bỏ trống câu được tính điểm.
+            </p>
+          )}
+          {studyGuideLearner && (
+            <section
+              className="study-weakness"
+              aria-label="Phân tích kiến thức cần củng cố"
+            >
+              <h3>
+                Kiến thức cần củng cố — {studyGuideLearner.full_name}
+              </h3>
+              <p>
+                Tổng hợp từ câu sai hoặc bỏ trống trong các câu được tính điểm;
+                đây là dấu hiệu tham khảo từ bài kiểm tra.
+              </p>
+              {weakTopicSummary.length ? (
+                <div className="study-weakness-list">
+                  {weakTopicSummary.map((topic) => (
+                    <article className="study-weakness-item" key={topic.topic}>
+                      <div className="row spread">
+                        <strong>{topic.topic}</strong>
+                        <span>
+                          Cần củng cố {topic.weak}/{topic.total} câu
+                        </span>
+                      </div>
+                      <small>
+                        {topic.total - topic.weak}/{topic.total} câu đúng
+                        {" · "}Câu {topic.questionOrders.join(", ")} sai/bỏ trống
+                      </small>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p className="muted">
+                  Không có câu sai hoặc bỏ trống trong các câu được tính điểm.
+                </p>
+              )}
+            </section>
+          )}
+          {studyGuideStudent && weakTopicSummary.length > 0 && !studyGuide && (
+            <div className="study-guide-action">
+              <p className="study-guide-disclosure">
+                Sau khi xem phần cần củng cố ở trên, có thể yêu cầu AI tìm tài
+                liệu và hoạt động ôn tập. Gemini chỉ nhận chủ đề yếu của học
+                sinh đã chọn, tỷ lệ đúng tổng hợp của lớp ở các chủ đề đó và mã
+                ẩn danh; không gửi tên, mã học sinh thật, điểm hoặc lựa chọn
+                trả lời. Có thể phát sinh chi phí API.
+              </p>
+              <button
+                className="primary"
+                disabled={studyGuideBusy}
+                onClick={() => {
+                  setStudyGuideBusy(true);
+                  void run(async () => {
+                    const result = await api<StudyGuide>(
+                      `/sessions/${id}/study-guide`,
+                      "POST",
+                      { student_id: studyGuideStudent },
+                    );
+                    setStudyGuide(result);
+                  }, "Đã tạo gợi ý ôn tập.")
+                    .finally(() => setStudyGuideBusy(false));
+                }}
+              >
+                {studyGuideBusy ? "Đang tìm tài liệu…" : "Tạo gợi ý AI"}
+              </button>
+            </div>
+          )}
+          {studyGuide && (
+            <>
+              <p>{studyGuide.summary}</p>
+              <h3>Chủ đề cần củng cố</h3>
+              {studyGuide.topic_guides.map((guide) => (
+                <article className="study-topic" key={guide.topic}>
+                  <h4>{guide.topic}</h4>
+                  <p>{guide.why}</p>
+                  <ul>
+                    {guide.activities.map((activity, index) => (
+                      <li key={index}>{activity}</li>
+                    ))}
+                  </ul>
+                  <h5>Tài liệu nên xem</h5>
+                  <ul>
+                    {guide.resources.map((resource, index) => (
+                      <li key={index}>
+                        <strong>{resource.title}</strong> — {resource.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </article>
+              ))}
+              <h3>
+                Gợi ý cho{" "}
+                {d.students.find((learner: Data) => learner.id === studyGuideStudent)?.full_name ||
+                  "học sinh đã chọn"}
+              </h3>
+              {studyGuide.learner_guides[0]?.actions.length ? (
+                <ul>
+                  {studyGuide.learner_guides[0].actions.map((action, index) => (
+                    <li key={index}>{action}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p>Chưa có gợi ý riêng cho học sinh này.</p>
+              )}
+              <h3>Nguồn tham khảo</h3>
+              {studyGuide.sources.length ? (
+                <ul>
+                  {studyGuide.sources.map((source) => (
+                    <li key={source.url}>
+                      <a href={source.url} target="_blank" rel="noreferrer">
+                        {source.title}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>Gemini không trả về liên kết nguồn cho lần tra cứu này.</p>
+              )}
+            </>
+          )}
+        </section>
+      )}
       <section className="card report-visuals">
         <h2>Biểu đồ tổng quan</h2>
         <div className="report-chart-grid">

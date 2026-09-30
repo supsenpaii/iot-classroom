@@ -49,6 +49,8 @@ export async function preview(bytes: Buffer, name: string, kind = "questions") {
   );
   const warnings: Row[] = [];
   const seen = new Set<string>();
+  if (kind === "results")
+    return { ...parsed, warnings };
   parsed.rows.forEach((r, i) => {
     const result = (
       kind === "students" ? studentSchema : questionSchema
@@ -80,7 +82,100 @@ export async function preview(bytes: Buffer, name: string, kind = "questions") {
     });
   return { ...parsed, warnings };
 }
-export async function template(kind: string, format: string) {
+export async function previewResults(bytes: Buffer, name: string) {
+  const parsed = await preview(bytes, name, "results"),
+    errors = [...parsed.errors];
+  const rows = parsed.rows as Row[],
+    answerKeys = rows.filter((row) => row.row_type === "ANSWER_KEY"),
+    studentRows = rows.filter((row) => row.row_type === "STUDENT"),
+    invalidTypes = rows.filter(
+      (row) => !["ANSWER_KEY", "STUDENT"].includes(String(row.row_type || "")),
+    ),
+    questionCount = rows.length
+      ? Object.keys(rows[0]).filter((key) => /^Q\d+$/.test(key)).length
+      : 0;
+  invalidTypes.forEach((row) =>
+    errors.push({
+      row: rows.indexOf(row) + 2,
+      column: "row_type",
+      message: "row_type phải là ANSWER_KEY hoặc STUDENT",
+    }),
+  );
+  if (!questionCount || questionCount > 100)
+    errors.push({ row: 1, column: "", message: "File cần có từ Q1 đến tối đa Q100" });
+  if (answerKeys.length !== 1)
+    errors.push({ row: 2, column: "row_type", message: "Cần đúng một dòng ANSWER_KEY" });
+  if (!studentRows.length)
+    errors.push({ row: 3, column: "row_type", message: "Cần ít nhất một dòng STUDENT" });
+  if (studentRows.length > 500)
+    errors.push({ row: 1, column: "", message: "Tối đa 500 học sinh mỗi file" });
+  const codes = new Set<string>(),
+    answerKey = answerKeys[0]
+      ? Array.from({ length: questionCount }, (_, i) =>
+          String(answerKeys[0][`Q${i + 1}`] || "").trim().toUpperCase(),
+        )
+      : [];
+  if (
+    answerKey.some((choice) => !["A", "B", "C", "D"].includes(choice))
+  )
+    errors.push({ row: 2, column: "Q1…Qn", message: "Đáp án đúng phải là A, B, C hoặc D" });
+  const students = studentRows.map((row, index) => {
+    const student = studentSchema.safeParse(row);
+    if (!student.success)
+      for (const issue of student.error.issues)
+        errors.push({
+          row: index + 3,
+          column: issue.path.join("."),
+          message: issue.message,
+        });
+    const code = String(row.student_code || "").trim();
+    if (code && codes.has(code.toLocaleLowerCase()))
+      errors.push({ row: index + 3, column: "student_code", message: "Mã học sinh bị trùng trong file" });
+    codes.add(code.toLocaleLowerCase());
+    const answers = Array.from({ length: questionCount }, (_, i) => {
+      const value = String(row[`Q${i + 1}`] || "").trim().toUpperCase();
+      return value || null;
+    });
+    answers.forEach((choice, i) => {
+      if (choice && !["A", "B", "C", "D"].includes(choice))
+        errors.push({ row: index + 3, column: `Q${i + 1}`, message: "Lựa chọn phải là A, B, C, D hoặc để trống" });
+    });
+    return { student_code: code, full_name: String(row.full_name || "").trim(), answers };
+  });
+  return { answerKey, questionCount, students, errors };
+}
+export async function template(
+  kind: string,
+  format: string,
+  questionCount = 3,
+) {
+  if (kind === "results") {
+    const headers = [
+        "row_type",
+        "student_code",
+        "full_name",
+        ...Array.from({ length: questionCount }, (_, i) => `Q${i + 1}`),
+      ],
+      rows = [
+        ["ANSWER_KEY", "", "", ...Array.from({ length: questionCount }, (_, i) => ["A", "B", "C", "D"][i % 4])],
+        ["STUDENT", "HS001", "Nguyễn Minh Anh", ...Array.from({ length: questionCount }, (_, i) => ["A", "D", ""][i % 3])],
+        ["STUDENT", "HS002", "Trần Minh Bình", ...Array.from({ length: questionCount }, (_, i) => ["C", "B", "C"][i % 3])],
+      ];
+    if (format === "csv")
+      return Buffer.from(
+        "\uFEFF" +
+          [headers, ...rows]
+            .map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(","))
+            .join("\r\n") +
+          "\r\n",
+      );
+    const wb = new ExcelJS.Workbook(),
+      sheet = wb.addWorksheet("Results");
+    sheet.addRow(headers);
+    rows.forEach((row) => sheet.addRow(row));
+    sheet.columns.forEach((c) => (c.width = 24));
+    return Buffer.from(await wb.xlsx.writeBuffer());
+  }
   const headers =
     kind === "students"
       ? ["student_code", "full_name"]
@@ -127,6 +222,7 @@ export async function reportExcel(report: Row) {
     ["Buổi kiểm tra", report.session.name],
     ["Lớp", report.session.class_name],
     ["Trạng thái", report.session.state],
+    ["Nguồn dữ liệu", report.session.source === "IMPORT" ? "Nhập kết quả có sẵn" : "Buổi kiểm tra trực tiếp"],
     ["Kết thúc sớm", report.session.early_finish ? "Có" : "Không"],
     ["Câu tính điểm", report.N],
     ["Dự kiến", report.session.config.count],

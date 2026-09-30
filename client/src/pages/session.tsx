@@ -116,7 +116,10 @@ export function SessionPage({ id }: { id: string }) {
         <div className="live-metric"><Icon name="users" /><span><strong>{s.answered}/{s.participants}</strong><small>Đã lưu đáp án / dự thi</small></span></div>
         <div className="live-buttons">
           {s.state === "PAUSED" ? <button className="primary" disabled={busy || live.status !== "Đã kết nối"} onClick={() => command("resume")}>▶ Tiếp tục</button> : <>
-            <button className="primary" disabled={busy || live.status !== "Đã kết nối" || (s.question?.status !== "OPEN" && !!s.config.auto_next)} onClick={() => command(s.question?.status === "OPEN" ? "close-question" : "next")}>{s.question?.status === "OPEN" ? "Đóng câu" : s.config.auto_next ? "Tự chuyển sau 3 giây" : "Câu tiếp theo →"}</button>
+            {s.question?.status === "OPEN" && <button className="primary" disabled={busy || live.status !== "Đã kết nối"} onClick={() => command("close-question")}>Đóng câu</button>}
+            {s.config.auto_next
+              ? s.question?.status === "CLOSED" && <button className="primary" disabled>Tự chuyển sau 3 giây</button>
+              : <button className={s.question?.status === "CLOSED" ? "primary" : ""} disabled={busy || live.status !== "Đã kết nối" || s.question?.status !== "CLOSED"} title={s.question?.status !== "CLOSED" ? "Đóng câu hiện tại trước khi chuyển câu." : undefined} onClick={() => command("next")}>Câu tiếp theo →</button>}
             <button disabled={busy || live.status !== "Đã kết nối"} onClick={() => command("pause")}>Ⅱ Tạm dừng</button>
           </>}
         </div>
@@ -584,7 +587,23 @@ export function Presentation({ id }: { id: string }) {
 function ProjectionView({ id, token }: { id: string; token: string }) {
   const live = useSessionSocket(id, token),
     s = live.data,
-    time = useClock(s, live.offset);
+    time = useClock(s, live.offset),
+    [nextPending, setNextPending] = useState(false),
+    [nextError, setNextError] = useState("");
+  useEffect(() => {
+    if (!live.controlResult) return;
+    setNextPending(false);
+    setNextError(live.controlResult.ok ? "" : live.controlResult.message || "Không thể chuyển câu.");
+  }, [live.controlResult]);
+  function nextQuestion() {
+    if (!s) return;
+    setNextError("");
+    setNextPending(true);
+    if (!live.sendProjectionNext(crypto.randomUUID(), s.state_version)) {
+      setNextPending(false);
+      setNextError("Màn hình trình chiếu đang mất kết nối. Hãy thử lại khi đã kết nối.");
+    }
+  }
   return (
     <main className="presentation">
       <header>
@@ -654,6 +673,18 @@ function ProjectionView({ id, token }: { id: string; token: string }) {
             {["FINISHED", "CANCELLED"].includes(s.state) &&
               " · Buổi đã kết thúc"}
           </footer>
+          {!s.config.auto_next && s.state === "RUNNING" && (
+            <div className="projection-controls">
+              <button
+                className="primary"
+                disabled={nextPending || live.status !== "Đã kết nối" || s.question.status !== "CLOSED"}
+                onClick={nextQuestion}
+              >
+                {nextPending ? "Đang chuyển câu…" : "Câu tiếp theo →"}
+              </button>
+              {nextError && <p role="alert">{nextError}</p>}
+            </div>
+          )}
         </>
       ) : (
         <h1>{stateLabel[s.state]}</h1>

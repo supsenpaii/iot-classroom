@@ -88,6 +88,7 @@ export const eventLabel: Record<string, string> = {
   "answer.saved": "Đã lưu đáp án",
   "answer.rejected": "Đáp án không hợp lệ",
   "reveal-results": "Công bố kết quả lên màn chiếu",
+  "results.imported": "Nhập kết quả có sẵn",
 };
 export const errorLabel: Record<string, string> = {
   QUESTION_CLOSED: "Câu đã đóng hoặc hết giờ",

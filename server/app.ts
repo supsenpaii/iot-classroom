@@ -5,7 +5,7 @@ import express, {
 } from "express";
 import session from "express-session";
 import { createServer } from "node:http";
-import { randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { z, ZodError } from "zod";
 import { type DB, type Row, all, one, owned, must, AppError } from "./db.js";
@@ -18,9 +18,16 @@ import {
   revokeTeacher,
 } from "./auth.js";
 import { Quiz } from "./quiz.js";
-import { preview, template, studentSchema, reportExcel } from "./imports.js";
+import {
+  preview,
+  previewResults,
+  template,
+  studentSchema,
+  reportExcel,
+} from "./imports.js";
 import { questionSchema, configSchema } from "../shared/protocol.js";
 import { attachRealtime } from "./realtime.js";
+import { createStudyGuide } from "./study-guide.js";
 export type AppConfig = {
   origin: string;
   secret: string;
@@ -28,6 +35,8 @@ export type AppConfig = {
   simulator: boolean;
   trustProxy: number;
   maxUpload: number;
+  geminiApiKey: string;
+  geminiModel: string;
 };
 const nameSchema = z.string().trim().min(1).max(150);
 export function createApplication(db: DB, config: AppConfig) {
@@ -82,6 +91,7 @@ export function createApplication(db: DB, config: AppConfig) {
     next();
   });
   const loginAttempts = new Map<string, { count: number; until: number }>();
+  const studyGuideInFlight = new Set<string>();
   let loginInFlight = 0;
   app.post("/api/auth/login", async (req, res) => {
     const key = req.ip || "unknown",
@@ -411,8 +421,12 @@ export function createApplication(db: DB, config: AppConfig) {
       res.json({ ok: true });
     });
   app.get("/api/templates/:kind.:format", async (req, res) => {
-    const kind = z.enum(["questions", "students"]).parse(req.params.kind),
-      format = z.enum(["csv", "xlsx"]).parse(req.params.format);
+    const kind = z.enum(["questions", "students", "results"]).parse(req.params.kind),
+      format = z.enum(["csv", "xlsx"]).parse(req.params.format),
+      questionCount =
+        kind === "results"
+          ? z.coerce.number().int().min(1).max(100).default(3).parse(req.query.count)
+          : 3;
     res
       .type(
         format === "csv"
@@ -420,14 +434,14 @@ export function createApplication(db: DB, config: AppConfig) {
           : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       )
       .attachment(`${kind}.${format}`)
-      .send(await template(kind, format));
+      .send(await template(kind, format, questionCount));
   });
   let parsing = false;
   app.post(
     "/api/imports/:kind/preview",
     express.raw({ type: "application/octet-stream", limit: config.maxUpload }),
     async (req, res) => {
-      const kind = z.enum(["questions", "students"]).parse(req.params.kind);
+      const kind = z.enum(["questions", "students", "results"]).parse(req.params.kind);
       if (!Buffer.isBuffer(req.body))
         throw new AppError("INVALID_FILE", "Gửi nội dung file");
       if (parsing)
@@ -438,12 +452,11 @@ export function createApplication(db: DB, config: AppConfig) {
         );
       parsing = true;
       try {
+        const name = decodeURIComponent(req.get("X-Filename") || "");
         res.json(
-          await preview(
-            req.body,
-            decodeURIComponent(req.get("X-Filename") || ""),
-            kind,
-          ),
+          kind === "results"
+            ? await previewResults(req.body, name)
+            : await preview(req.body, name, kind),
         );
       } finally {
         parsing = false;
@@ -562,6 +575,120 @@ export function createApplication(db: DB, config: AppConfig) {
       .parse(req.body);
     res.status(201).json({ id: quiz.create(owner(req), input) });
   });
+  app.post("/api/imports/results/commit", (req, res) => {
+    const input = z
+      .object({
+        name: nameSchema,
+        bank_id: z.string().min(1),
+        pass_mark: z.number().min(0).max(10),
+        answer_key: z.array(z.enum(["A", "B", "C", "D"])).min(1).max(100),
+        students: z
+          .array(
+            z.object({
+              student_code: z.string().trim().min(1).max(50),
+              full_name: z.string().trim().min(1).max(150),
+              answers: z.array(z.enum(["A", "B", "C", "D"]).nullable()).max(100),
+            }).strict(),
+          )
+          .min(1)
+          .max(500),
+        class: z.discriminatedUnion("mode", [
+          z.object({ mode: z.literal("existing"), class_id: z.string().min(1) }).strict(),
+          z.object({ mode: z.literal("new"), name: nameSchema }).strict(),
+        ]),
+      })
+      .strict()
+      .parse(req.body);
+    const bank = owned(db, "question_banks", input.bank_id, owner(req)),
+      bankQuestions = all(db, "SELECT * FROM questions WHERE bank_id=? ORDER BY rowid", bank.id);
+    if (bankQuestions.length !== input.answer_key.length)
+      throw new AppError("QUESTION_COUNT_MISMATCH", "Số cột Q trong file phải khớp số câu của bộ đề.", 422);
+    const questions = bankQuestions.map((row) => JSON.parse(row.data));
+    if (questions.some((question, i) => question.correct_answer !== input.answer_key[i]))
+      throw new AppError("ANSWER_KEY_MISMATCH", "Đáp án đúng trong file không khớp bộ đề đã chọn.", 422);
+    if (input.students.some((student) => student.answers.length !== questions.length))
+      throw new AppError("QUESTION_COUNT_MISMATCH", "Số đáp án mỗi học sinh phải khớp số câu của bộ đề.", 422);
+    if (new Set(input.students.map((student) => student.student_code.toLocaleLowerCase())).size !== input.students.length)
+      throw new AppError("DUPLICATE_CODE", "Mã học sinh bị trùng trong file.");
+
+    const importedAt = Date.now(),
+      sessionId = randomUUID(),
+      questionIds = questions.map(() => randomUUID()),
+      studentCodeSet = new Set(input.students.map((student) => student.student_code.toLocaleLowerCase())),
+      sessionConfig = {
+        count: questions.length,
+        seconds: 30,
+        random: false,
+        auto_next: false,
+        allow_change: false,
+        pass_mark: input.pass_mark,
+      };
+    db.transaction(() => {
+      let classId: string,
+        className: string,
+        roster: Row[];
+      if (input.class.mode === "existing") {
+        const cls = owned(db, "classes", input.class.class_id, owner(req));
+        classId = cls.id;
+        className = cls.name;
+        roster = all(db, "SELECT * FROM students WHERE class_id=?", classId);
+        const rosterCodes = new Set<string>();
+        for (const student of roster) {
+          const code = String(student.student_code).toLocaleLowerCase();
+          if (rosterCodes.has(code))
+            throw new AppError(
+              "AMBIGUOUS_STUDENT_CODE",
+              `Lớp có mã học sinh trùng khác chữ hoa/thường: ${student.student_code}.`,
+              409,
+            );
+          rosterCodes.add(code);
+        }
+        const missing = input.students.find((student) => !rosterCodes.has(student.student_code.toLocaleLowerCase()));
+        if (missing)
+          throw new AppError("STUDENT_NOT_IN_CLASS", `Không tìm thấy mã học sinh ${missing.student_code} trong lớp đã chọn.`, 422);
+      } else {
+        classId = randomUUID();
+        className = input.class.name;
+        db.prepare("INSERT INTO classes VALUES (?,?,?,0)").run(classId, owner(req), className);
+        for (const student of input.students)
+          db.prepare("INSERT INTO students VALUES (?,?,?,?)").run(randomUUID(), classId, student.student_code, student.full_name);
+        roster = all(db, "SELECT * FROM students WHERE class_id=?", classId);
+      }
+
+      db.prepare(
+        "INSERT INTO quiz_sessions(id,owner_teacher_id,class_id,bank_id,class_name,name,room_code,config,state,current_order,created_at,finished_at,source) VALUES (?,?,?,?,?,?,?,?,'FINISHED',?,?,?,'IMPORT')",
+      ).run(sessionId, owner(req), classId, bank.id, className, input.name, String(randomInt(100000, 1000000)), JSON.stringify(sessionConfig), questions.length, importedAt, importedAt);
+
+      const uploadedByCode = new Map(input.students.map((student) => [student.student_code.toLocaleLowerCase(), student]));
+      const sessionStudentIds = new Map<string, string>();
+      for (const student of roster) {
+        const sessionStudentId = randomUUID(),
+          present = studentCodeSet.has(String(student.student_code).toLocaleLowerCase());
+        sessionStudentIds.set(String(student.student_code).toLocaleLowerCase(), sessionStudentId);
+        db.prepare("INSERT INTO session_students(id,session_id,student_id,student_code,full_name,absent) VALUES (?,?,?,?,?,?)")
+          .run(sessionStudentId, sessionId, student.id, student.student_code, student.full_name, present ? 0 : 1);
+      }
+      questions.forEach((question, index) => {
+        db.prepare("INSERT INTO session_questions(id,session_id,question_order,data,status,opened_at,closed_at,pause_ms) VALUES (?,?,?,?,'CLOSED',?,?,0)")
+          .run(questionIds[index], sessionId, index + 1, JSON.stringify(question), importedAt, importedAt);
+      });
+      for (const [code, student] of uploadedByCode) {
+        const sessionStudentId = sessionStudentIds.get(code);
+        if (!sessionStudentId)
+          throw new AppError("STUDENT_NOT_IN_CLASS", `Không tìm thấy mã học sinh ${student.student_code} trong lớp đã chọn.`, 422);
+        student.answers.forEach((choice, index) => {
+          if (choice)
+            db.prepare("INSERT INTO answers VALUES (?,?,NULL,?,?,?,0)")
+              .run(questionIds[index], sessionStudentId, choice, 1, importedAt);
+        });
+      }
+      quiz.event(sessionId, "results.imported", {
+        students: input.students.length,
+        questions: questions.length,
+      }, owner(req));
+    })();
+    res.status(201).json({ id: sessionId });
+  });
   app.get("/api/sessions/:id", (req, res) => {
     owned(db, "quiz_sessions", param(req), owner(req));
     res.json(realtime.teacherSnapshot(param(req)));
@@ -678,6 +805,105 @@ export function createApplication(db: DB, config: AppConfig) {
     owned(db, "quiz_sessions", param(req), owner(req));
     res.json(quiz.report(param(req)));
   });
+  app.post("/api/sessions/:id/study-guide", async (req, res) => {
+    const session = owned(db, "quiz_sessions", param(req), owner(req));
+    const { student_id } = z
+      .object({ student_id: z.string().min(1).max(80) })
+      .strict()
+      .parse(req.body);
+    if (!config.geminiApiKey)
+      throw new AppError(
+        "AI_NOT_CONFIGURED",
+        "Chưa cấu hình GEMINI_API_KEY trên máy chủ.",
+        503,
+      );
+    if (session.state !== "FINISHED")
+      throw new AppError(
+        "INVALID_STATE",
+        "Chỉ tạo gợi ý AI cho buổi kiểm tra đã kết thúc.",
+        409,
+      );
+    const report = quiz.report(session.id),
+      questions: Row[] = report.questions,
+      students: Row[] = report.students;
+    if (!report.N || !report.stats.participants)
+      throw new AppError(
+        "NO_RESULTS",
+        "Buổi kiểm tra chưa có câu trả lời hợp lệ để phân tích.",
+        409,
+      );
+    const requestKey = `${owner(req)}:${session.id}`;
+    if (studyGuideInFlight.has(requestKey))
+      throw new AppError(
+        "AI_REQUEST_IN_PROGRESS",
+        "Đang tạo gợi ý cho buổi này. Vui lòng chờ.",
+        409,
+      );
+    const topicByQuestion = new Map<string, string>(),
+      topicStats = new Map<
+        string,
+        { correctRate: number; questionCount: number }
+      >();
+    for (const question of questions) {
+      if (question.status !== "CLOSED" || question.voided) continue;
+      const topic =
+        typeof question.data.topic === "string" && question.data.topic.trim()
+          ? question.data.topic.trim().slice(0, 100)
+          : "Chủ đề chưa phân loại";
+      topicByQuestion.set(question.id, topic);
+      const stats = topicStats.get(topic) || { correctRate: 0, questionCount: 0 };
+      stats.correctRate += question.correct_rate ?? 0;
+      stats.questionCount++;
+      topicStats.set(topic, stats);
+    }
+    const student = students.find((candidate) => candidate.id === student_id);
+    if (!student || student.absent)
+      throw new AppError(
+        "STUDENT_NOT_FOUND",
+        "Không tìm thấy học sinh dự thi trong báo cáo này.",
+        404,
+      );
+    const weakTopics = new Set<string>();
+    for (const answer of student.details as Row[])
+      if (answer.scored && answer.choice !== answer.correct_answer) {
+        const topic = topicByQuestion.get(String(answer.question_id));
+        if (topic) weakTopics.add(topic);
+      }
+    if (!weakTopics.size)
+      throw new AppError(
+        "NO_WEAK_TOPICS",
+        "Học sinh này không có chủ đề sai hoặc bỏ trống trong các câu được tính điểm.",
+        409,
+      );
+    const input = {
+      topics: [...topicStats]
+        .filter(([topic]) => weakTopics.has(topic))
+        .map(([topic, stats]) => ({
+          topic,
+          participants: report.stats.participants,
+          correct_rate: Math.round(stats.correctRate / stats.questionCount),
+        })),
+      learners: [
+        {
+          learner_ref: "HV-01",
+          weak_topics: [...weakTopics].slice(0, 12),
+        },
+      ],
+    };
+
+    studyGuideInFlight.add(requestKey);
+    try {
+      res.json(
+        await createStudyGuide(
+          input,
+          config.geminiApiKey,
+          config.geminiModel,
+        ),
+      );
+    } finally {
+      studyGuideInFlight.delete(requestKey);
+    }
+  });
   app.post("/api/sessions/:id/questions/:question/void", (req, res) => {
     owned(db, "quiz_sessions", param(req), owner(req));
     const reason = z.string().trim().min(3).max(500).parse(req.body.reason);
@@ -751,6 +977,10 @@ export function createApplication(db: DB, config: AppConfig) {
             ? "Dữ liệu tải lên vượt dung lượng cho phép"
             : e.type === "entity.parse.failed"
               ? "Nội dung JSON không hợp lệ"
+              : e.code === "AI_NOT_CONFIGURED"
+                ? e.message
+                : typeof e.code === "string" && e.code.startsWith("GEMINI_")
+                  ? e.message
               : validation
                 ? "Dữ liệu chưa hợp lệ"
                 : constraint

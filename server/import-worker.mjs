@@ -70,6 +70,7 @@ try {
     kind = workerData.kind,
     headers =
       kind === "students" ? ["student_code", "full_name"] : questionHeaders;
+  const resultImport = kind === "results";
   let rows;
   if (workerData.name.toLowerCase().endsWith(".csv")) {
     if (buffer.includes(0)) throw new Error("CSV phải là văn bản UTF-8");
@@ -87,14 +88,14 @@ try {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(buffer);
     const sheet = wb.getWorksheet(
-      kind === "students" ? "Students" : "Questions",
+      kind === "students" ? "Students" : resultImport ? "Results" : "Questions",
     );
     if (!sheet)
       throw new Error(
-        `Thiếu sheet ${kind === "students" ? "Students" : "Questions"}`,
+        `Thiếu sheet ${kind === "students" ? "Students" : resultImport ? "Results" : "Questions"}`,
       );
-    if (sheet.rowCount > 501 || sheet.columnCount > 20)
-      throw new Error("Tối đa 500 dòng và 20 cột");
+    if (sheet.rowCount > (resultImport ? 502 : 501) || sheet.columnCount > (resultImport ? 103 : 20))
+      throw new Error(resultImport ? "Tối đa 500 học sinh và 100 câu" : "Tối đa 500 dòng và 20 cột");
     rows = [];
     sheet.eachRow({ includeEmpty: true }, (r) => {
       const values = [];
@@ -113,33 +114,54 @@ try {
       rows.push(values);
     });
   } else throw new Error("Chỉ nhận .xlsx hoặc .csv");
-  if (rows.length > 501 || rows.some((r) => r.length > 20))
-    throw new Error("Tối đa 500 dòng và 20 cột");
+  if (rows.length > (resultImport ? 502 : 501) || rows.some((r) => r.length > (resultImport ? 103 : 20)))
+    throw new Error(resultImport ? "Tối đa 500 học sinh và 100 câu" : "Tối đa 500 dòng và 20 cột");
   const head = (rows.shift() || []).map((v) => String(v).trim());
-  const required = kind === "students" ? headers : headers.slice(0, 6);
-  if (required.some((h) => !head.includes(h)))
-    throw new Error(
-      `Thiếu cột: ${required.filter((h) => !head.includes(h)).join(", ")}`,
-    );
-  if (new Set(head).size !== head.length) throw new Error("Tên cột bị trùng");
-  const errors = [];
-  const data = rows.map((r, index) => {
-    const out = {};
-    for (const h of headers) {
-      const value = r[head.indexOf(h)] ?? "";
-      if (typeof value === "object") {
-        errors.push({
-          row: index + 2,
-          column: h,
-          message: "Ô chứa công thức; hãy chuyển sang văn bản",
-        });
-        out[h] = "";
-      } else out[h] = String(value).trim();
-    }
-    if (kind !== "students" && !out.difficulty) out.difficulty = "medium";
-    return out;
-  });
-  parentPort.postMessage({ rows: data, errors });
+  if (resultImport) {
+    if (head.length < 4 || head[0] !== "row_type" || head[1] !== "student_code" || head[2] !== "full_name")
+      throw new Error("Cột đầu phải là row_type, student_code, full_name, sau đó là Q1…Qn");
+    if (head.slice(3).some((v, i) => v !== `Q${i + 1}`))
+      throw new Error("Cột câu hỏi phải liên tục theo thứ tự Q1, Q2…Qn");
+    if (new Set(head).size !== head.length) throw new Error("Tên cột bị trùng");
+    const errors = [];
+    const data = rows.map((r, index) => {
+      const out = {};
+      head.forEach((h, i) => {
+        const value = r[i] ?? "";
+        if (typeof value === "object") {
+          errors.push({ row: index + 2, column: h, message: "Ô chứa công thức; hãy chuyển sang văn bản" });
+          out[h] = "";
+        } else out[h] = String(value).trim();
+      });
+      return out;
+    });
+    parentPort.postMessage({ rows: data, errors });
+  } else {
+    const required = kind === "students" ? headers : headers.slice(0, 6);
+    if (required.some((h) => !head.includes(h)))
+      throw new Error(
+        `Thiếu cột: ${required.filter((h) => !head.includes(h)).join(", ")}`,
+      );
+    if (new Set(head).size !== head.length) throw new Error("Tên cột bị trùng");
+    const errors = [];
+    const data = rows.map((r, index) => {
+      const out = {};
+      for (const h of headers) {
+        const value = r[head.indexOf(h)] ?? "";
+        if (typeof value === "object") {
+          errors.push({
+            row: index + 2,
+            column: h,
+            message: "Ô chứa công thức; hãy chuyển sang văn bản",
+          });
+          out[h] = "";
+        } else out[h] = String(value).trim();
+      }
+      if (kind !== "students" && !out.difficulty) out.difficulty = "medium";
+      return out;
+    });
+    parentPort.postMessage({ rows: data, errors });
+  }
 } catch (e) {
   parentPort.postMessage({ error: e.message });
 }

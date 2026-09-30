@@ -32,6 +32,20 @@ App chạy user `node`; volume `/data`, `/backups` khởi tạo quyền từ ima
 
 Không đăng ký công khai, email reset, hoặc tài khoản production mặc định. Bản phân phối không có dữ liệu mẫu hoặc tài khoản mặc định.
 
+## Gợi ý ôn tập AI
+
+Để bật tính năng trong báo cáo, đặt `GEMINI_API_KEY` trong `.env` trên máy chủ. Compose chuyển key chỉ vào backend; không đặt key trong biến `VITE_*` hoặc mã frontend. Có thể đổi model bằng `GEMINI_MODEL` (mặc định `gemini-3.8-flash`). Khởi động lại app sau khi đổi cấu hình.
+
+Giáo viên chọn một học sinh trong báo cáo đã kết thúc; giao diện trước tiên hiển thị chủ đề có câu sai/bỏ trống, số câu liên quan và số câu đúng. Sau khi xem phần này, giáo viên chủ động bấm **Tạo gợi ý AI**. Chỉ chủ đề sai/bỏ trống của học sinh đó, tỷ lệ trả lời đúng tổng hợp của lớp cho đúng các chủ đề ấy và mã ngẫu nhiên được gửi cho Google Gemini; không gửi tên, mã học sinh thật, điểm hoặc lựa chọn trả lời. Không có giới hạn số lần gọi trong ứng dụng; yêu cầu tạo trùng đồng thời cho cùng một buổi bị chặn. Không lưu kết quả gợi ý vào database. Yêu cầu dùng Google Search grounding; phản hồi hiển thị nguồn HTTPS mà Gemini trả về. Nội dung là hỗ trợ tham khảo, giáo viên cần kiểm tra tài liệu và điều chỉnh theo lớp. Mỗi lần tạo có thể phát sinh chi phí; quota và giới hạn từ Google vẫn áp dụng. Gửi yêu cầu tới Gemini/Google Search tuân theo điều khoản, chính sách dữ liệu của Google; `store=false` yêu cầu API không lưu Interaction để dùng lại.
+
+Nếu API key chưa được cấu hình, hết quota, hoặc dịch vụ không truy cập được, tính năng báo lỗi và không thay đổi điểm/báo cáo. Lỗi từ Gemini hiển thị HTTP status, trạng thái và thông điệp an toàn do Google trả về; lỗi 429 có thể kèm thời gian chờ được đề xuất. Kiểm tra key, quyền truy cập Gemini API, quota và kết nối mạng của máy chủ.
+
+## Nhập kết quả có sẵn
+
+Trong trang **Báo cáo**, tải mẫu Excel/CSV theo số câu của bộ đề, điền một dòng `ANSWER_KEY` với đáp án đúng và một dòng `STUDENT` cho mỗi em (`student_code`, `full_name`, `Q1`…`Qn`). Ô đáp án học sinh có thể để trống. File phải dùng đúng thứ tự câu của bộ đề đã chọn; hệ thống kiểm tra đáp án đúng trong file khớp với bộ đề trước khi tạo báo cáo. Tối đa 500 học sinh, 100 câu và dung lượng file theo `MAX_UPLOAD_BYTES`.
+
+Có thể ghép với lớp có sẵn theo mã học sinh hoặc tạo lớp/nhóm mới từ danh sách trong file. Khi ghép lớp sẵn có, mã không tồn tại sẽ bị từ chối và học sinh trong roster nhưng không có trong file được đánh dấu vắng. Báo cáo tạo ra có trạng thái hoàn tất và nguồn “Nhập kết quả có sẵn”; không mở phòng kiểm tra, không cần thiết bị. Dữ liệu không có trong file như thời gian trả lời/nhật ký trực tiếp sẽ không được giả lập; các kết quả import vẫn dùng được cho thống kê, phân tích chủ đề và gợi ý AI.
+
 ## Backup nhất quán
 
 ```bash

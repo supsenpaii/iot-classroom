@@ -8,6 +8,7 @@ export function useSessionSocket(id: string, projectionToken?: string) {
     [status, setStatus] = useState("Đang kết nối…"),
     [offset, setOffset] = useState(0),
     [syncedAt, setSyncedAt] = useState<number | null>(null),
+    [controlResult, setControlResult] = useState<Data | null>(null),
     [epoch, setEpoch] = useState(0);
   const socket = useRef<WebSocket | null>(null);
   useEffect(() => {
@@ -41,6 +42,8 @@ export function useSessionSocket(id: string, projectionToken?: string) {
           setStatus("Đã kết nối");
         } else if (m.type === "error")
           setStatus("Không thể đồng bộ. Kiểm tra quyền truy cập.");
+        else if (m.type === "projection.command.result")
+          setControlResult(m);
       };
       ws.onclose = (e) => {
         if (stopped) return;
@@ -66,7 +69,26 @@ export function useSessionSocket(id: string, projectionToken?: string) {
       socket.current?.close();
     };
   }, [id, projectionToken, epoch]);
-  return { data, status, offset, syncedAt, reconnect: () => setEpoch((n) => n + 1) };
+  return {
+    data,
+    status,
+    offset,
+    syncedAt,
+    controlResult,
+    sendProjectionNext: (command_id: string, expected_version: number) => {
+      if (socket.current?.readyState !== WebSocket.OPEN) return false;
+      socket.current.send(
+        JSON.stringify({
+          v: 1,
+          type: "projection.next",
+          command_id,
+          expected_version,
+        }),
+      );
+      return true;
+    },
+    reconnect: () => setEpoch((n) => n + 1),
+  };
 }
 export function useClock(data: Data | null, offset: number) {
   const [now, setNow] = useState(Date.now());

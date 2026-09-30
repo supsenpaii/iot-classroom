@@ -1,7 +1,7 @@
 import { Server, ServerResponse } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 import type { RequestHandler, Request, Response } from "express";
-import { type DB, type Row, one, all, owned } from "./db.js";
+import { type DB, type Row, one, all, owned, AppError } from "./db.js";
 import { hash } from "./auth.js";
 import type { Quiz } from "./quiz.js";
 import type { AppConfig } from "./app.js";
@@ -282,7 +282,7 @@ export function attachRealtime(
               p.grant = undefined;
             } else if (t.kind === "projection") {
               p.role = "projection";
-              p.owner = undefined;
+              p.owner = t.owner_teacher_id;
               p.sid = t.auth_sid;
               p.resource = t.resource_id;
               p.grant = t.hash;
@@ -326,6 +326,59 @@ export function attachRealtime(
               schedule();
             }
             send(ws, { v: 1, type: "button.ack", assigned: !!b });
+          }
+        } else if (
+          msg.type === "projection.next" &&
+          p.role === "projection" &&
+          p.owner &&
+          p.resource
+        ) {
+          if (
+            typeof msg.command_id !== "string" ||
+            msg.command_id.length < 1 ||
+            msg.command_id.length > 100 ||
+            !Number.isSafeInteger(msg.expected_version) ||
+            msg.expected_version < 0
+          )
+            throw new AppError(
+              "INVALID_COMMAND",
+              "Lệnh chuyển câu không hợp lệ",
+            );
+          try {
+            const config = JSON.parse(quiz.get(p.resource).config);
+            if (config.auto_next)
+              throw new AppError(
+                "AUTO_NEXT_ENABLED",
+                "Buổi này đang bật tự chuyển câu",
+                409,
+              );
+            quiz.command(p.resource, p.owner, {
+              command_id: msg.command_id,
+              expected_version: msg.expected_version,
+              action: "next",
+            });
+            send(ws, {
+              v: 1,
+              type: "projection.command.result",
+              command_id: msg.command_id,
+              ok: true,
+            });
+            schedule();
+          } catch (e) {
+            if (!(e instanceof AppError))
+              console.error(JSON.stringify({ code: "PROJECTION_COMMAND_ERROR" }));
+            send(ws, {
+              v: 1,
+              type: "projection.command.result",
+              command_id: msg.command_id,
+              ok: false,
+              code: e instanceof AppError ? e.code : "INTERNAL_ERROR",
+              message:
+                e instanceof AppError
+                  ? e.message
+                  : "Lỗi máy chủ khi chuyển câu. Vui lòng thử lại.",
+            });
+            if (e instanceof AppError) snapshot(ws, p);
           }
         } else if (msg.type === "snapshot.request") snapshot(ws, p);
         else if (msg.type === "heartbeat") {
