@@ -13,7 +13,6 @@ type StudyGuide = {
     learner_ref: string;
     actions: string[];
   }>;
-  sources: Array<{ title: string; url: string }>;
 };
 function ResultImporter() {
   const classes = useResource<Data[]>("/classes"),
@@ -471,15 +470,19 @@ export function Reports({ id }: { id?: string }) {
           {studyGuideStudent && weakTopicSummary.length > 0 && !studyGuide && (
             <div className="study-guide-action">
               <p className="study-guide-disclosure">
-                Sau khi xem phần cần củng cố ở trên, có thể yêu cầu AI tìm tài
-                liệu và hoạt động ôn tập. Gemini chỉ nhận chủ đề yếu của học
-                sinh đã chọn, tỷ lệ đúng tổng hợp của lớp ở các chủ đề đó và mã
-                ẩn danh; không gửi tên, mã học sinh thật, điểm hoặc lựa chọn
-                trả lời. Có thể phát sinh chi phí API.
+                Sau khi xem phần cần củng cố ở trên, có thể yêu cầu model tạo
+                hoạt động và gợi ý dạng tài liệu nên tìm. OpenRouter chỉ nhận
+                chủ đề yếu của học sinh đã chọn, tỷ lệ đúng tổng hợp của lớp ở
+                các chủ đề đó và mã ẩn danh; không gửi tên, mã học sinh thật,
+                điểm hoặc lựa chọn trả lời. Gợi ý chưa được kiểm chứng bằng tìm
+                kiếm web; có thể phát sinh chi phí API.
               </p>
               <button
                 className="primary"
-                disabled={studyGuideBusy}
+                disabled={
+                  studyGuideBusy ||
+                  !studyGuideStudent
+                }
                 onClick={() => {
                   setStudyGuideBusy(true);
                   void run(async () => {
@@ -493,7 +496,7 @@ export function Reports({ id }: { id?: string }) {
                     .finally(() => setStudyGuideBusy(false));
                 }}
               >
-                {studyGuideBusy ? "Đang tìm tài liệu…" : "Tạo gợi ý AI"}
+                {studyGuideBusy ? "Đang tạo gợi ý…" : "Tạo gợi ý AI"}
               </button>
             </div>
           )}
@@ -510,7 +513,7 @@ export function Reports({ id }: { id?: string }) {
                       <li key={index}>{activity}</li>
                     ))}
                   </ul>
-                  <h5>Tài liệu nên xem</h5>
+                  <h5>Dạng tài liệu nên tìm</h5>
                   <ul>
                     {guide.resources.map((resource, index) => (
                       <li key={index}>
@@ -533,20 +536,6 @@ export function Reports({ id }: { id?: string }) {
                 </ul>
               ) : (
                 <p>Chưa có gợi ý riêng cho học sinh này.</p>
-              )}
-              <h3>Nguồn tham khảo</h3>
-              {studyGuide.sources.length ? (
-                <ul>
-                  {studyGuide.sources.map((source) => (
-                    <li key={source.url}>
-                      <a href={source.url} target="_blank" rel="noreferrer">
-                        {source.title}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p>Gemini không trả về liên kết nguồn cho lần tra cứu này.</p>
               )}
             </>
           )}

@@ -22,8 +22,14 @@ const application = createApplication(db, {
   simulator: process.env.ENABLE_SIMULATOR === "true",
   trustProxy: Number(process.env.TRUST_PROXY || 0),
   maxUpload: Number(process.env.MAX_UPLOAD_BYTES || 5242880),
-  geminiApiKey: process.env.GEMINI_API_KEY || "",
-  geminiModel: process.env.GEMINI_MODEL || "gemini-3.8-flash",
+  openRouterApiKeys: [
+    ...new Set(
+      (process.env.OPENROUTER_API_KEYS || "")
+        .split(",")
+        .map((key) => key.trim())
+        .filter(Boolean),
+    ),
+  ],
 });
 const host = process.env.HOST || "127.0.0.1",
   port = Number(process.env.PORT || 3000),

@@ -32,13 +32,28 @@ Người dùng có thể tự tạo tài khoản tại `/register` bằng email 
 
 Chưa có xác minh email hoặc tự đặt lại mật khẩu qua email; người vận hành dùng lệnh reset nếu giáo viên quên mật khẩu. Bản phân phối không có dữ liệu mẫu hoặc tài khoản mặc định.
 
-## Gợi ý ôn tập AI
+## Gợi ý ôn tập AI qua OpenRouter
 
-Để bật tính năng trong báo cáo, đặt `GEMINI_API_KEY` trong `.env` trên máy chủ. Compose chuyển key chỉ vào backend; không đặt key trong biến `VITE_*` hoặc mã frontend. Có thể đổi model bằng `GEMINI_MODEL` (mặc định `gemini-3.8-flash`). Khởi động lại app sau khi đổi cấu hình.
+### Lấy OpenRouter API key
 
-Giáo viên chọn một học sinh trong báo cáo đã kết thúc; giao diện trước tiên hiển thị chủ đề có câu sai/bỏ trống, số câu liên quan và số câu đúng. Sau khi xem phần này, giáo viên chủ động bấm **Tạo gợi ý AI**. Chỉ chủ đề sai/bỏ trống của học sinh đó, tỷ lệ trả lời đúng tổng hợp của lớp cho đúng các chủ đề ấy và mã ngẫu nhiên được gửi cho Google Gemini; không gửi tên, mã học sinh thật, điểm hoặc lựa chọn trả lời. Không có giới hạn số lần gọi trong ứng dụng; yêu cầu tạo trùng đồng thời cho cùng một buổi bị chặn. Không lưu kết quả gợi ý vào database. Yêu cầu dùng Google Search grounding; phản hồi hiển thị nguồn HTTPS mà Gemini trả về. Nội dung là hỗ trợ tham khảo, giáo viên cần kiểm tra tài liệu và điều chỉnh theo lớp. Mỗi lần tạo có thể phát sinh chi phí; quota và giới hạn từ Google vẫn áp dụng. Gửi yêu cầu tới Gemini/Google Search tuân theo điều khoản, chính sách dữ liệu của Google; `store=false` yêu cầu API không lưu Interaction để dùng lại.
+1. Tạo hoặc đăng nhập tài khoản tại [OpenRouter](https://openrouter.ai/).
+2. Mở [trang API Keys](https://openrouter.ai/settings/keys), chọn **Create API Key**, đặt tên dễ nhớ rồi tạo key.
+3. Sao chép key và lưu vào nơi an toàn. Không gửi key cho người khác, không chụp màn hình có key, không dán key vào chat hoặc commit vào Git.
+4. Mở file `.env` ở thư mục gốc của ứng dụng trên máy chủ và thêm dòng:
 
-Nếu API key chưa được cấu hình, hết quota, hoặc dịch vụ không truy cập được, tính năng báo lỗi và không thay đổi điểm/báo cáo. Lỗi từ Gemini hiển thị HTTP status, trạng thái và thông điệp an toàn do Google trả về; lỗi 429 có thể kèm thời gian chờ được đề xuất. Kiểm tra key, quyền truy cập Gemini API, quota và kết nối mạng của máy chủ.
+```dotenv
+OPENROUTER_API_KEYS=sk-or-v1-dan-key-cua-ban-vao-day
+```
+
+Thay toàn bộ phần ví dụ bằng key vừa tạo; không đặt dấu ngoặc kép quanh key. Nếu file đã có dòng `OPENROUTER_API_KEYS=`, thay giá trị trên chính dòng đó thay vì thêm dòng thứ hai. Giữ `.env` quyền truy cập hạn chế; không đưa key vào biến `VITE_*`, mã frontend hoặc repository.
+
+5. Khởi động lại ứng dụng để nạp cấu hình mới: chạy lại `npm start` nếu chạy trực tiếp; nếu dùng Compose, chạy `docker compose --env-file .env -f deploy/compose.yml up -d --force-recreate app`.
+
+Ứng dụng dùng OpenRouter Free Router (`openrouter/free`), tự chọn ngẫu nhiên model miễn phí đang khả dụng và lọc model hỗ trợ structured output. Không cần cấu hình model; một API key là đủ. Router/model miễn phí vẫn có thể có giới hạn hoặc hết quota. Compose chỉ truyền key vào backend.
+
+Giáo viên chọn học sinh trong báo cáo đã kết thúc; giao diện trước tiên hiển thị chủ đề có câu sai/bỏ trống, số câu liên quan và số câu đúng. Sau khi xem phần này, giáo viên chủ động bấm **Tạo gợi ý AI**. Chỉ chủ đề yếu của học sinh đã chọn, tỷ lệ trả lời đúng tổng hợp của lớp cho đúng các chủ đề ấy và mã ngẫu nhiên được gửi qua OpenRouter; không gửi tên, mã học sinh thật, điểm hoặc lựa chọn trả lời. Không có tìm kiếm web hoặc xác minh tài liệu; model chỉ gợi ý dạng tài liệu nên tìm và hoạt động tham khảo. Giáo viên cần kiểm tra, điều chỉnh gợi ý theo lớp. Việc xử lý dữ liệu tuân theo chính sách của OpenRouter và nhà cung cấp model được định tuyến; kiểm tra điều khoản trước khi dùng dữ liệu thật. Free Router chọn model miễn phí; giới hạn/quota của OpenRouter vẫn được áp dụng.
+
+Các key được thử theo thứ tự đã cấu hình. Chỉ khi key bị từ chối xác thực (HTTP 401/403) hoặc OpenRouter trả lỗi máy chủ tạm thời (HTTP 5xx), backend mới thử key kế tiếp. Không đổi key khi gặp HTTP 429; hãy chờ hoặc kiểm tra quota/giới hạn tài khoản, vì đổi key không phải cơ chế vượt giới hạn. Yêu cầu tạo trùng đồng thời cho cùng một buổi bị chặn; kết quả gợi ý không lưu vào database. Nếu key, model hoặc dịch vụ lỗi, tính năng báo lỗi và không thay đổi điểm/báo cáo.
 
 ## Nhập kết quả có sẵn
 

@@ -35,8 +35,7 @@ export type AppConfig = {
   simulator: boolean;
   trustProxy: number;
   maxUpload: number;
-  geminiApiKey: string;
-  geminiModel: string;
+  openRouterApiKeys: string[];
 };
 const nameSchema = z.string().trim().min(1).max(150);
 export function createApplication(db: DB, config: AppConfig) {
@@ -869,13 +868,15 @@ export function createApplication(db: DB, config: AppConfig) {
   app.post("/api/sessions/:id/study-guide", async (req, res) => {
     const session = owned(db, "quiz_sessions", param(req), owner(req));
     const { student_id } = z
-      .object({ student_id: z.string().min(1).max(80) })
+      .object({
+        student_id: z.string().min(1).max(80),
+      })
       .strict()
       .parse(req.body);
-    if (!config.geminiApiKey)
+    if (!config.openRouterApiKeys.length)
       throw new AppError(
         "AI_NOT_CONFIGURED",
-        "Chưa cấu hình GEMINI_API_KEY trên máy chủ.",
+        "Chưa cấu hình OPENROUTER_API_KEYS trên máy chủ.",
         503,
       );
     if (session.state !== "FINISHED")
@@ -955,11 +956,7 @@ export function createApplication(db: DB, config: AppConfig) {
     studyGuideInFlight.add(requestKey);
     try {
       res.json(
-        await createStudyGuide(
-          input,
-          config.geminiApiKey,
-          config.geminiModel,
-        ),
+        await createStudyGuide(input, config.openRouterApiKeys),
       );
     } finally {
       studyGuideInFlight.delete(requestKey);
@@ -1040,7 +1037,9 @@ export function createApplication(db: DB, config: AppConfig) {
               ? "Nội dung JSON không hợp lệ"
               : e.code === "AI_NOT_CONFIGURED"
                 ? e.message
-                : typeof e.code === "string" && e.code.startsWith("GEMINI_")
+                : typeof e.code === "string" &&
+                    (e.code.startsWith("GEMINI_") ||
+                      e.code.startsWith("OPENROUTER_"))
                   ? e.message
               : validation
                 ? "Dữ liệu chưa hợp lệ"

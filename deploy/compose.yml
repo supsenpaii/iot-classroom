@@ -17,8 +17,7 @@ services:
       DATABASE_PATH: /data/app.sqlite
       BACKUP_DIR: /backups
       MAX_UPLOAD_BYTES: 5242880
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.8-flash}
+      OPENROUTER_API_KEYS: ${OPENROUTER_API_KEYS:-}
     volumes:
       - app_data:/data
       - backups:/backups
