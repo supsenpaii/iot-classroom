@@ -13,6 +13,10 @@ const questionHeaders = [
   "topic",
   "difficulty",
 ];
+const flashcardHeaderAliases = {
+  front: ["front", "mặt trước", "mat truoc", "câu hỏi", "cau hoi", "thuật ngữ", "question", "term"],
+  back: ["back", "mặt sau", "mat sau", "đáp án", "dap an", "định nghĩa", "answer", "definition"],
+};
 async function inspectZip(buffer) {
   await new Promise((resolve, reject) =>
     yauzl.fromBuffer(buffer, { lazyEntries: true }, (err, zip) => {
@@ -69,17 +73,27 @@ try {
   const buffer = Buffer.from(workerData.bytes),
     kind = workerData.kind,
     headers =
-      kind === "students" ? ["student_code", "full_name"] : questionHeaders;
+      kind === "students"
+        ? ["student_code", "full_name"]
+        : kind === "flashcards"
+          ? ["front", "back"]
+          : questionHeaders;
   const resultImport = kind === "results";
   let rows;
   if (workerData.name.toLowerCase().endsWith(".csv")) {
     if (buffer.includes(0)) throw new Error("CSV phải là văn bản UTF-8");
     const text = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+    // Excel with a Vietnamese/European locale saves CSV with ";"; detect it from the header line.
+    const firstLine = text.replace(/^﻿/, "").split(/\r?\n/, 1)[0];
     rows = parse(text, {
       bom: true,
       skip_empty_lines: true,
       relax_column_count: true,
       max_record_size: 15000,
+      delimiter:
+        kind === "flashcards" && firstLine.includes(";") && !firstLine.includes(",")
+          ? ";"
+          : ",",
     });
   } else if (workerData.name.toLowerCase().endsWith(".xlsx")) {
     if (buffer[0] !== 0x50 || buffer[1] !== 0x4b)
@@ -87,13 +101,19 @@ try {
     await inspectZip(buffer);
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(buffer);
-    const sheet = wb.getWorksheet(
-      kind === "students" ? "Students" : resultImport ? "Results" : "Questions",
-    );
-    if (!sheet)
-      throw new Error(
-        `Thiếu sheet ${kind === "students" ? "Students" : resultImport ? "Results" : "Questions"}`,
-      );
+    const sheetName =
+      kind === "students"
+        ? "Students"
+        : kind === "flashcards"
+          ? "Flashcards"
+          : resultImport
+            ? "Results"
+            : "Questions";
+    // Flashcard files are often made by hand ("Sheet1"), so fall back to the first sheet.
+    const sheet =
+      wb.getWorksheet(sheetName) ??
+      (kind === "flashcards" ? wb.worksheets[0] : undefined);
+    if (!sheet) throw new Error(`Thiếu sheet ${sheetName}`);
     if (sheet.rowCount > (resultImport ? 502 : 501) || sheet.columnCount > (resultImport ? 103 : 20))
       throw new Error(resultImport ? "Tối đa 500 học sinh và 100 câu" : "Tối đa 500 dòng và 20 cột");
     rows = [];
@@ -116,7 +136,22 @@ try {
   } else throw new Error("Chỉ nhận .xlsx hoặc .csv");
   if (rows.length > (resultImport ? 502 : 501) || rows.some((r) => r.length > (resultImport ? 103 : 20)))
     throw new Error(resultImport ? "Tối đa 500 học sinh và 100 câu" : "Tối đa 500 dòng và 20 cột");
-  const head = (rows.shift() || []).map((v) => String(v).trim());
+  if (kind === "flashcards")
+    while (
+      rows.length &&
+      rows.at(-1).every((v) => typeof v !== "object" && !String(v).trim())
+    )
+      rows.pop();
+  let head = (rows.shift() || []).map((v) => String(v).trim());
+  if (kind === "flashcards")
+    head = head.map((h) => {
+      const name = h.normalize("NFC").toLowerCase().replace(/\s+/g, " ");
+      return (
+        Object.keys(flashcardHeaderAliases).find((canonical) =>
+          flashcardHeaderAliases[canonical].includes(name),
+        ) ?? h
+      );
+    });
   if (resultImport) {
     if (head.length < 4 || head[0] !== "row_type" || head[1] !== "student_code" || head[2] !== "full_name")
       throw new Error("Cột đầu phải là row_type, student_code, full_name, sau đó là Q1…Qn");
@@ -137,12 +172,15 @@ try {
     });
     parentPort.postMessage({ rows: data, errors });
   } else {
-    const required = kind === "students" ? headers : headers.slice(0, 6);
+    const required = kind === "questions" ? headers.slice(0, 6) : headers;
     if (required.some((h) => !head.includes(h)))
       throw new Error(
-        `Thiếu cột: ${required.filter((h) => !head.includes(h)).join(", ")}`,
+        kind === "flashcards"
+          ? `Dòng 1 phải là tiêu đề có cột front và back (hoặc "Mặt trước" và "Mặt sau"); đang có: ${head.filter(Boolean).join(", ") || "trống"}`
+          : `Thiếu cột: ${required.filter((h) => !head.includes(h)).join(", ")}`,
       );
-    if (new Set(head).size !== head.length) throw new Error("Tên cột bị trùng");
+    const named = kind === "flashcards" ? head.filter(Boolean) : head;
+    if (new Set(named).size !== named.length) throw new Error("Tên cột bị trùng");
     const errors = [];
     const data = rows.map((r, index) => {
       const out = {};
@@ -157,7 +195,7 @@ try {
           out[h] = "";
         } else out[h] = String(value).trim();
       }
-      if (kind !== "students" && !out.difficulty) out.difficulty = "medium";
+      if (kind === "questions" && !out.difficulty) out.difficulty = "medium";
       return out;
     });
     parentPort.postMessage({ rows: data, errors });

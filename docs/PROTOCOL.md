@@ -65,3 +65,63 @@ Server gửi WebSocket ping mỗi 5 giây; firmware trả pong (phần lớn th�
 Thay thiết bị: giáo viên pause, bỏ binding cũ, ghép thiết bị mới, thử nút rồi resume. Thu hồi thiết bị trong trang quản lý vô hiệu secret và ticket, bỏ ghép hiện tại sau commit rồi ngắt socket; thiết bị đã dùng chỉ được lưu lịch sử/ẩn bằng bộ lọc, không xóa vĩnh viễn. Đáp án cũ giữ theo học sinh; thiết bị cũ không gửi tiếp. Restart server chuyển buổi RUNNING sang PAUSED; câu hết hạn được đóng, không tự chạy chuỗi câu. Firmware chờ snapshot mới, không khôi phục đồng hồ từ bộ nhớ riêng.
 
 Phần firmware chưa triển khai: board/GPIO, debounce khoảng 40 ms cần đo, LED/âm báo chỉ xác nhận sau ACK, Wi-Fi provisioning, TLS CA, mất nguồn và kiểm thử access point thật.
+
+## Flashcard: ôn tập cả lớp
+
+Giáo viên mở **Flashcard → bộ thẻ → Bắt đầu ôn tập**. Trong lúc buổi ôn tập chạy, mọi thiết bị của giáo viên đó (chưa thu hồi) nhận snapshot chế độ flashcard, trừ thiết bị đang ghép với bài kiểm tra RUNNING/PAUSED: bài kiểm tra luôn được ưu tiên. Mỗi giáo viên chỉ chạy một buổi ôn tập; không mở được buổi ôn tập khi đang có bài kiểm tra RUNNING/PAUSED.
+
+```json
+{
+  "v":1,"type":"session.snapshot",
+  "data":{
+    "mode":"flashcard","id":"review UUID","state":"RUNNING","state_version":7,
+    "server_time":1800000000000,
+    "card":{"id":"card UUID","index":3,"total":20,"side":"front"},
+    "current_rating":null
+  }
+}
+```
+
+Thiết bị không nhận nội dung thẻ (mặt trước/mặt sau chỉ hiện trên màn chiếu). `current_rating` là lựa chọn đã lưu của chính thiết bị cho thẻ hiện tại (`KNOWN`, `AGAIN` hoặc `null`). Snapshot không có `mode` là chế độ kiểm tra như các mục trên. Kết thúc buổi ôn tập: thiết bị quay về snapshot kiểm tra/WAITING.
+
+Học sinh tự đánh giá: firmware hiện tại dùng **A = Nhớ (`KNOWN`)**, **B = Chưa nhớ (`AGAIN`)**; bàn phím 13 phím nên dùng OK = Nhớ, DEL = Chưa nhớ.
+
+```json
+{"v":1,"type":"flashcard.rate","request_id":"unique-id","review_id":"review UUID","card_id":"card UUID","rating":"KNOWN"}
+```
+
+```json
+{"v":1,"type":"flashcard.ack","request_id":"unique-id","accepted":true,"card_id":"card UUID","rating":"KNOWN"}
+```
+
+Lựa chọn sau ghi đè lựa chọn trước của cùng thiết bị cho cùng thẻ trong cùng vòng; gửi lại nguyên gói khi mất ACK là an toàn. Vẫn chỉ giữ một request chờ ACK/device như phần đáp án. Lỗi (`accepted:false`): `CARD_CHANGED` (giáo viên đã chuyển thẻ, chờ snapshot mới), `REVIEW_CLOSED`, `DEVICE_BUSY` (thiết bị đang làm bài kiểm tra), `DEVICE_NOT_ASSIGNED`. Sai schema: `error` `INVALID_PAYLOAD`.
+
+Giáo viên nhận cùng loại snapshot qua `{v:1,type:"hello",review_id:"..."}` (cookie đăng nhập), có thêm nội dung thẻ, số Nhớ/Chưa nhớ của thẻ hiện tại, số thiết bị đang kết nối và thống kê vòng. Khi hết vòng, giáo viên có thể mở vòng mới chỉ gồm các thẻ có ít nhất một lượt Chưa nhớ.
+
+## Khảo sát nhanh
+
+Giáo viên mở **Khảo sát nhanh**: một câu và 2–4 lựa chọn A–D, ẩn danh. Mỗi giáo viên chỉ chạy một hoạt động trực tiếp (ôn flashcard, khảo sát hoặc điểm danh); bài kiểm tra RUNNING/PAUSED luôn được ưu tiên như mục flashcard.
+
+```json
+{"v":1,"type":"session.snapshot","data":{"mode":"poll","id":"poll UUID","state":"RUNNING","state_version":3,"server_time":1800000000000,"options":4,"current_choice":null}}
+```
+
+```json
+{"v":1,"type":"poll.vote","request_id":"unique-id","poll_id":"poll UUID","choice":"B"}
+```
+
+ACK `{"v":1,"type":"poll.ack","request_id":"...","accepted":true,"choice":"B"}`. Mỗi thiết bị một phiếu, phiếu sau ghi đè phiếu trước. Chỉ `options` phím đầu hợp lệ (2 lựa chọn: A/B). Lỗi: `POLL_CLOSED`, `INVALID_CHOICE`, `DEVICE_BUSY`, `DEVICE_NOT_ASSIGNED`. Giáo viên hello `{v:1,type:"hello",poll_id:"..."}`.
+
+## Điểm danh
+
+Giáo viên gán **thiết bị mặc định** cho học sinh ở trang lớp, rồi **Mở điểm danh**. Thiết bị đã gán cho học sinh trong lớp đó nhận:
+
+```json
+{"v":1,"type":"session.snapshot","data":{"mode":"attendance","id":"attendance UUID","state":"RUNNING","state_version":5,"server_time":1800000000000,"checked_in":false}}
+```
+
+Bấm phím bất kỳ: `{"v":1,"type":"attendance.checkin","request_id":"unique-id","attendance_id":"attendance UUID"}` → `{"v":1,"type":"attendance.ack","request_id":"...","accepted":true}`. Bấm lại vô hại, giữ thời điểm lần đầu. Thiết bị không nhận tên học sinh. Lỗi: `ATTENDANCE_CLOSED`, `DEVICE_NOT_ASSIGNED`, `DEVICE_BUSY`. Thiết bị mặc định cũng được ghép sẵn khi tạo buổi kiểm tra mới cho lớp (nếu thiết bị không đang ghép ở phòng chưa kết thúc).
+
+## Thi đua
+
+Cấu hình buổi `leaderboard` (mặc định bật). Câu đúng được 500–1000 điểm theo thời gian trả lời, chuỗi đúng liên tiếp thưởng thêm 100/câu (tối đa +500); điểm thi đua tách khỏi điểm /10. Snapshot màn chiếu có `leaderboard` (top 5: `rank,name,points,last_gain,streak`, `name` là tên gọi) chỉ khi giáo viên đã công bố kết quả câu hoặc buổi FINISHED; snapshot giáo viên có `leaderboard_full`. Thiết bị không nhận bảng xếp hạng.

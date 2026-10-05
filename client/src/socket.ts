@@ -10,7 +10,8 @@ export function useSessionSocket(id: string, projectionToken?: string) {
     [syncedAt, setSyncedAt] = useState<number | null>(null),
     [controlResult, setControlResult] = useState<Data | null>(null),
     [epoch, setEpoch] = useState(0);
-  const socket = useRef<WebSocket | null>(null);
+  const socket = useRef<WebSocket | null>(null),
+    lastState = useRef("");
   useEffect(() => {
     let stopped = false,
       retry = 0,
@@ -34,6 +35,7 @@ export function useSessionSocket(id: string, projectionToken?: string) {
       ws.onmessage = (e) => {
         const m = JSON.parse(e.data);
         if (m.type === "session.snapshot") {
+          lastState.current = m.data.state;
           setData((old) =>
             !old || m.data.state_version >= old.state_version ? m.data : old,
           );
@@ -48,10 +50,16 @@ export function useSessionSocket(id: string, projectionToken?: string) {
       ws.onclose = (e) => {
         if (stopped) return;
         if (e.code === 4001) {
-          setData(null);
-          if (projectionToken)
-            setStatus("Quyền trình chiếu đã hết hạn. Mở lại từ bảng điều khiển.");
-          else signedOut();
+          if (projectionToken) {
+            // The room's last snapshot (final podium) stays on screen after the grant ends.
+            const ended = ["FINISHED", "CANCELLED"].includes(lastState.current);
+            if (!ended) setData(null);
+            setStatus(
+              ended
+                ? "Buổi đã kết thúc"
+                : "Quyền trình chiếu đã hết hạn. Mở lại từ bảng điều khiển.",
+            );
+          } else signedOut();
           return;
         }
         setStatus("Mất kết nối · đang nối lại…");
@@ -89,6 +97,54 @@ export function useSessionSocket(id: string, projectionToken?: string) {
     },
     reconnect: () => setEpoch((n) => n + 1),
   };
+}
+// Teacher view of a live activity (flashcard review, poll, check-in); same transport as the quiz room.
+export const useReviewSocket = (id: string) =>
+  useActivitySocket("review_id", "flashcard", id);
+export function useActivitySocket(helloKey: string, mode: string, id: string) {
+  const [data, setData] = useState<Data | null>(null),
+    [status, setStatus] = useState("Đang kết nối…");
+  useEffect(() => {
+    let stopped = false,
+      retry = 0,
+      timer: ReturnType<typeof setTimeout>,
+      ws: WebSocket;
+    function connect() {
+      ws = new WebSocket(socketUrl());
+      ws.onopen = () => {
+        retry = 0;
+        ws.send(JSON.stringify({ v: 1, type: "hello", [helloKey]: id }));
+      };
+      ws.onmessage = (e) => {
+        const m = JSON.parse(e.data);
+        if (m.type === "session.snapshot" && m.data.mode === mode) {
+          setData((old) =>
+            !old || m.data.state_version >= old.state_version ? m.data : old,
+          );
+          setStatus("Đã kết nối");
+        } else if (m.type === "error")
+          setStatus("Không thể đồng bộ. Kiểm tra quyền truy cập.");
+      };
+      ws.onclose = (e) => {
+        if (stopped) return;
+        if (e.code === 4001) return signedOut();
+        if (e.code === 4004) return setStatus("Không tìm thấy dữ liệu.");
+        setStatus("Mất kết nối · đang nối lại…");
+        timer = setTimeout(
+          connect,
+          Math.min(10000, 1000 * 2 ** retry++) + Math.random() * 300,
+        );
+      };
+      ws.onerror = () => ws.close();
+    }
+    connect();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+      ws?.close();
+    };
+  }, [helloKey, mode, id]);
+  return { data, status, setData };
 }
 export function useClock(data: Data | null, offset: number) {
   const [now, setNow] = useState(Date.now());

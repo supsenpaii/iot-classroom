@@ -100,4 +100,10 @@ export const errorLabel: Record<string, string> = {
   INVALID_PAYLOAD: "Nội dung gửi không hợp lệ",
   INVALID_STATE: "Chỉ thử nút khi ở phòng chờ hoặc tạm dừng",
   STORAGE_ERROR: "Chưa lưu được đáp án; sẽ thử lại",
+  REVIEW_CLOSED: "Buổi ôn tập đã kết thúc",
+  CARD_CHANGED: "Giáo viên đã chuyển sang thẻ khác",
+  DEVICE_BUSY: "Thiết bị đang dùng cho bài kiểm tra",
+  POLL_CLOSED: "Khảo sát đã đóng",
+  INVALID_CHOICE: "Lựa chọn không có trong khảo sát",
+  ATTENDANCE_CLOSED: "Điểm danh đã đóng",
 };

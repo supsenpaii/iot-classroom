@@ -10,7 +10,7 @@ import {
   useResource,
 } from "../components";
 import { socketUrl } from "../socket";
-import { questionSchema } from "../../../shared/protocol";
+import { questionSchema, flashcardSchema } from "../../../shared/protocol";
 export function Dashboard() {
   const sessions = useResource<Data[]>("/sessions"),
     classes = useResource<Data[]>("/classes"),
@@ -86,7 +86,7 @@ export function Importer({
   kind,
   onCommit,
 }: {
-  kind: "questions" | "students";
+  kind: "questions" | "students" | "flashcards";
   onCommit: (rows: Data[]) => Promise<void>;
 }) {
   const { run } = useApp(),
@@ -95,7 +95,9 @@ export function Importer({
   const columns =
     kind === "students"
       ? ["student_code", "full_name"]
-      : [
+      : kind === "flashcards"
+        ? ["front", "back"]
+        : [
           "question",
           "option_a",
           "option_b",
@@ -123,7 +125,9 @@ export function Importer({
         return !r.student_code.trim() || !r.full_name.trim()
           ? [`Dòng ${i + 2}: cần mã và họ tên`]
           : [];
-      const parsed = questionSchema.safeParse(r);
+      const parsed = (
+        kind === "flashcards" ? flashcardSchema : questionSchema
+      ).safeParse(r);
       return parsed.success
         ? []
         : parsed.error.issues.map(
@@ -153,9 +157,44 @@ export function Importer({
       <div className="row spread">
         <div>
           <h3>
-            Nhập {kind === "questions" ? "câu hỏi" : "danh sách học sinh"}
+            Nhập{" "}
+            {kind === "questions"
+              ? "câu hỏi"
+              : kind === "flashcards"
+                ? "thẻ (cột front = mặt trước, back = mặt sau)"
+                : "danh sách học sinh"}
           </h3>
           <p className="muted">XLSX hoặc CSV · Tối đa 5 MB, 500 dòng</p>
+          {kind === "flashcards" && (
+            <div className="fc-format">
+              <table>
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th>A</th>
+                    <th>B</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th>1</th>
+                    <td>front</td>
+                    <td>back</td>
+                  </tr>
+                  <tr>
+                    <th>2</th>
+                    <td>GPIO9 trên ESP32-C3 dùng để làm gì?</td>
+                    <td>Chân strapping, kéo xuống GND để nạp firmware</td>
+                  </tr>
+                </tbody>
+              </table>
+              <ul>
+                <li>Dòng 1 là tiêu đề: <b>front</b> và <b>back</b> (hoặc "Mặt trước" và "Mặt sau"). Mỗi dòng sau là một thẻ.</li>
+                <li>Excel: lấy sheet đầu tiên. Xuống dòng trong ô (Alt+Enter) được giữ nguyên.</li>
+                <li>CSV: lưu dạng "CSV UTF-8", dấu phân cách <b>,</b> hoặc <b>;</b> đều được.</li>
+              </ul>
+            </div>
+          )}
         </div>
         <div className="actions">
           <a href={`/api/templates/${kind}.xlsx`}>Mẫu Excel ↓</a>
@@ -256,6 +295,7 @@ export function Importer({
 }
 export function Classes({ id }: { id?: string }) {
   const resource = useResource<Data>(id ? `/classes/${id}` : "/classes"),
+    devices = useResource<Data[]>("/devices"),
     { run } = useApp(),
     [editing, setEditing] = useState<Data | null>(null),
     [search, setSearch] = useState("");
@@ -273,9 +313,21 @@ export function Classes({ id }: { id?: string }) {
         }
       >
         {id && (
-          <a className="button primary" href={`/sessions/new?class=${id}`}>
-            Tạo buổi kiểm tra →
-          </a>
+          <>
+            <button
+              onClick={() =>
+                void run(async () => {
+                  const a = await api("/attendance", "POST", { class_id: id });
+                  window.location.href = `/attendance/${a.id}`;
+                })
+              }
+            >
+              <Icon name="users" /> Điểm danh
+            </button>
+            <a className="button primary" href={`/sessions/new?class=${id}`}>
+              Tạo buổi kiểm tra →
+            </a>
+          </>
         )}
       </Head>
       <Status error={resource.error} />
@@ -346,6 +398,7 @@ export function Classes({ id }: { id?: string }) {
                     <tr>
                       <th>Mã học sinh</th>
                       <th>Họ tên</th>
+                      <th>Thiết bị mặc định</th>
                       <th>Thao tác</th>
                     </tr>
                   </thead>
@@ -360,6 +413,36 @@ export function Classes({ id }: { id?: string }) {
                         <tr key={s.id}>
                           <td>{s.student_code}</td>
                           <td>{s.full_name}</td>
+                          <td>
+                            <select
+                              aria-label={`Thiết bị mặc định của ${s.full_name}`}
+                              value={s.device_id ?? ""}
+                              onChange={(e) =>
+                                void run(async () => {
+                                  await api(
+                                    `/classes/${id}/students/${s.id}/device`,
+                                    "PUT",
+                                    { device_id: e.target.value || null },
+                                  );
+                                  resource.reload();
+                                })
+                              }
+                            >
+                              <option value="">— Chưa gán —</option>
+                              {s.device_id && s.device_revoked ? (
+                                <option value={s.device_id}>
+                                  {s.device_label} (đã thu hồi)
+                                </option>
+                              ) : null}
+                              {devices.data
+                                ?.filter((dv) => !dv.revoked)
+                                .map((dv) => (
+                                  <option key={dv.id} value={dv.id}>
+                                    {dv.label}
+                                  </option>
+                                ))}
+                            </select>
+                          </td>
                           <td>
                             <button
                               className="text-button"
@@ -394,6 +477,12 @@ export function Classes({ id }: { id?: string }) {
               </div>
               {!d.students.length && (
                 <Empty>Nhập file hoặc thêm học sinh đầu tiên.</Empty>
+              )}
+              {d.students.length > 0 && (
+                <p className="muted class-device-hint">
+                  Gán thiết bị mặc định để học sinh bấm phím điểm danh, và để
+                  buổi kiểm tra mới tự ghép sẵn thiết bị.
+                </p>
               )}
             </section>
             <div>
@@ -492,297 +581,6 @@ export function Classes({ id }: { id?: string }) {
             ))}
             {!d.sessions.length && <Empty>Lớp chưa có buổi kiểm tra.</Empty>}
           </section>
-        </>
-      )}
-    </>
-  );
-}
-const blankQuestion = {
-  question: "",
-  option_a: "",
-  option_b: "",
-  option_c: "",
-  option_d: "",
-  correct_answer: "A",
-  explanation: "",
-  topic: "",
-  difficulty: "medium",
-};
-export function Banks({ id }: { id?: string }) {
-  const resource = useResource<Data>(
-      id ? `/question-banks/${id}` : "/question-banks",
-    ),
-    { run } = useApp(),
-    [editing, setEditing] = useState<Data | null>(null),
-    [search, setSearch] = useState("");
-  if (!resource.data) return <Status loading error={resource.error} />;
-  const d = resource.data;
-  return (
-    <>
-      <Head
-        eyebrow="NGÂN HÀNG CÂU HỎI"
-        title={id ? d.name : "Bài giảng hay, từ câu hỏi tốt."}
-        description={
-          id
-            ? `${d.subject || "Chưa đặt môn học"} · ${d.questions.length} câu hỏi`
-            : "Nhập đề, duyệt nội dung và chuẩn bị cho giờ học."
-        }
-      />
-      <Status error={resource.error} />
-      {!id ? (
-        <div className="two-col">
-          <section className="card">
-            <Field label="Tìm bộ đề">
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Tên bộ đề hoặc môn học"
-              />
-            </Field>
-            {(d as unknown as Data[])
-              .filter((b) =>
-                (b.name + b.subject)
-                  .toLowerCase()
-                  .includes(search.toLowerCase()),
-              )
-              .map((b) => (
-                <a
-                  className="list-item"
-                  key={b.id}
-                  href={`/question-banks/${b.id}`}
-                >
-                  <Icon name="file" />
-                  <div>
-                    <strong>{b.name}</strong>
-                    <small>
-                      {b.subject} · {b.question_count} câu
-                    </small>
-                  </div>
-                  <span>→</span>
-                </a>
-              ))}
-            {!d.length && (
-              <Empty>Chưa có bộ đề. Tạo bộ đề rồi nhập XLSX/CSV.</Empty>
-            )}
-          </section>
-          <form
-            className="card form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const body = fields(e.currentTarget);
-              void run(async () => {
-                const b = await api("/question-banks", "POST", body);
-                window.location.href = `/question-banks/${b.id}`;
-              });
-            }}
-          >
-            <h2>Tạo bộ đề</h2>
-            <Field label="Tên bộ đề">
-              <input name="name" required maxLength={150} />
-            </Field>
-            <Field label="Môn học">
-              <input name="subject" maxLength={100} />
-            </Field>
-            <button className="primary">Tạo bộ đề</button>
-          </form>
-        </div>
-      ) : (
-        <>
-          <section className="card">
-            <Importer
-              kind="questions"
-              onCommit={async (rows) => {
-                await api("/imports/questions/commit", "POST", {
-                  bank_id: id,
-                  rows,
-                });
-                resource.reload();
-              }}
-            />
-          </section>
-          <div className="row spread">
-            <h2>Câu hỏi đã lưu</h2>
-            <div className="actions">
-              <input
-                placeholder="Tìm câu hỏi, chủ đề…"
-                aria-label="Tìm câu hỏi"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-              <button
-                className="primary"
-                onClick={() => setEditing({ ...blankQuestion })}
-              >
-                + Thêm câu hỏi
-              </button>
-            </div>
-          </div>
-          {editing && (
-            <form
-              className="card form question-editor"
-              key={editing.id || "new"}
-              onSubmit={(e) => {
-                e.preventDefault();
-                const body = fields(e.currentTarget);
-                void run(async () => {
-                  await api(
-                    editing.id
-                      ? `/questions/${editing.id}`
-                      : `/question-banks/${id}/questions`,
-                    editing.id ? "PATCH" : "POST",
-                    body,
-                  );
-                  setEditing(null);
-                  resource.reload();
-                }, "Đã lưu câu hỏi.");
-              }}
-            >
-              <h2>{editing.id ? "Sửa câu hỏi" : "Thêm câu hỏi"}</h2>
-              <Field label="Nội dung câu hỏi">
-                <textarea
-                  name="question"
-                  defaultValue={editing.question}
-                  required
-                  maxLength={2000}
-                />
-              </Field>
-              <div className="form-grid">
-                {["a", "b", "c", "d"].map((c) => (
-                  <Field key={c} label={`Lựa chọn ${c.toUpperCase()}`}>
-                    <input
-                      name={`option_${c}`}
-                      defaultValue={editing[`option_${c}`]}
-                      required
-                      maxLength={500}
-                    />
-                  </Field>
-                ))}
-                <Field label="Đáp án đúng">
-                  <select
-                    name="correct_answer"
-                    defaultValue={editing.correct_answer}
-                  >
-                    {["A", "B", "C", "D"].map((c) => (
-                      <option key={c}>{c}</option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Độ khó">
-                  <select name="difficulty" defaultValue={editing.difficulty}>
-                    <option value="easy">Dễ</option>
-                    <option value="medium">Trung bình</option>
-                    <option value="hard">Khó</option>
-                  </select>
-                </Field>
-                <Field label="Chủ đề">
-                  <input
-                    name="topic"
-                    defaultValue={editing.topic}
-                    maxLength={100}
-                  />
-                </Field>
-                <Field label="Lời giải">
-                  <textarea
-                    name="explanation"
-                    defaultValue={editing.explanation}
-                    maxLength={4000}
-                  />
-                </Field>
-              </div>
-              <div className="actions">
-                <button className="primary">Lưu câu hỏi</button>
-                <button type="button" onClick={() => setEditing(null)}>
-                  Hủy sửa
-                </button>
-              </div>
-            </form>
-          )}
-          {d.questions
-            .filter((q: Data) =>
-              (q.question + q.topic + q.difficulty)
-                .toLowerCase()
-                .includes(search.toLowerCase()),
-            )
-            .map((q: Data, i: number) => (
-              <article className="card question-item" key={q.id}>
-                <div className="row spread">
-                  <span className="badge">
-                    Câu {i + 1} · {q.topic || "Chưa có chủ đề"}
-                  </span>
-                  <div>
-                    <button
-                      className="text-button"
-                      onClick={() => {
-                        setEditing(q);
-                        setTimeout(
-                          () =>
-                            document
-                              .querySelector(".question-editor")
-                              ?.scrollIntoView({ block: "center" }),
-                          0,
-                        );
-                      }}
-                    >
-                      Sửa
-                    </button>
-                    <button
-                      className="text-button danger"
-                      onClick={() => {
-                        if (
-                          confirm(
-                            "Xóa câu hỏi khỏi bộ đề? Các bài đã bắt đầu vẫn giữ snapshot.",
-                          )
-                        )
-                          void run(async () => {
-                            await api(`/questions/${q.id}`, "DELETE");
-                            resource.reload();
-                          });
-                      }}
-                    >
-                      Xóa
-                    </button>
-                  </div>
-                </div>
-                <h3>{q.question}</h3>
-                <div className="answer-grid">
-                  {["A", "B", "C", "D"].map((c) => (
-                    <div
-                      key={c}
-                      className={c === q.correct_answer ? "correct" : ""}
-                    >
-                      <b>{c}.</b> {q[`option_${c.toLowerCase()}`]}{" "}
-                      {c === q.correct_answer && <small> · Đáp án đúng</small>}
-                    </div>
-                  ))}
-                </div>
-                {q.explanation && (
-                  <p className="muted">Lời giải: {q.explanation}</p>
-                )}
-              </article>
-            ))}
-          {!d.questions.length && (
-            <Empty>Bộ đề chưa có câu hỏi. Nhập file hoặc thêm câu hỏi.</Empty>
-          )}
-          <form
-            className="card form narrow"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const body = fields(e.currentTarget);
-              void run(async () => {
-                await api(`/question-banks/${id}`, "PATCH", body);
-                resource.reload();
-              }, "Đã cập nhật bộ đề.");
-            }}
-          >
-            <h3>Thông tin bộ đề</h3>
-            <Field label="Tên bộ đề">
-              <input name="name" defaultValue={d.name} required />
-            </Field>
-            <Field label="Môn học">
-              <input name="subject" defaultValue={d.subject} />
-            </Field>
-            <button>Lưu thông tin</button>
-          </form>
         </>
       )}
     </>
@@ -988,6 +786,7 @@ export function ConfigFields({ config }: { config?: Data }) {
     auto_next: true,
     allow_change: true,
     pass_mark: 5,
+    leaderboard: true,
   };
   return (
     <>
@@ -1041,6 +840,15 @@ export function ConfigFields({ config }: { config?: Data }) {
         />{" "}
         Cho đổi đáp án đến hết giờ
       </label>
+      <label className="check">
+        <input
+          name="leaderboard"
+          type="checkbox"
+          defaultChecked={c.leaderboard !== false}
+        />{" "}
+        Thi đua: tính điểm theo đúng + nhanh, hiện bảng xếp hạng khi công bố kết
+        quả và bục vinh danh cuối buổi
+      </label>
     </>
   );
 }
@@ -1052,6 +860,7 @@ export function readConfig(f: Data) {
     random: f.random === "on",
     auto_next: f.auto_next === "true",
     allow_change: f.allow_change === "on",
+    leaderboard: f.leaderboard === "on",
   };
 }
 export function Setup() {
@@ -1095,6 +904,7 @@ export function Setup() {
           <Field label="Lớp học">
             <select
               name="class_id"
+              key={classes.data ? "loaded" : "loading"}
               defaultValue={
                 new URLSearchParams(location.search).get("class") || ""
               }
@@ -1111,7 +921,12 @@ export function Setup() {
             </select>
           </Field>
           <Field label="Bộ đề">
-            <select name="bank_id" required>
+            <select
+              name="bank_id"
+              key={banks.data ? "loaded" : "loading"}
+              defaultValue={new URLSearchParams(location.search).get("bank") || ""}
+              required
+            >
               <option value="">Chọn bộ đề</option>
               {banks.data?.map((b) => (
                 <option key={b.id} value={b.id}>

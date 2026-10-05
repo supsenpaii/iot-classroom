@@ -1,21 +1,30 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
-import "@fontsource/be-vietnam-pro/vietnamese-400.css";
-import "@fontsource/be-vietnam-pro/vietnamese-600.css";
-import "@fontsource/be-vietnam-pro/vietnamese-700.css";
-import "@fontsource/be-vietnam-pro/latin-400.css";
-import "@fontsource/be-vietnam-pro/latin-600.css";
-import "@fontsource/be-vietnam-pro/latin-700.css";
+import "@fontsource/plus-jakarta-sans/vietnamese-400.css";
+import "@fontsource/plus-jakarta-sans/vietnamese-500.css";
+import "@fontsource/plus-jakarta-sans/vietnamese-600.css";
+import "@fontsource/plus-jakarta-sans/vietnamese-700.css";
+import "@fontsource/plus-jakarta-sans/latin-400.css";
+import "@fontsource/plus-jakarta-sans/latin-500.css";
+import "@fontsource/plus-jakarta-sans/latin-600.css";
+import "@fontsource/plus-jakarta-sans/latin-700.css";
 import { api, fields, setCsrf, signedOut, type Data } from "./api";
 import { Context, Head, Field, Icon, Status } from "./components";
-import { Dashboard, Classes, Banks, Devices, Setup } from "./pages/manage";
+import { Dashboard, Classes, Devices, Setup } from "./pages/manage";
+import { Banks } from "./pages/banks";
 import { SessionPage, Presentation } from "./pages/session";
 import { Reports } from "./pages/reports";
 import { Simulator } from "./pages/simulator";
+import { Decks, FlashcardReview, Study } from "./pages/flashcards";
+import { Polls } from "./pages/polls";
+import { AttendancePage } from "./pages/attendance";
 import "./styles.css";
 const nav = [
   ["/dashboard", "home", "Tổng quan"],
   ["/question-banks", "file", "Ngân hàng câu hỏi"],
+  ["/flashcards", "cards", "Flashcard"],
+  ["/polls", "poll", "Khảo sát nhanh"],
+  ["/attendance", "check", "Điểm danh"],
   ["/classes", "users", "Lớp học"],
   ["/devices", "device", "Thiết bị"],
   ["/reports", "chart", "Báo cáo"],
@@ -28,7 +37,7 @@ function App() {
     [busy, setBusy] = useState(0);
   const path = window.location.pathname;
   useEffect(() => {
-    if (path.startsWith("/present/")) {
+    if (path.startsWith("/present/") || path.startsWith("/study/")) {
       setLoading(false);
       return;
     }
@@ -41,7 +50,8 @@ function App() {
       .finally(() => setLoading(false));
   }, [path]);
   useEffect(() => {
-    if (!user || path.startsWith("/present/")) return;
+    if (!user || path.startsWith("/present/") || path.startsWith("/study/"))
+      return;
     const verify = () => {
       if (document.visibilityState === "visible")
         void fetch("/api/auth/me").then((r) => {
@@ -66,6 +76,7 @@ function App() {
   }
   if (path.startsWith("/present/"))
     return <Presentation id={path.split("/")[2]} />;
+  if (path.startsWith("/study/")) return <Study token={path.split("/")[2]} />;
   if (loading)
     return (
       <div className="login">
@@ -106,10 +117,10 @@ function App() {
           </h1>
           <p>Mỗi câu trả lời đều được lắng nghe.</p>
           <div className="login-art">
-            <span>A</span>
-            <span>B</span>
-            <span>C</span>
-            <span>D</span>
+            <span className="choice-a">A</span>
+            <span className="choice-b">B</span>
+            <span className="choice-c">C</span>
+            <span className="choice-d">D</span>
           </div>
         </div>
         <form onSubmit={submitAuth} className="login-form">
@@ -169,7 +180,13 @@ function App() {
   if (path === "/sessions/new") content = <Setup />;
   else if (path.startsWith("/sessions/")) content = <SessionPage id={id} />;
   else if (path.startsWith("/classes")) content = <Classes id={id} />;
-  else if (path.startsWith("/question-banks")) content = <Banks id={id} />;
+  else if (path.startsWith("/question-banks"))
+    content = <Banks id={id} worksheet={path.endsWith("/worksheet")} />;
+  else if (path.startsWith("/flashcards/review/"))
+    content = <FlashcardReview id={path.split("/")[3]} />;
+  else if (path.startsWith("/flashcards")) content = <Decks id={id} />;
+  else if (path.startsWith("/polls")) content = <Polls id={id} />;
+  else if (path.startsWith("/attendance")) content = <AttendancePage id={id} />;
   else if (path.startsWith("/devices")) content = <Devices />;
   else if (path.startsWith("/reports")) content = <Reports id={id} />;
   else if (path === "/simulator") content = <Simulator />;

@@ -1,7 +1,7 @@
 import { Worker } from "node:worker_threads";
 import ExcelJS from "exceljs";
 import { z } from "zod";
-import { questionSchema } from "../shared/protocol.js";
+import { questionSchema, flashcardSchema } from "../shared/protocol.js";
 import { AppError, type Row } from "./db.js";
 export const studentSchema = z.object({
   student_code: z.string().trim().min(1).max(50),
@@ -53,7 +53,11 @@ export async function preview(bytes: Buffer, name: string, kind = "questions") {
     return { ...parsed, warnings };
   parsed.rows.forEach((r, i) => {
     const result = (
-      kind === "students" ? studentSchema : questionSchema
+      kind === "students"
+        ? studentSchema
+        : kind === "flashcards"
+          ? flashcardSchema
+          : questionSchema
     ).safeParse(r);
     if (!result.success)
       for (const e of result.error.issues)
@@ -63,13 +67,17 @@ export async function preview(bytes: Buffer, name: string, kind = "questions") {
           message: e.message,
         });
     else parsed.rows[i] = result.data;
-    const key = String(
-      kind === "students" ? r.student_code : r.question,
-    ).toLowerCase();
+    const keyColumn =
+      kind === "students"
+        ? "student_code"
+        : kind === "flashcards"
+          ? "front"
+          : "question";
+    const key = String(r[keyColumn]).toLowerCase();
     if (seen.has(key))
       (kind === "students" ? parsed.errors : warnings).push({
         row: i + 2,
-        column: kind === "students" ? "student_code" : "question",
+        column: keyColumn,
         message: "Nội dung trùng với dòng trước",
       });
     seen.add(key);
@@ -179,7 +187,9 @@ export async function template(
   const headers =
     kind === "students"
       ? ["student_code", "full_name"]
-      : [
+      : kind === "flashcards"
+        ? ["front", "back"]
+        : [
           "question",
           "option_a",
           "option_b",
@@ -193,7 +203,12 @@ export async function template(
   const sample =
     kind === "students"
       ? ["HS001", "Nguyễn Minh Anh"]
-      : [
+      : kind === "flashcards"
+        ? [
+            "GPIO9 trên ESP32-C3 dùng để làm gì?",
+            "Chân strapping: kéo xuống GND lúc reset để vào chế độ nạp firmware",
+          ]
+        : [
           "Giá trị của 3² + 4² là bao nhiêu?",
           "12",
           "25",
@@ -206,13 +221,50 @@ export async function template(
         ];
   if (format === "csv")
     return Buffer.from(
-      "\uFEFF" + headers.join(",") + "\r\n" + sample.join(",") + "\r\n",
+      "\uFEFF" +
+        headers.join(",") +
+        "\r\n" +
+        sample.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(",") +
+        "\r\n",
     );
   const wb = new ExcelJS.Workbook(),
-    sheet = wb.addWorksheet(kind === "students" ? "Students" : "Questions");
+    sheet = wb.addWorksheet(
+      kind === "students"
+        ? "Students"
+        : kind === "flashcards"
+          ? "Flashcards"
+          : "Questions",
+    );
   sheet.addRow(headers);
   sheet.addRow(sample);
   sheet.columns.forEach((c) => (c.width = 25));
+  return Buffer.from(await wb.xlsx.writeBuffer());
+}
+export async function attendanceExcel(snap: Row) {
+  const wb = new ExcelJS.Workbook(),
+    sheet = wb.addWorksheet("Diem_danh"),
+    time = (ms: number | null) =>
+      ms ? new Date(ms).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }) : "";
+  sheet.addRows([
+    ["Lớp", snap.class_name],
+    ["Mở điểm danh", time(snap.created_at)],
+    ["Đóng điểm danh", time(snap.closed_at)],
+    ["Có mặt", `${snap.present}/${snap.total}`],
+    [],
+  ]);
+  sheet.addRow(["STT", "Mã học sinh", "Họ tên", "Trạng thái", "Cách ghi nhận", "Thời điểm", "Thiết bị"]).font = { bold: true };
+  snap.students.forEach((s: Row, i: number) =>
+    sheet.addRow([
+      i + 1,
+      s.student_code,
+      s.full_name,
+      s.status === "PRESENT" ? "Có mặt" : "Vắng",
+      s.method === "DEVICE" ? "Bấm thiết bị" : s.method === "MANUAL" ? "Giáo viên ghi" : "",
+      time(s.marked_at),
+      s.device_label ?? "",
+    ]),
+  );
+  [6, 14, 28, 12, 16, 22, 14].forEach((w, i) => (sheet.getColumn(i + 1).width = w));
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 export async function reportExcel(report: Row) {

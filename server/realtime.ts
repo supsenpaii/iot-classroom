@@ -4,6 +4,8 @@ import type { RequestHandler, Request, Response } from "express";
 import { type DB, type Row, one, all, owned, AppError } from "./db.js";
 import { hash } from "./auth.js";
 import type { Quiz } from "./quiz.js";
+import type { Flashcards } from "./flashcards.js";
+import type { Polls, Attendance } from "./live.js";
 import type { AppConfig } from "./app.js";
 export function attachRealtime(
   server: Server,
@@ -11,6 +13,9 @@ export function attachRealtime(
   quiz: Quiz,
   auth: RequestHandler,
   config: AppConfig,
+  flashcards: Flashcards,
+  polls: Polls,
+  attendance: Attendance,
 ) {
   const wss = new WebSocketServer({
     noServer: true,
@@ -19,6 +24,7 @@ export function attachRealtime(
   });
   type Peer = {
     role: "teacher" | "device" | "projection" | "pending";
+    kind?: "flashcard" | "poll" | "attendance";
     owner?: string;
     sid?: string;
     device?: string;
@@ -46,6 +52,7 @@ export function attachRealtime(
     return {
       ...quiz.snapshot(id),
       bank_id: s.bank_id,
+      leaderboard_full: s.state === "LOBBY" ? null : quiz.standings(id),
       students: all(
         db,
         "SELECT s.*,b.id binding_id,b.device_id,d.label,d.last_seen,a.choice answer_choice,a.received_at answer_received_at,(SELECT max(e.created_at) FROM session_events e WHERE e.session_id=s.session_id AND e.type='device.test' AND json_extract(e.detail,'$.device_id')=b.device_id AND e.created_at>=b.created_at) tested_at FROM session_students s LEFT JOIN session_devices b ON b.session_student_id=s.id AND b.active=1 LEFT JOIN devices d ON d.id=b.device_id LEFT JOIN answers a ON a.session_student_id=s.id AND a.session_question_id=? WHERE s.session_id=? ORDER BY s.student_code",
@@ -111,9 +118,28 @@ export function attachRealtime(
       send(ws, {
         v: 1,
         type: "session.snapshot",
-        data: quiz.deviceSnapshot(p.device),
+        data:
+          attendance.deviceSnapshot(p.device) ??
+          polls.deviceSnapshot(p.device) ??
+          flashcards.deviceSnapshot(p.device) ??
+          quiz.deviceSnapshot(p.device),
       });
-    else if (p.resource)
+    else if (p.kind && p.resource) {
+      let data;
+      const online = (id: string) => devices.has(id);
+      try {
+        data =
+          p.kind === "flashcard"
+            ? flashcards.snapshot(p.resource, online)
+            : p.kind === "poll"
+              ? polls.snapshot(p.resource, online)
+              : attendance.snapshot(p.resource, online);
+      } catch {
+        ws.close(4004, "Review not found");
+        return;
+      }
+      send(ws, { v: 1, type: "session.snapshot", data });
+    } else if (p.resource)
       send(ws, {
         v: 1,
         type: "session.snapshot",
@@ -289,6 +315,18 @@ export function attachRealtime(
               p.expires = t.expires;
               schedule();
             } else throw Error("ticket");
+          } else if (p.role === "teacher" && p.owner && msg.review_id) {
+            owned(db, "flashcard_reviews", String(msg.review_id), p.owner);
+            p.kind = "flashcard";
+            p.resource = String(msg.review_id);
+          } else if (p.role === "teacher" && p.owner && msg.poll_id) {
+            owned(db, "polls", String(msg.poll_id), p.owner);
+            p.kind = "poll";
+            p.resource = String(msg.poll_id);
+          } else if (p.role === "teacher" && p.owner && msg.attendance_id) {
+            owned(db, "attendance_sessions", String(msg.attendance_id), p.owner);
+            p.kind = "attendance";
+            p.resource = String(msg.attendance_id);
           } else if (p.role === "teacher" && p.owner) {
             owned(db, "quiz_sessions", String(msg.session_id), p.owner);
             p.resource = String(msg.session_id);
@@ -301,6 +339,23 @@ export function attachRealtime(
         ) {
           const ack = quiz.answer(p.device, msg);
           send(ws, ack);
+          schedule();
+        } else if (
+          msg.type === "flashcard.rate" &&
+          p.role === "device" &&
+          p.device
+        ) {
+          send(ws, flashcards.rate(p.device, msg));
+          schedule();
+        } else if (msg.type === "poll.vote" && p.role === "device" && p.device) {
+          send(ws, polls.vote(p.device, msg));
+          schedule();
+        } else if (
+          msg.type === "attendance.checkin" &&
+          p.role === "device" &&
+          p.device
+        ) {
+          send(ws, attendance.checkin(p.device, msg));
           schedule();
         } else if (
           msg.type === "button.test" &&

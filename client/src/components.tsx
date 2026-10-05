@@ -115,6 +115,25 @@ export function Icon({ name }: { name: string }) {
         <path d="M5 2h9l5 5v15H5zM14 2v6h5M8 12h8M8 16h8" />
       </>
     ),
+    poll: (
+      <>
+        <path d="M4 5h9M4 12h16M4 19h6" />
+        <circle cx="17" cy="5" r="1.5" />
+        <circle cx="13" cy="19" r="1.5" />
+      </>
+    ),
+    check: (
+      <>
+        <path d="m9 11 3 3 8-8" />
+        <path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9" />
+      </>
+    ),
+    cards: (
+      <>
+        <rect x="7" y="3" width="14" height="15" rx="2" />
+        <path d="M17 21H5a2 2 0 0 1-2-2V7M11 9h6M11 13h4" />
+      </>
+    ),
     users: (
       <>
         <circle cx="9" cy="7" r="3" />
@@ -161,6 +180,20 @@ export function Icon({ name }: { name: string }) {
       aria-hidden="true"
     >
       {paths[name] || paths.file}
+    </svg>
+  );
+}
+// Each answer gets its own shape so it stays distinguishable without relying on color.
+export function ChoiceShape({ choice }: { choice: string }) {
+  const shapes: Record<string, ReactNode> = {
+    A: <path d="M12 3 22 20H2z" />,
+    B: <path d="M12 2 22 12 12 22 2 12z" />,
+    C: <circle cx="12" cy="12" r="9.5" />,
+    D: <rect x="3" y="3" width="18" height="18" rx="1.5" />,
+  };
+  return (
+    <svg className="choice-shape" viewBox="0 0 24 24" aria-hidden="true">
+      {shapes[choice]}
     </svg>
   );
 }

@@ -19,13 +19,25 @@ import {
 } from "./auth.js";
 import { Quiz } from "./quiz.js";
 import {
+  Flashcards,
+  shareToken,
+  shareTokenPattern,
+  reviewCommandSchema,
+} from "./flashcards.js";
+import { Polls, Attendance, pollCommandSchema } from "./live.js";
+import {
   preview,
   previewResults,
   template,
   studentSchema,
   reportExcel,
+  attendanceExcel,
 } from "./imports.js";
-import { questionSchema, configSchema } from "../shared/protocol.js";
+import {
+  questionSchema,
+  configSchema,
+  flashcardSchema,
+} from "../shared/protocol.js";
 import { attachRealtime } from "./realtime.js";
 import { createStudyGuide } from "./study-guide.js";
 export type AppConfig = {
@@ -41,7 +53,10 @@ const nameSchema = z.string().trim().min(1).max(150);
 export function createApplication(db: DB, config: AppConfig) {
   const app = express(),
     server = createServer(app),
-    quiz = new Quiz(db);
+    quiz = new Quiz(db),
+    flashcards = new Flashcards(db),
+    polls = new Polls(db),
+    attendance = new Attendance(db);
   quiz.recover();
   app.disable("x-powered-by");
   if (config.trustProxy) app.set("trust proxy", config.trustProxy);
@@ -258,6 +273,17 @@ export function createApplication(db: DB, config: AppConfig) {
     })();
     res.json(grant);
   });
+  // Self-study link: anyone holding the deck's share token may read its cards, nothing else.
+  app.get("/api/public/flashcards/:token", (req, res) => {
+    const token = String(req.params.token);
+    if (!shareTokenPattern.test(token))
+      throw new AppError(
+        "NOT_FOUND",
+        "Link tự học không còn hiệu lực. Hỏi lại giáo viên link mới.",
+        404,
+      );
+    res.json(flashcards.publicDeck(token));
+  });
   app.use("/api", (req, _res, next) => {
     if (!req.session.teacherId)
       return next(new AppError("UNAUTHENTICATED", "Vui lòng đăng nhập", 401));
@@ -272,13 +298,27 @@ export function createApplication(db: DB, config: AppConfig) {
   });
   const owner = (req: Request) => req.session.teacherId!;
   const param = (req: Request, key = "id") => String(req.params[key]);
-  const realtime = attachRealtime(server, db, quiz, auth, config);
+  const realtime = attachRealtime(
+    server,
+    db,
+    quiz,
+    auth,
+    config,
+    flashcards,
+    polls,
+    attendance,
+  );
   const changed = () => realtime.schedule();
   app.get("/api/auth/me", (req, res) => {
     const t = must(
       one(db, "SELECT id,email FROM teachers WHERE id=?", owner(req)),
     );
-    res.json({ ...t, csrf: req.session.csrf, simulator: config.simulator });
+    res.json({
+      ...t,
+      csrf: req.session.csrf,
+      simulator: config.simulator,
+      ai: config.openRouterApiKeys.length > 0,
+    });
   });
   app.post("/api/auth/logout", (req, res, next) => {
     const sid = req.sessionID;
@@ -337,7 +377,7 @@ export function createApplication(db: DB, config: AppConfig) {
       ...c,
       students: all(
         db,
-        "SELECT * FROM students WHERE class_id=? ORDER BY student_code",
+        "SELECT s.*,sd.device_id,d.label device_label,d.revoked device_revoked FROM students s LEFT JOIN student_devices sd ON sd.student_id=s.id LEFT JOIN devices d ON d.id=sd.device_id WHERE s.class_id=? ORDER BY s.student_code",
         c.id,
       ),
       sessions: all(
@@ -396,10 +436,52 @@ export function createApplication(db: DB, config: AppConfig) {
   });
   app.delete("/api/classes/:id/students/:student", (req, res) => {
     owned(db, "classes", param(req), owner(req));
-    db.prepare("DELETE FROM students WHERE id=? AND class_id=?").run(
-      param(req, "student"),
-      param(req),
+    db.transaction(() => {
+      db.prepare(
+        "DELETE FROM student_devices WHERE student_id IN (SELECT id FROM students WHERE id=? AND class_id=?)",
+      ).run(param(req, "student"), param(req));
+      db.prepare("DELETE FROM students WHERE id=? AND class_id=?").run(
+        param(req, "student"),
+        param(req),
+      );
+    })();
+    res.json({ ok: true });
+  });
+  // Default device: used to pre-bind quiz rooms and to check students in by button press.
+  app.put("/api/classes/:id/students/:student/device", (req, res) => {
+    owned(db, "classes", param(req), owner(req));
+    const st = must(
+      one(
+        db,
+        "SELECT * FROM students WHERE id=? AND class_id=?",
+        param(req, "student"),
+        param(req),
+      ),
+      "Không tìm thấy học sinh",
     );
+    const device = z.string().max(80).nullable().parse(req.body.device_id);
+    db.transaction(() => {
+      if (device) {
+        const d = owned(db, "devices", device, owner(req));
+        if (d.revoked) throw new AppError("DEVICE_REVOKED", "Thiết bị đã thu hồi");
+        const taken = one(
+          db,
+          "SELECT s.full_name FROM student_devices sd JOIN students s ON s.id=sd.student_id WHERE sd.device_id=? AND s.class_id=? AND s.id<>?",
+          device,
+          param(req),
+          st.id,
+        );
+        if (taken)
+          throw new AppError(
+            "DEVICE_IN_USE",
+            `Thiết bị ${d.label} đã gán cho ${taken.full_name} trong lớp này`,
+            409,
+          );
+        db.prepare(
+          "INSERT INTO student_devices VALUES (?,?) ON CONFLICT(student_id) DO UPDATE SET device_id=excluded.device_id",
+        ).run(st.id, device);
+      } else db.prepare("DELETE FROM student_devices WHERE student_id=?").run(st.id);
+    })();
     res.json({ ok: true });
   });
   app.get("/api/question-banks", (req, res) =>
@@ -480,8 +562,163 @@ export function createApplication(db: DB, config: AppConfig) {
         );
       res.json({ ok: true });
     });
+  app.get("/api/flashcard-decks", (req, res) =>
+    res.json(
+      all(
+        db,
+        "SELECT d.id,d.name,d.subject,d.share_token,d.created_at,(SELECT count(*) FROM flashcards WHERE deck_id=d.id) card_count,(SELECT id FROM flashcard_reviews WHERE deck_id=d.id AND state='RUNNING') running_review FROM flashcard_decks d WHERE owner_teacher_id=? ORDER BY created_at DESC",
+        owner(req),
+      ),
+    ),
+  );
+  app.post("/api/flashcard-decks", (req, res) => {
+    const input = z
+      .object({
+        name: nameSchema,
+        subject: z.string().trim().max(100).default(""),
+      })
+      .parse(req.body);
+    res
+      .status(201)
+      .json({ id: flashcards.createDeck(owner(req), input.name, input.subject) });
+  });
+  app.post("/api/flashcard-decks/from-bank", (req, res) => {
+    const bank = z.string().max(80).parse(req.body.bank_id);
+    res.status(201).json({ id: flashcards.fromBank(owner(req), bank) });
+  });
+  app.get("/api/flashcard-decks/:id", (req, res) => {
+    const d = owned(db, "flashcard_decks", param(req), owner(req));
+    res.json({
+      ...d,
+      cards: flashcards.cards(d.id),
+      reviews: all(
+        db,
+        "SELECT id,state,round,created_at,finished_at FROM flashcard_reviews WHERE deck_id=? ORDER BY created_at DESC LIMIT 20",
+        d.id,
+      ),
+    });
+  });
+  app.patch("/api/flashcard-decks/:id", (req, res) => {
+    owned(db, "flashcard_decks", param(req), owner(req));
+    const input = z
+      .object({ name: nameSchema, subject: z.string().trim().max(100) })
+      .parse(req.body);
+    db.prepare("UPDATE flashcard_decks SET name=?,subject=? WHERE id=?").run(
+      input.name,
+      input.subject,
+      param(req),
+    );
+    res.json({ ok: true });
+  });
+  app.delete("/api/flashcard-decks/:id", (req, res) => {
+    flashcards.deleteDeck(owner(req), param(req));
+    res.json({ ok: true });
+  });
+  // Enabling issues a fresh token, so re-sharing also revokes any link that leaked.
+  app.post("/api/flashcard-decks/:id/share", (req, res) => {
+    owned(db, "flashcard_decks", param(req), owner(req));
+    const value = z.boolean().parse(req.body.enabled) ? shareToken() : null;
+    db.prepare("UPDATE flashcard_decks SET share_token=? WHERE id=?").run(
+      value,
+      param(req),
+    );
+    res.json({ share_token: value });
+  });
+  app.post("/api/flashcard-decks/:id/cards", (req, res) => {
+    owned(db, "flashcard_decks", param(req), owner(req));
+    flashcards.addCards(param(req), [flashcardSchema.parse(req.body)]);
+    res.status(201).json({ ok: true });
+  });
+  for (const method of ["patch", "delete"] as const)
+    app[method]("/api/flashcards/:id", (req, res) => {
+      const c = must(
+        one(
+          db,
+          "SELECT c.* FROM flashcards c JOIN flashcard_decks d ON d.id=c.deck_id WHERE c.id=? AND d.owner_teacher_id=?",
+          param(req),
+          owner(req),
+        ),
+      );
+      if (method === "delete")
+        db.prepare("DELETE FROM flashcards WHERE id=?").run(c.id);
+      else {
+        const input = flashcardSchema.parse(req.body);
+        db.prepare("UPDATE flashcards SET front=?,back=? WHERE id=?").run(
+          input.front,
+          input.back,
+          c.id,
+        );
+      }
+      res.json({ ok: true });
+    });
+  app.post("/api/imports/flashcards/commit", (req, res) => {
+    const deck = z.string().parse(req.body.deck_id);
+    owned(db, "flashcard_decks", deck, owner(req));
+    const rows = z.array(flashcardSchema).min(1).max(500).parse(req.body.rows);
+    db.transaction(() => flashcards.addCards(deck, rows))();
+    res.json({ count: rows.length });
+  });
+  app.post("/api/flashcard-reviews", (req, res) => {
+    const input = z
+      .object({ deck_id: z.string().max(80), shuffle: z.boolean().default(true) })
+      .parse(req.body);
+    const id = flashcards.createReview(owner(req), input.deck_id, input.shuffle);
+    changed();
+    res.status(201).json({ id });
+  });
+  app.get("/api/flashcard-reviews/:id", (req, res) => {
+    owned(db, "flashcard_reviews", param(req), owner(req));
+    res.json(flashcards.snapshot(param(req), realtime.online));
+  });
+  app.post("/api/flashcard-reviews/:id/commands", (req, res) => {
+    const { action } = reviewCommandSchema.parse(req.body);
+    flashcards.command(owner(req), param(req), action);
+    changed();
+    res.json(flashcards.snapshot(param(req), realtime.online));
+  });
+  app.get("/api/polls", (req, res) => res.json(polls.list(owner(req))));
+  app.post("/api/polls", (req, res) => {
+    const id = polls.create(owner(req), req.body);
+    changed();
+    res.status(201).json({ id });
+  });
+  app.get("/api/polls/:id", (req, res) => {
+    owned(db, "polls", param(req), owner(req));
+    res.json(polls.snapshot(param(req), realtime.online));
+  });
+  app.post("/api/polls/:id/commands", (req, res) => {
+    const { action } = pollCommandSchema.parse(req.body);
+    polls.command(owner(req), param(req), action);
+    changed();
+    res.json(polls.snapshot(param(req), realtime.online));
+  });
+  app.get("/api/attendance", (req, res) => res.json(attendance.list(owner(req))));
+  app.post("/api/attendance", (req, res) => {
+    const id = attendance.create(owner(req), z.string().max(80).parse(req.body.class_id));
+    changed();
+    res.status(201).json({ id });
+  });
+  app.get("/api/attendance/:id", (req, res) => {
+    owned(db, "attendance_sessions", param(req), owner(req));
+    res.json(attendance.snapshot(param(req), realtime.online));
+  });
+  app.post("/api/attendance/:id/commands", (req, res) => {
+    attendance.command(owner(req), param(req), req.body);
+    changed();
+    res.json(attendance.snapshot(param(req), realtime.online));
+  });
+  app.get("/api/attendance/:id/export.xlsx", async (req, res) => {
+    owned(db, "attendance_sessions", param(req), owner(req));
+    const snap = attendance.snapshot(param(req), realtime.online);
+    res
+      .type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+      .attachment(`diem-danh-${new Date(snap.created_at).toISOString().slice(0, 10)}.xlsx`)
+      .send(await attendanceExcel(snap));
+  });
   app.get("/api/templates/:kind.:format", async (req, res) => {
-    const kind = z.enum(["questions", "students", "results"]).parse(req.params.kind),
+    const kind = z
+        .enum(["questions", "students", "results", "flashcards"])
+        .parse(req.params.kind),
       format = z.enum(["csv", "xlsx"]).parse(req.params.format),
       questionCount =
         kind === "results"
@@ -501,7 +738,9 @@ export function createApplication(db: DB, config: AppConfig) {
     "/api/imports/:kind/preview",
     express.raw({ type: "application/octet-stream", limit: config.maxUpload }),
     async (req, res) => {
-      const kind = z.enum(["questions", "students", "results"]).parse(req.params.kind);
+      const kind = z
+        .enum(["questions", "students", "results", "flashcards"])
+        .parse(req.params.kind);
       if (!Buffer.isBuffer(req.body))
         throw new AppError("INVALID_FILE", "Gửi nội dung file");
       if (parsing)
@@ -605,9 +844,14 @@ export function createApplication(db: DB, config: AppConfig) {
   });
   app.delete("/api/devices/:id", (req, res) => {
     const d = owned(db, "devices", param(req), owner(req));
-    if (one(db, "SELECT 1 FROM session_devices WHERE device_id=?", d.id))
+    if (
+      one(db, "SELECT 1 FROM session_devices WHERE device_id=?", d.id) ||
+      one(db, "SELECT 1 FROM flashcard_ratings WHERE device_id=?", d.id) ||
+      one(db, "SELECT 1 FROM poll_votes WHERE device_id=?", d.id)
+    )
       throw new AppError("DEVICE_HAS_HISTORY", "Thiết bị đã dùng trong buổi học; hãy thu hồi để giữ lịch sử", 409);
     db.transaction(() => {
+      db.prepare("DELETE FROM student_devices WHERE device_id=?").run(d.id);
       db.prepare("DELETE FROM access_tokens WHERE resource_id=? AND kind='simulator'").run(d.id);
       db.prepare("DELETE FROM devices WHERE id=?").run(d.id);
     })();
@@ -864,6 +1108,56 @@ export function createApplication(db: DB, config: AppConfig) {
   app.get("/api/sessions/:id/report", (req, res) => {
     owned(db, "quiz_sessions", param(req), owner(req));
     res.json(quiz.report(param(req)));
+  });
+  // Review deck from the questions one student got wrong (or the whole class struggled with), shared at once.
+  app.post("/api/sessions/:id/review-deck", (req, res) => {
+    const session = owned(db, "quiz_sessions", param(req), owner(req));
+    const { student_id } = z
+      .object({ student_id: z.string().min(1).max(80).nullable() })
+      .strict()
+      .parse(req.body);
+    const report = quiz.report(session.id),
+      scored: Row[] = report.questions.filter((q: Row) => q.status === "CLOSED" && !q.voided);
+    let picked: Row[], name: string;
+    if (student_id) {
+      const student: Row = must(
+        report.students.find((s: Row) => s.id === student_id && !s.absent) as Row | undefined,
+        "Không tìm thấy học sinh dự thi trong báo cáo này.",
+      );
+      const missed = new Set(
+        (student.details as Row[])
+          .filter((a) => a.scored && a.choice !== a.correct_answer)
+          .map((a) => a.question_id),
+      );
+      picked = scored.filter((q) => missed.has(q.id));
+      name = `Ôn tập: ${session.name} · ${student.full_name}`;
+    } else {
+      picked = scored.filter((q) => (q.correct_rate ?? 100) < 60);
+      name = `Ôn tập: ${session.name} · cả lớp`;
+    }
+    if (!picked.length)
+      throw new AppError("NOTHING_TO_REVIEW", "Không có câu cần ôn.", 409);
+    const subject = String(
+      one(db, "SELECT subject FROM question_banks WHERE id=?", session.bank_id)?.subject ?? "",
+    );
+    const token = shareToken();
+    const deckId = db.transaction(() => {
+      const id = flashcards.createDeck(owner(req), name.slice(0, 150), subject);
+      flashcards.addCards(
+        id,
+        picked.map((q) => ({
+          front: q.data.question,
+          back:
+            `${q.data.correct_answer}. ${q.data[`option_${String(q.data.correct_answer).toLowerCase()}`]}` +
+            (q.data.explanation ? `
+
+${q.data.explanation}` : ""),
+        })),
+      );
+      db.prepare("UPDATE flashcard_decks SET share_token=? WHERE id=?").run(token, id);
+      return id;
+    })();
+    res.status(201).json({ id: deckId, share_token: token, cards: picked.length });
   });
   app.post("/api/sessions/:id/study-guide", async (req, res) => {
     const session = owned(db, "quiz_sessions", param(req), owner(req));

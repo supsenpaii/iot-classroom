@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, fields, stateLabel, eventLabel, type Data } from "../api";
 import {
+  ChoiceShape,
   Empty,
   Field,
   Head,
@@ -137,7 +138,7 @@ export function SessionPage({ id }: { id: string }) {
           </div>
           <h2>{s.question.question}</h2>
           <div className="answer-grid">
-            {(["A", "B", "C", "D"] as const).map((c) => <div key={c}><b>{c}</b> {s.question[`option_${c.toLowerCase()}`]}</div>)}
+            {(["A", "B", "C", "D"] as const).map((c) => <div key={c} className={`choice-${c.toLowerCase()}`}><b>{c}</b> {s.question[`option_${c.toLowerCase()}`]}</div>)}
           </div>
           <p className="question-hint" role="status">{finished ? "Buổi đã kết thúc. Xem báo cáo để kiểm tra kết quả." : s.state === "PAUSED" ? "Bài đang tạm dừng. Tiếp tục khi lớp đã sẵn sàng." : s.question.status === "CLOSED" ? s.config.auto_next ? "Câu đã đóng. Hệ thống sẽ chuyển câu sau 3 giây." : "Câu đã đóng. Giáo viên bấm Câu tiếp theo để tiếp tục." : `${s.answered}/${s.participants} học sinh đã trả lời.`}</p>
         </section>
@@ -145,12 +146,36 @@ export function SessionPage({ id }: { id: string }) {
       {s.question?.status === "CLOSED" && !finished && <section className="card teacher-choices" aria-label="Phân bố đáp án">
         <h2>Phân bố lựa chọn {s.question.results ? "· đã công bố" : "· chỉ giáo viên"}</h2>
         <div className="choice-counts">
-          {(["A", "B", "C", "D"] as const).map((c) => <span key={c}>{c}: <b>{s.students.filter((st: Data) => !st.absent && st.answer_choice === c).length}</b></span>)}
+          {(["A", "B", "C", "D"] as const).map((c) => <span key={c} className={`choice-${c.toLowerCase()}`}>{c}: <b>{s.students.filter((st: Data) => !st.absent && st.answer_choice === c).length}</b></span>)}
           <span>Bỏ trống: <b>{unanswered}</b></span>
         </div>
         <small>{s.question.results ? "Đã công bố phân bố và đáp án đúng trên màn chiếu." : "Chưa hiện trên màn chiếu. Chỉ tính câu đã đóng."}</small>
         <div className="actions"><button disabled={busy || live.status !== "Đã kết nối" || !!s.question.results} onClick={() => command("reveal-results")}>{s.question.results ? "Đã công bố trên màn chiếu" : "Công bố kết quả trên màn chiếu"}</button></div>
       </section>}
+      {s.leaderboard_full?.length > 0 && (
+        <section className="card leaderboard-card" aria-label="Bảng xếp hạng thi đua">
+          <div className="row spread">
+            <h2><Icon name="chart" /> Bảng xếp hạng thi đua</h2>
+            <small className="muted">
+              {finished ? "Kết quả cuối buổi" : s.question?.results ? "Top 5 đang hiện trên màn chiếu" : "Màn chiếu hiện top 5 khi công bố kết quả"}
+            </small>
+          </div>
+          <ol className="leaderboard">
+            {s.leaderboard_full.slice(0, 10).map((r: Data) => (
+              <li key={r.student_id}>
+                <span className="lb-rank">{r.rank}</span>
+                <span className="lb-name">
+                  {r.full_name}
+                  <small>{r.correct} câu đúng{r.streak >= 2 ? ` · đang chuỗi ${r.streak}` : ""}</small>
+                </span>
+                {r.last_gain > 0 && <span className="lb-gain">+{r.last_gain}</span>}
+                <strong>{r.points.toLocaleString("vi-VN")}</strong>
+              </li>
+            ))}
+          </ol>
+          {s.leaderboard_full.length > 10 && <small className="muted">… và {s.leaderboard_full.length - 10} học sinh khác</small>}
+        </section>
+      )}
       {s.state === "LOBBY" && <ol className="setup-steps" aria-label="Các bước chuẩn bị bài"><li className="selected">1. Lớp và bộ đề</li><li className="selected">2. Cấu hình</li><li className="selected">3. Ghép thiết bị</li><li>4. Sẵn sàng</li></ol>}
       <div className={`room-grid ${s.state === "LOBBY" ? "" : finished ? "is-finished" : "is-live"}`}>
         {s.state === "LOBBY" && <section className="hero session-hero">
@@ -642,6 +667,8 @@ function ProjectionView({ id, token }: { id: string; token: string }) {
           <p>Quan sát màn hình. Chọn A, B, C hoặc D trên thiết bị.</p>
           <strong>Mã phòng {s.room_code}</strong>
         </div>
+      ) : s.state === "FINISHED" && s.leaderboard?.length ? (
+        <Podium board={s.leaderboard} title={s.name} />
       ) : s.question ? (
         <>
           <div className="row spread">
@@ -657,16 +684,40 @@ function ProjectionView({ id, token }: { id: string; token: string }) {
           <h1 className="project-question">{s.question.question}</h1>
           <div className="project-options">
             {["A", "B", "C", "D"].map((c) => (
-              <div key={c}>
+              <div
+                key={c}
+                className={`choice-${c.toLowerCase()}${s.question.results ? (c === s.question.results.correct_answer ? " is-correct" : " is-dim") : ""}`}
+              >
                 <b>{c}</b>
                 <span>{s.question[`option_${c.toLowerCase()}`]}</span>
+                <ChoiceShape choice={c} />
               </div>
             ))}
           </div>
+          <div className={s.leaderboard?.length ? "project-reveal" : undefined}>
           {s.question.results && <section className="project-results" aria-label="Kết quả câu đã công bố">
             <h2>Kết quả câu {s.question.question_order} · đáp án đúng {s.question.results.correct_answer}</h2>
-            <div>{(["A", "B", "C", "D"] as const).map((c) => <span key={c}>{c}: <b>{s.question.results.counts[c]}</b></span>)}</div>
+            <div>{(["A", "B", "C", "D"] as const).map((c) => <span key={c} className={`choice-${c.toLowerCase()}${c === s.question.results.correct_answer ? " is-correct" : ""}`}><ChoiceShape choice={c} />{c}: <b>{s.question.results.counts[c]}</b></span>)}</div>
           </section>}
+          {s.leaderboard?.length > 0 && (
+            <section className="project-board" aria-label="Bảng xếp hạng">
+              <h2>Bảng xếp hạng</h2>
+              <ol>
+                {s.leaderboard.map((r: Data) => (
+                  <li key={r.name}>
+                    <span className="lb-rank">{r.rank}</span>
+                    <span className="lb-name">
+                      {r.name}
+                      {r.streak >= 2 && <small className="lb-streak">{r.streak} câu liên tiếp</small>}
+                    </span>
+                    {r.last_gain > 0 && <span className="lb-gain">+{r.last_gain}</span>}
+                    <strong>{r.points.toLocaleString("vi-VN")}</strong>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
+          </div>
           <footer>
             {s.answered}/{s.participants} học sinh đã trả lời
             {s.state === "PAUSED" ? " · Bài đang tạm dừng" : s.question.status === "CLOSED" ? s.config.auto_next ? " · Hết giờ, sắp chuyển câu" : " · Hết giờ, chờ giáo viên chuyển câu" : ""}
@@ -690,5 +741,38 @@ function ProjectionView({ id, token }: { id: string; token: string }) {
         <h1>{stateLabel[s.state]}</h1>
       )}
     </main>
+  );
+}
+
+// Final ranking: 2nd, 1st, 3rd on steps; places 4–5 listed underneath.
+function Podium({ board, title }: { board: Data[]; title: string }) {
+  const steps = [board[1], board[0], board[2]]
+    .map((r, i) => r && { ...r, place: [2, 1, 3][i] })
+    .filter(Boolean) as Data[];
+  return (
+    <div className="podium-wrap">
+      <p className="eyebrow">KẾT QUẢ THI ĐUA</p>
+      <h1>{title}</h1>
+      <div className="podium">
+        {steps.map((r) => (
+          <div key={r.name} className={`podium-step place-${r.place}`}>
+            <span className="podium-name">{r.name}</span>
+            <span className="podium-points">{r.points.toLocaleString("vi-VN")} điểm</span>
+            <div className="podium-block">{r.rank}</div>
+          </div>
+        ))}
+      </div>
+      {board.length > 3 && (
+        <ol className="podium-rest">
+          {board.slice(3).map((r) => (
+            <li key={r.name}>
+              <span className="lb-rank">{r.rank}</span>
+              <span className="lb-name">{r.name}</span>
+              <strong>{r.points.toLocaleString("vi-VN")}</strong>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
   );
 }

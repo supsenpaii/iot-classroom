@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, stateLabel, errorLabel, type Data } from "../api";
 import { Head, Status, useApp, useResource } from "../components";
 import { socketUrl } from "../socket";
+const ratingLabel: Record<string, string> = { KNOWN: "Nhớ", AGAIN: "Chưa nhớ" };
 function SimDevice({ device }: { device: Data }) {
   const [state, setState] = useState<Data>({ state: "WAITING" }),
     [status, setStatus] = useState("Đang kết nối…"),
@@ -21,8 +22,63 @@ function SimDevice({ device }: { device: Data }) {
     if (retryTimer.current) clearTimeout(retryTimer.current);
     if (pending.current) retryTimer.current = setTimeout(transmit, 1200);
   }
+  function send(packet: Data, label: string) {
+    pending.current = packet;
+    last.current = packet;
+    setAck(`Đang gửi ${label}…`);
+    transmit();
+  }
   function choose(choice: string) {
     const s = current.current;
+    if ((s.mode === "poll" || s.mode === "attendance") && pending.current) {
+      queued.current = choice;
+      setAck("Đang chờ ACK · giữ lựa chọn mới nhất");
+      return;
+    }
+    if (s.mode === "attendance") {
+      send(
+        { v: 1, type: "attendance.checkin", request_id: crypto.randomUUID(), attendance_id: s.id },
+        "điểm danh",
+      );
+      return;
+    }
+    if (s.mode === "poll") {
+      if ("ABCD".indexOf(choice) >= s.options) {
+        setAck(`Khảo sát chỉ có ${s.options} lựa chọn`);
+        return;
+      }
+      send(
+        { v: 1, type: "poll.vote", request_id: crypto.randomUUID(), poll_id: s.id, choice },
+        `ý kiến ${choice}`,
+      );
+      return;
+    }
+    if (s.mode === "flashcard") {
+      // Same mapping as the firmware: A = remembered, B = not yet.
+      const rating = choice === "A" ? "KNOWN" : choice === "B" ? "AGAIN" : null;
+      if (!rating) {
+        setAck("Flashcard: A = Nhớ, B = Chưa nhớ");
+        return;
+      }
+      if (pending.current) {
+        queued.current = choice;
+        setAck("Đang chờ ACK · giữ lựa chọn mới nhất");
+        return;
+      }
+      const packet = {
+        v: 1,
+        type: "flashcard.rate",
+        request_id: crypto.randomUUID(),
+        review_id: s.id,
+        card_id: s.card.id,
+        rating,
+      };
+      pending.current = packet;
+      last.current = packet;
+      setAck(`Đang gửi ${ratingLabel[rating]}…`);
+      transmit();
+      return;
+    }
     if (!s.binding_id) {
       setAck("Chưa ghép học sinh");
       return;
@@ -94,6 +150,21 @@ function SimDevice({ device }: { device: Data }) {
                 msg.data.current_answer?.seq || 0,
               );
             if (pending.current) transmit();
+          } else if (["flashcard.ack", "poll.ack", "attendance.ack"].includes(msg.type)) {
+            setAck(
+              msg.accepted
+                ? msg.type === "attendance.ack"
+                  ? "Đã điểm danh"
+                  : `Đã ACK ${msg.type === "poll.ack" ? `ý kiến ${msg.choice}` : ratingLabel[msg.rating]}`
+                : `Từ chối: ${errorLabel[msg.code] || msg.code}`,
+            );
+            if (pending.current?.request_id === msg.request_id) {
+              pending.current = null;
+              if (retryTimer.current) clearTimeout(retryTimer.current);
+              const choice = queued.current;
+              queued.current = null;
+              if (choice) choose(choice);
+            }
           } else if (msg.type === "answer.ack") {
             if (drop.current) {
               drop.current = false;
@@ -150,17 +221,37 @@ function SimDevice({ device }: { device: Data }) {
         <h2>{device.label}</h2>
         <span className="badge">{status}</span>
       </div>
-      <p>
-        {state.binding_id ? "Đã ghép học sinh" : "Chờ giáo viên ghép thiết bị"}{" "}
-        ·{" "}
-        {state.question
-          ? `${stateLabel[state.question.status]}`
-          : "Chưa mở câu"}
-      </p>
+      {state.mode === "poll" ? (
+        <p>
+          Khảo sát · {state.options} lựa chọn
+          {state.current_choice && ` · đã chọn ${state.current_choice}`}
+        </p>
+      ) : state.mode === "attendance" ? (
+        <p>
+          Điểm danh · {state.checked_in ? "đã có mặt" : "bấm phím bất kỳ để điểm danh"}
+        </p>
+      ) : state.mode === "flashcard" ? (
+        <p>
+          Flashcard · thẻ {state.card.index}/{state.card.total} ·{" "}
+          {state.card.side === "back" ? "mặt sau" : "mặt trước"} · A = Nhớ, B =
+          Chưa nhớ
+          {state.current_rating &&
+            ` · đã chọn ${ratingLabel[state.current_rating]}`}
+        </p>
+      ) : (
+        <p>
+          {state.binding_id ? "Đã ghép học sinh" : "Chờ giáo viên ghép thiết bị"}{" "}
+          ·{" "}
+          {state.question
+            ? `${stateLabel[state.question.status]}`
+            : "Chưa mở câu"}
+        </p>
+      )}
       <div className="sim-buttons">
         {["A", "B", "C", "D"].map((c) => (
           <button
             key={c}
+            className={`choice-${c.toLowerCase()}`}
             disabled={offline || status !== "Đã kết nối"}
             onClick={() => choose(c)}
           >

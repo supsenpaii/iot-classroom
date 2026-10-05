@@ -7,6 +7,7 @@ import {
   type Config,
 } from "../shared/protocol.js";
 import { hash } from "./auth.js";
+import { standings } from "./leaderboard.js";
 export class Quiz {
   constructor(
     public db: DB,
@@ -62,14 +63,35 @@ export class Quiz {
         );
       for (const st of all(
         this.db,
-        "SELECT * FROM students WHERE class_id=?",
+        "SELECT s.*,sd.device_id FROM students s LEFT JOIN student_devices sd ON sd.student_id=s.id LEFT JOIN devices d ON d.id=sd.device_id AND d.revoked=0 WHERE s.class_id=?",
         cls.id,
-      ))
+      )) {
+        const sessionStudent = randomUUID();
         this.db
           .prepare(
             "INSERT INTO session_students(id,session_id,student_id,student_code,full_name) VALUES (?,?,?,?,?)",
           )
-          .run(randomUUID(), id, st.id, st.student_code, st.full_name);
+          .run(sessionStudent, id, st.id, st.student_code, st.full_name);
+        // Pre-bind the student's default device unless another unfinished room still holds it.
+        if (
+          st.device_id &&
+          one(this.db, "SELECT 1 FROM devices WHERE id=? AND revoked=0", st.device_id) &&
+          !one(
+            this.db,
+            "SELECT 1 FROM session_devices WHERE device_id=? AND active=1",
+            st.device_id,
+          )
+        ) {
+          this.db
+            .prepare("INSERT INTO session_devices VALUES (?,?,?,?,1,?)")
+            .run(randomUUID(), id, sessionStudent, st.device_id, this.now());
+          this.event(id, "binding.changed", {
+            student: sessionStudent,
+            device: st.device_id,
+            source: "default",
+          }, owner);
+        }
+      }
     })();
     return id;
   }
@@ -446,9 +468,20 @@ export class Quiz {
       return result;
     })();
   }
+  standings(id: string) {
+    const s = this.get(id),
+      cfg = JSON.parse(s.config);
+    if (cfg.leaderboard === false || s.source === "IMPORT") return null;
+    return standings(this.db, id, cfg.seconds);
+  }
   snapshot(id: string) {
     const s = this.get(id),
       q = this.current(id);
+    // The class sees the ranking only at moments the teacher controls: revealed results or the end.
+    const board =
+      s.state === "FINISHED" || (q?.status === "CLOSED" && q.results_revealed)
+        ? this.standings(id)
+        : null;
     let question = null;
     if (q) {
       const d = JSON.parse(q.data);
@@ -498,6 +531,15 @@ export class Quiz {
         "SELECT count(*) n FROM session_students WHERE session_id=? AND absent=0",
         id,
       )!.n,
+      leaderboard: board
+        ? board.slice(0, 5).map(({ rank, name, points, last_gain, streak }) => ({
+            rank,
+            name,
+            points,
+            last_gain,
+            streak,
+          }))
+        : null,
     };
   }
   deviceSnapshot(device: string) {
@@ -785,6 +827,7 @@ export class Quiz {
     return {
       session: { ...s, config: cfg },
       N,
+      leaderboard: s.state === "CANCELLED" ? null : this.standings(id),
       students,
       questions: qs.map((q) => {
         const data = JSON.parse(q.data),

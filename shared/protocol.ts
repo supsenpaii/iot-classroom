@@ -20,6 +20,7 @@ export const configSchema = z.object({
   auto_next: z.boolean().default(false),
   allow_change: z.boolean().default(true),
   pass_mark: z.number().min(0).max(10).default(5),
+  leaderboard: z.boolean().default(true),
 });
 export type Config = z.infer<typeof configSchema>;
 export const answerSchema = z
@@ -35,6 +36,43 @@ export const answerSchema = z
   })
   .strict();
 export type AnswerPacket = z.infer<typeof answerSchema>;
+export const pollSchema = z.object({
+  question: z.string().trim().min(1).max(300),
+  options: z.array(z.string().trim().min(1).max(120)).min(2).max(4),
+  hide_results: z.boolean().default(false),
+});
+export const pollVoteSchema = z
+  .object({
+    v: z.literal(1),
+    type: z.literal("poll.vote"),
+    request_id: z.string().min(1).max(100),
+    poll_id: z.string().max(80),
+    choice,
+  })
+  .strict();
+export const attendanceCheckinSchema = z
+  .object({
+    v: z.literal(1),
+    type: z.literal("attendance.checkin"),
+    request_id: z.string().min(1).max(100),
+    attendance_id: z.string().max(80),
+  })
+  .strict();
+export const flashcardSchema = z.object({
+  front: z.string().trim().min(1).max(2000),
+  back: z.string().trim().min(1).max(5000),
+});
+export const flashcardRating = z.enum(["KNOWN", "AGAIN"]);
+export const flashcardRateSchema = z
+  .object({
+    v: z.literal(1),
+    type: z.literal("flashcard.rate"),
+    request_id: z.string().min(1).max(100),
+    review_id: z.string().max(80),
+    card_id: z.string().max(80),
+    rating: flashcardRating,
+  })
+  .strict();
 export type PublicQuestion = {
   id: string;
   question: string;

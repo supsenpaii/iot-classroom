@@ -35,6 +35,8 @@ Mở **http://localhost:3000/register** để tự tạo tài khoản giáo viê
 4. Tạo buổi kiểm tra, chọn lớp/bộ đề, số câu và thời gian. Ghép mỗi học sinh với một thiết bị; kiểm tra nút bấm trước khi bắt đầu. Nếu chưa có ESP32, bản development có thể bật `ENABLE_SIMULATOR=true` và dùng trang **Giả lập**.
 5. Mở màn hình trình chiếu cho cả lớp. Giáo viên điều khiển buổi kiểm tra ở bảng riêng; học sinh bấm A/B/C/D trên thiết bị. Web hiển thị trạng thái kết nối, đã/chưa nộp, thời gian và kết quả sau khi đóng câu.
 6. Vào **Báo cáo** để xem biểu đồ, ma trận kết quả và xuất Excel/PDF. Có thể nhập kết quả cũ bằng XLSX/CSV ngay tại trang này.
+7. Vào **Flashcard** để tạo bộ thẻ (nhập tay, XLSX/CSV cột `front`/`back`, hoặc chuyển từ bộ đề có sẵn). **Bắt đầu ôn tập** để chiếu thẻ cho cả lớp: học sinh bấm A = Nhớ, B = Chưa nhớ trên thiết bị, giáo viên thấy ngay số bạn đã nhớ và ôn lại riêng các thẻ chưa nhớ. **Bật link tự học** để học sinh mở `/study/<mã>` trên điện thoại, không cần tài khoản; tiến độ lưu trên máy của học sinh.
+8. **Thi đua**: bật khi tạo buổi kiểm tra; công bố kết quả câu để màn chiếu hiện top 5, cuối buổi có bục vinh danh. **Khảo sát nhanh**: hỏi cả lớp một câu, học sinh bấm A–D ẩn danh. **Điểm danh**: gán thiết bị mặc định cho học sinh trong trang lớp, mở điểm danh, học sinh bấm phím bất kỳ; xuất Excel.
 
 Để chạy web trên một máy khác qua Tailscale Funnel, kể cả máy dùng tài khoản Tailscale khác, xem [hướng dẫn chuyển máy](docs/TAILSCALE_MAY_KHAC.md). Chuyển cả database và app; chỉ bật Tailscale trên máy mới không giữ web hoạt động khi máy cũ tắt.
 
