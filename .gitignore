@@ -10,3 +10,10 @@ backups/
 test-results/
 playwright-report/
 artifacts/
+
+# AI assistant notes and prompts stay local
+CLAUDE.md
+AGENTS.md
+.claude/
+.cursor/
+*.prompt.md
