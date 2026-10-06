@@ -14,6 +14,28 @@ export const Context = createContext<{
   run: (fn: () => Promise<unknown>, success?: string) => Promise<void>;
 }>({ user: {}, run: async () => {} });
 export const useApp = () => useContext(Context);
+export function DeleteSessionButton({ id, name, state }: { id: string; name: string; state: string }) {
+  const { run } = useApp();
+  const [deleting, setDeleting] = useState(false);
+  if (!["LOBBY", "FINISHED", "CANCELLED"].includes(state)) return null;
+  return (
+    <button
+      type="button"
+      className="danger"
+      disabled={deleting}
+      onClick={() => {
+        if (!window.confirm(`Xóa buổi kiểm tra “${name}”? Toàn bộ đáp án, điểm, báo cáo và nhật ký của buổi sẽ bị xóa. Thao tác này không thể hoàn tác.`)) return;
+        setDeleting(true);
+        void run(async () => {
+          await api(`/sessions/${id}`, "DELETE");
+          window.location.href = "/reports";
+        }).finally(() => setDeleting(false));
+      }}
+    >
+      {deleting ? "Đang xóa buổi…" : "Xóa buổi kiểm tra"}
+    </button>
+  );
+}
 export function useResource<T = Data>(path: string) {
   const [data, setData] = useState<T | null>(null),
     [error, setError] = useState(""),

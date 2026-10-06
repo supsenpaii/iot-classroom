@@ -298,6 +298,7 @@ export function Classes({ id }: { id?: string }) {
     devices = useResource<Data[]>("/devices"),
     { run } = useApp(),
     [editing, setEditing] = useState<Data | null>(null),
+    [deleting, setDeleting] = useState(false),
     [search, setSearch] = useState("");
   if (!resource.data) return <Status loading error={resource.error} />;
   const d = resource.data;
@@ -559,6 +560,23 @@ export function Classes({ id }: { id?: string }) {
                   Lưu trữ lớp
                 </label>
                 <button>Lưu cài đặt</button>
+                <button
+                  type="button"
+                  className="danger"
+                  disabled={deleting}
+                  onClick={() => {
+                    if (!window.confirm(
+                      `Xóa lớp “${d.name}” và ${d.students.length} học sinh? Các gán thiết bị sẽ được gỡ. Thao tác này không thể hoàn tác. Lớp có lịch sử kiểm tra hoặc điểm danh chỉ có thể lưu trữ.`,
+                    )) return;
+                    setDeleting(true);
+                    void run(async () => {
+                      await api(`/classes/${id}`, "DELETE");
+                      window.location.href = "/classes";
+                    }).finally(() => setDeleting(false));
+                  }}
+                >
+                  {deleting ? "Đang xóa lớp…" : "Xóa lớp"}
+                </button>
               </form>
             </div>
           </div>

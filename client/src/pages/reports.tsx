@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api, fmt, stateLabel, type Data } from "../api";
-import { Empty, Head, Status, useApp, useResource } from "../components";
+import { DeleteSessionButton, Empty, Head, Icon, Status, useApp, useResource } from "../components";
 import { ResultsGrid, ResultsSummary } from "./results-grid";
 import { ScoreStats } from "./score-stats";
 import { StudyPlan } from "./study-plan";
 function ResultImporter() {
+  const fileInput = useRef<HTMLInputElement>(null);
   const classes = useResource<Data[]>("/classes"),
     banks = useResource<Data[]>("/question-banks"),
     { run } = useApp(),
@@ -54,15 +55,15 @@ function ResultImporter() {
   }
   return (
     <section className="card result-import">
-      <h2>Tạo báo cáo từ kết quả đã có</h2>
-      <p>
-        Nhập file đáp án để tạo báo cáo hoàn tất mà không cần bắt đầu buổi kiểm
-        tra trực tiếp. Dùng một dòng ANSWER_KEY và mỗi học sinh một dòng STUDENT;
-        tải mẫu theo bộ đề đã chọn.
-      </p>
-      <div className="form-grid">
+      <header className="import-card-head">
+        <h2>Tạo báo cáo từ kết quả đã có</h2>
+        <p>Chọn bộ đề, danh sách học sinh và tải file kết quả để bắt đầu.</p>
+      </header>
+      <section className="import-section" aria-labelledby="import-info-title">
+      <h3 id="import-info-title">1. Thông tin báo cáo</h3>
+      <div className="import-fields">
         <label className="field">
-          Bộ đề (thứ tự câu phải khớp Q1…Qn)
+          <span>Bộ đề</span>
           <select value={bankId} onChange={(e) => setBankId(e.target.value)}>
             <option value="">Chọn bộ đề…</option>
             {banks.data?.map((bank: Data) => (
@@ -71,9 +72,10 @@ function ResultImporter() {
               </option>
             ))}
           </select>
+          <small>Thứ tự câu trong file phải khớp Q1…Qn của bộ đề.</small>
         </label>
         <label className="field">
-          Tên báo cáo
+          <span>Tên báo cáo</span>
           <input
             value={reportName}
             onChange={(e) => setReportName(e.target.value)}
@@ -81,8 +83,8 @@ function ResultImporter() {
             placeholder="Ví dụ: Kiểm tra cuối chương"
           />
         </label>
-        <label className="field">
-          Ngưỡng đạt / 10
+        <label className="field import-pass-mark">
+          <span>Ngưỡng đạt /10</span>
           <input
             type="number"
             min={0}
@@ -93,28 +95,32 @@ function ResultImporter() {
           />
         </label>
       </div>
-      <fieldset className="choice-field">
-        <legend>Danh sách học sinh</legend>
-        <label>
+      </section>
+      <section className="import-section" aria-labelledby="import-students-title">
+      <h3 id="import-students-title">2. Danh sách học sinh</h3>
+      <div className="import-options" role="group" aria-labelledby="import-students-title">
+        <label className={`import-option ${mode === "existing" ? "is-selected" : ""}`}>
           <input
             type="radio"
+            name="import-student-mode"
             checked={mode === "existing"}
             onChange={() => setMode("existing")}
-          />{" "}
-          Ghép vào lớp có sẵn theo mã học sinh
+          />
+          <span><strong>Ghép vào lớp có sẵn</strong><small>Đối chiếu theo mã học sinh</small></span>
         </label>
-        <label>
+        <label className={`import-option ${mode === "new" ? "is-selected" : ""}`}>
           <input
             type="radio"
+            name="import-student-mode"
             checked={mode === "new"}
             onChange={() => setMode("new")}
-          />{" "}
-          Tạo lớp/nhóm mới từ danh sách trong file
+          />
+          <span><strong>Tạo lớp/nhóm mới từ file</strong><small>Dùng danh sách học sinh trong file</small></span>
         </label>
-      </fieldset>
+      </div>
       {mode === "existing" ? (
         <label className="field">
-          Lớp
+          <span>Lớp</span>
           <select value={classId} onChange={(e) => setClassId(e.target.value)}>
             <option value="">Chọn lớp…</option>
             {classes.data?.map((cls: Data) => (
@@ -126,7 +132,7 @@ function ResultImporter() {
         </label>
       ) : (
         <label className="field">
-          Tên lớp/nhóm mới
+          <span>Tên lớp/nhóm mới</span>
           <input
             value={className}
             onChange={(e) => setClassName(e.target.value)}
@@ -135,17 +141,30 @@ function ResultImporter() {
           />
         </label>
       )}
-      <div className="actions result-template-links">
+      </section>
+      <section className="import-section" aria-labelledby="import-file-title">
+      <div className="import-section-head">
+      <h3 id="import-file-title">3. File kết quả</h3>
+      <div className="result-template-links">
         <a href={`/api/templates/results.xlsx?count=${selectedBank?.question_count || 3}`}>
-          Tải mẫu Excel
+          <span aria-hidden="true">↓</span> Tải mẫu Excel
         </a>
         <a href={`/api/templates/results.csv?count=${selectedBank?.question_count || 3}`}>
-          Tải mẫu CSV
+          <span aria-hidden="true">↓</span> Tải mẫu CSV
         </a>
       </div>
-      <label className="field">
-        File kết quả (.xlsx hoặc .csv)
+      </div>
+      <label className="import-upload">
+        <span className="import-upload-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 16V3m-5 5 5-5 5 5M4 16v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" />
+          </svg>
+        </span>
+        <strong>{file ? "Chọn file khác hoặc kéo thả để thay thế" : "Kéo thả file vào đây hoặc chọn file"}</strong>
+        <span>Hỗ trợ .xlsx, .csv</span>
         <input
+          ref={fileInput}
+          aria-label="File kết quả (.xlsx hoặc .csv)"
           type="file"
           accept=".xlsx,.csv"
           onChange={(e) => {
@@ -154,7 +173,26 @@ function ResultImporter() {
           }}
         />
       </label>
+      {file && (
+        <div className="import-selected-file" role="status">
+          <span aria-hidden="true"><Icon name="file" /></span>
+          <div><strong>{file.name}</strong><small>{file.size < 1048576 ? `${(file.size / 1024).toFixed(1)} KB` : `${(file.size / 1048576).toFixed(1)} MB`}</small></div>
+          <button type="button" aria-label={`Xóa file ${file.name}`} onClick={() => {
+            setFile(null);
+            setPreview(null);
+            if (fileInput.current) fileInput.current.value = "";
+          }}>Xóa file</button>
+        </div>
+      )}
+      <details className="import-file-help">
+        <summary>Hướng dẫn điền file mẫu</summary>
+        <p>Dùng một dòng <code>ANSWER_KEY</code> cho đáp án đúng và mỗi học sinh một dòng <code>STUDENT</code>. Tải mẫu theo bộ đề đã chọn; giữ đúng thứ tự câu hỏi.</p>
+      </details>
+      </section>
+      <div className="import-footer">
       <button
+        type="button"
+        className="primary"
         disabled={!file || busy}
         onClick={() => {
           setBusy(true);
@@ -163,6 +201,7 @@ function ResultImporter() {
       >
         {busy ? "Đang đọc file…" : "Kiểm tra file"}
       </button>
+      </div>
       {preview && (
         <div className="result-preview">
           {preview.errors.length ? (
@@ -201,6 +240,42 @@ function ResultImporter() {
     </section>
   );
 }
+export function ImportReportPage() {
+  return (
+    <div className="report-import-page">
+      <Head
+        eyebrow="BÁO CÁO"
+        title="Nhập kết quả"
+        description="Tạo báo cáo từ file Excel hoặc CSV đã có."
+      >
+        <a className="button" href="/reports">← Về danh sách báo cáo</a>
+      </Head>
+      <ResultImporter />
+    </div>
+  );
+}
+function ReportExportMenu({ id }: { id: string }) {
+  return (
+    <details className="report-export">
+      <summary>Xuất báo cáo <span aria-hidden="true">⌄</span></summary>
+      <div className="report-export-options">
+        <a href={`/api/sessions/${id}/export.xlsx`}>Xuất Excel</a>
+        <button type="button" onClick={() => window.print()}>In / Lưu PDF</button>
+      </div>
+    </details>
+  );
+}
+function ReportSectionNav({ study }: { study: boolean }) {
+  return (
+    <nav className="report-section-nav" aria-label="Các phần của báo cáo">
+      <a href="#report-overview">Tổng quan</a>
+      <a href="#report-results">Kết quả</a>
+      <a href="#report-statistics">Thống kê</a>
+      <a href="#report-questions">Phân tích câu hỏi</a>
+      <a href="#report-actions">{study ? "Ôn tập" : "Hành động tiếp theo"}</a>
+    </nav>
+  );
+}
 export function Reports({ id }: { id?: string }) {
   const r = useResource<Data>(id ? `/sessions/${id}/report` : "/sessions"),
     { run } = useApp(),
@@ -216,8 +291,11 @@ export function Reports({ id }: { id?: string }) {
           eyebrow="BÁO CÁO"
           title="Hiểu lớp học qua từng câu trả lời."
           description="Xem kết quả, tìm câu cần ôn lại và xuất bảng điểm."
-        />
-        <ResultImporter />
+        >
+          <a className="button primary" href="/reports/import">
+            Nhập kết quả
+          </a>
+        </Head>
         <section className="card">
           <label className="field">
             Tìm buổi kiểm tra
@@ -265,11 +343,12 @@ export function Reports({ id }: { id?: string }) {
         title={d.session.name}
         description={`${d.session.class_name} · ${stateLabel[d.session.state]} · ${d.N}/${d.session.config.count} câu đã đóng hợp lệ${d.session.early_finish ? " · Kết thúc sớm" : ""}`}
       >
-        <a className="button primary" href={`/api/sessions/${id}/export.xlsx`}>
-          Xuất Excel ↓
-        </a>
-        <button onClick={() => window.print()}>In / Lưu PDF</button>
+        <ReportExportMenu id={id} />
+        <DeleteSessionButton id={id!} name={d.session.name} state={d.session.state} />
       </Head>
+      <ReportSectionNav study={d.session.state === "FINISHED" && d.N > 0} />
+      <section className="report-group report-overview" id="report-overview" aria-labelledby="report-overview-heading">
+      <h2 className="report-group-heading" id="report-overview-heading">Tổng quan</h2>
       {!["FINISHED", "CANCELLED"].includes(d.session.state) && (
         <p className="warning">
           Buổi chưa kết thúc. Đây là thống kê tạm thời của các câu đã đóng.{" "}
@@ -280,7 +359,7 @@ export function Reports({ id }: { id?: string }) {
         <p className="alert">Buổi đã hủy — không có điểm chính thức.</p>
       )}
       {d.session.source === "IMPORT" && (
-        <p className="warning">
+        <p className="report-info">
           Báo cáo được tạo từ file kết quả có sẵn; thời gian trả lời và nhật ký
           trực tiếp không có trong dữ liệu nhập.
         </p>
@@ -291,6 +370,9 @@ export function Reports({ id }: { id?: string }) {
         </p>
       )}
       <ResultsSummary d={d} />
+      </section>
+      <section className="report-group" id="report-results" aria-labelledby="report-results-heading">
+      <h2 className="report-group-heading" id="report-results-heading">Kết quả học sinh</h2>
       <ResultsGrid
         d={d}
         reportId={id}
@@ -345,8 +427,6 @@ export function Reports({ id }: { id?: string }) {
           </div>
         </section>
       )}
-      <ScoreStats d={d} />
-      {d.session.state === "FINISHED" && d.N > 0 && <StudyPlan d={d} id={id} />}
       {d.leaderboard?.length > 0 && d.N > 0 && (
         <section className="card report-leaderboard">
           <h2>Bảng xếp hạng thi đua</h2>
@@ -376,9 +456,20 @@ export function Reports({ id }: { id?: string }) {
           </div>
         </section>
       )}
-      <section className="card">
-        <h2>Cần giáo viên xem xét <span className="badge">{reviewItems.length}</span></h2>
-        {reviewItems.length ? reviewItems.map(({ student: st, detail: a }: { student: Data; detail: Data }) => <button className="review-item" key={`${st.id}:${a.question_id}`} onClick={() => { setSelectedCell({ student: st.id, question: a.question_id }); document.getElementById("results-grid")?.scrollIntoView({ behavior: "smooth" }); }}>{st.full_name} · câu {a.order} bỏ trống · {a.incidents.length} sự kiện liên quan →</button>) : <p className="muted">Không có.</p>}
+      </section>
+      <section className="report-group" aria-labelledby="report-analysis-heading">
+        <h2 className="report-group-heading" id="report-analysis-heading">Phân tích</h2>
+        <ScoreStats d={d} />
+      </section>
+      <section className="report-group" id="report-actions" aria-labelledby="report-actions-heading">
+        <h2 className="report-group-heading" id="report-actions-heading">Hành động tiếp theo</h2>
+        {d.session.state === "FINISHED" && d.N > 0 && <StudyPlan d={d} id={id} />}
+      <section className={`card report-review${reviewItems.length ? "" : " is-empty"}`}>
+        {reviewItems.length ? <>
+          <h2>Cần giáo viên xem xét <span className="badge">{reviewItems.length}</span></h2>
+          {reviewItems.map(({ student: st, detail: a }: { student: Data; detail: Data }) => <button className="review-item" key={`${st.id}:${a.question_id}`} onClick={() => { setSelectedCell({ student: st.id, question: a.question_id }); document.getElementById("results-grid")?.scrollIntoView({ behavior: "smooth" }); }}>{st.full_name} · câu {a.order} bỏ trống · {a.incidents.length} sự kiện liên quan →</button>)}
+        </> : <p className="muted">Không có câu hỏi nào cần xem xét.</p>}
+      </section>
       </section>
     </div>
   );

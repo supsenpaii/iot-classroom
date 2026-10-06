@@ -400,6 +400,26 @@ export function createApplication(db: DB, config: AppConfig) {
     );
     res.json({ ok: true });
   });
+  app.delete("/api/classes/:id", (req, res) => {
+    const c = owned(db, "classes", param(req), owner(req));
+    db.transaction(() => {
+      if (
+        one(db, "SELECT id FROM quiz_sessions WHERE class_id=? LIMIT 1", c.id) ||
+        one(db, "SELECT id FROM attendance_sessions WHERE class_id=? LIMIT 1", c.id)
+      )
+        throw new AppError(
+          "CLASS_HAS_HISTORY",
+          "Lớp đã có buổi kiểm tra hoặc lịch sử điểm danh. Hãy lưu trữ lớp để giữ lại báo cáo.",
+          409,
+        );
+      db.prepare(
+        "DELETE FROM student_devices WHERE student_id IN (SELECT id FROM students WHERE class_id=?)",
+      ).run(c.id);
+      db.prepare("DELETE FROM students WHERE class_id=?").run(c.id);
+      db.prepare("DELETE FROM classes WHERE id=?").run(c.id);
+    })();
+    res.json({ ok: true });
+  });
   app.post("/api/classes/:id/students/import", (req, res) => {
     const c = owned(db, "classes", param(req), owner(req)),
       rows = z.array(studentSchema).min(1).max(500).parse(req.body.rows);
@@ -996,6 +1016,29 @@ export function createApplication(db: DB, config: AppConfig) {
   app.get("/api/sessions/:id", (req, res) => {
     owned(db, "quiz_sessions", param(req), owner(req));
     res.json(realtime.teacherSnapshot(param(req)));
+  });
+  app.delete("/api/sessions/:id", (req, res) => {
+    const s = owned(db, "quiz_sessions", param(req), owner(req));
+    db.transaction(() => {
+      if (!["LOBBY", "FINISHED", "CANCELLED"].includes(s.state))
+        throw new AppError(
+          "SESSION_ACTIVE",
+          "Buổi kiểm tra đang chạy hoặc tạm dừng. Hãy kết thúc hoặc hủy buổi trước khi xóa.",
+          409,
+        );
+      db.prepare("DELETE FROM answers WHERE session_question_id IN (SELECT id FROM session_questions WHERE session_id=?)").run(s.id);
+      db.prepare("DELETE FROM answer_receipts WHERE binding_id IN (SELECT id FROM session_devices WHERE session_id=?)").run(s.id);
+      db.prepare("DELETE FROM session_devices WHERE session_id=?").run(s.id);
+      db.prepare("DELETE FROM session_students WHERE session_id=?").run(s.id);
+      db.prepare("DELETE FROM session_questions WHERE session_id=?").run(s.id);
+      db.prepare("DELETE FROM session_events WHERE session_id=?").run(s.id);
+      db.prepare("DELETE FROM commands WHERE session_id=?").run(s.id);
+      db.prepare("DELETE FROM access_tokens WHERE resource_id=? AND kind LIKE 'projection%'").run(s.id);
+      db.prepare("DELETE FROM quiz_sessions WHERE id=?").run(s.id);
+    })();
+    realtime.disconnectSession(s.id);
+    changed();
+    res.json({ ok: true });
   });
   app.patch("/api/sessions/:id", (req, res) => {
     const s = owned(db, "quiz_sessions", param(req), owner(req));

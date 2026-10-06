@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, fields, stateLabel, eventLabel, type Data } from "../api";
 import {
   ChoiceShape,
+  DeleteSessionButton,
   Empty,
   Field,
   Head,
@@ -92,6 +93,7 @@ export function SessionPage({ id }: { id: string }) {
             Xem báo cáo →
           </a>
         )}
+        <DeleteSessionButton id={id} name={s.name} state={s.state} />
       </Head>
       <div
         className={`connection ${live.status === "Đã kết nối" ? "" : "warning"}`}

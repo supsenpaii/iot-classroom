@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { fmt, type Data } from "../api";
 
 // Score summary, distribution, grade bands and per-question analysis for one session.
@@ -28,15 +28,28 @@ const discrimination = (d: number) =>
 
 export function ScoreStats({ d }: { d: Data }) {
   const [hoverBin, setHoverBin] = useState<number | null>(null),
-    [itemSort, setItemSort] = useState("order");
+    [itemSort, setItemSort] = useState("order"),
+    [itemFilter, setItemFilter] = useState("all"),
+    [topicSort, setTopicSort] = useState("low"),
+    [compactDistribution, setCompactDistribution] = useState(() =>
+      typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches,
+    );
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 767px)");
+    const update = () => setCompactDistribution(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
   const passMark: number = d.session.config.pass_mark;
   const scored = d.students.filter((s: Data) => s.score != null);
   const scores = scored.map((s: Data) => s.score as number).sort((a: number, b: number) => a - b);
   if (!scores.length)
     return (
-      <section className="card score-stats">
+      <section className="card score-stats" id="report-statistics">
         <h2>Thống kê điểm</h2>
         <p className="muted">Chưa có điểm.</p>
+        <div id="report-questions"><h3>Phân tích câu hỏi</h3><p className="muted">Chưa có câu được chấm điểm để phân tích.</p></div>
       </section>
     );
   const m = mean(scores)!,
@@ -87,6 +100,11 @@ export function ScoreStats({ d }: { d: Data }) {
         ? a.p - b.p
         : a.q.question_order - b.q.question_order,
   );
+  const visibleItems = sortedItems.filter(item =>
+    itemFilter === "all" ||
+    (itemFilter === "low" ? item.p < 0.6 :
+      itemFilter === "unclassified" ? item.D >= 0 && item.D < 0.2 : item.flags.length > 0),
+  );
   // Histogram: ten one-point bins, the last one closed at 10.
   const bins = Array.from({ length: 10 }, (_, i) => ({
     from: i,
@@ -112,14 +130,14 @@ export function ScoreStats({ d }: { d: Data }) {
   });
   const topicRows = [...topics.entries()]
     .map(([topic, ps]) => ({ topic, pct: (mean(ps) ?? 0) * 100, n: ps.length }))
-    .sort((a, b) => a.pct - b.pct);
+    .sort((a, b) => topicSort === "name" ? a.topic.localeCompare(b.topic, "vi") : a.pct - b.pct);
   const hovered = hoverBin == null ? null : bins[hoverBin];
   const barPath = (bx: number, by: number, w: number, h: number) => {
     const r = Math.min(4, h, w / 2);
     return `M${bx},${by + h}V${by + r}Q${bx},${by} ${bx + r},${by}H${bx + w - r}Q${bx + w},${by} ${bx + w},${by + r}V${by + h}Z`;
   };
   return (
-    <section className="card score-stats" aria-label="Thống kê điểm">
+    <section className="card score-stats" id="report-statistics" aria-label="Thống kê điểm">
       <div className="ss-head">
         <h2>Thống kê điểm</h2>
         <span className="ss-sub">{scores.length} học sinh · đạt từ {num(passMark)}</span>
@@ -195,10 +213,18 @@ export function ScoreStats({ d }: { d: Data }) {
       </div>
           {topicRows.length >= 2 && (
             <figure className="ss-figure ss-topics-fig">
-              <figcaption><strong>Tỷ lệ đúng theo chủ đề</strong></figcaption>
+              <figcaption>
+                <strong>Tỷ lệ đúng theo chủ đề</strong>
+                <label className="results-select">Sắp xếp
+                  <select value={topicSort} onChange={e => setTopicSort(e.target.value)}>
+                    <option value="low">Tỷ lệ thấp → cao</option>
+                    <option value="name">Tên chủ đề A–Z</option>
+                  </select>
+                </label>
+              </figcaption>
               <ul className="ss-topics">
                 {topicRows.map((t) => (
-                  <li key={t.topic}>
+                  <li key={t.topic} className={t.pct < 70 ? "topic-needs-review" : ""}>
                     <span>{t.topic}<small>{t.n} câu</small></span>
                     <div className="ss-topic-track"><i style={{ width: `${t.pct}%` }} /></div>
                     <strong>{Math.round(t.pct)}%</strong>
@@ -208,9 +234,15 @@ export function ScoreStats({ d }: { d: Data }) {
             </figure>
           )}
       {analysis.length > 0 && (
-        <div className="ss-items">
+        <div className="ss-items" id="report-questions">
           <div className="ss-items-head">
             <h3>Phân tích câu hỏi</h3>
+            <div className="item-analysis-toolbar">
+            <div className="item-analysis-filters" role="group" aria-label="Lọc phân tích câu hỏi">
+              {[["all", "Tất cả"], ["low", "<60%"], ["unclassified", "Chưa phân loại"], ["review", "Cần xem xét"]].map(([value, label]) => (
+                <button type="button" key={value} aria-pressed={itemFilter === value} className={itemFilter === value ? "is-active" : ""} onClick={() => setItemFilter(value)}>{label}</button>
+              ))}
+            </div>
             <label className="results-select">
               Sắp xếp
               <select value={itemSort} onChange={(e) => setItemSort(e.target.value)}>
@@ -219,6 +251,7 @@ export function ScoreStats({ d }: { d: Data }) {
                 <option value="hard">Câu khó nhất trước</option>
               </select>
             </label>
+            </div>
           </div>
           <div className="ia-list" role="table" aria-label="Phân tích từng câu hỏi">
             <div className="ia-row ia-header" role="row">
@@ -229,7 +262,7 @@ export function ScoreStats({ d }: { d: Data }) {
               <span role="columnheader">Phân loại HS</span>
               <span role="columnheader">TG trả lời</span>
             </div>
-            {sortedItems.map(({ q, p, D, flags, severity }) => {
+            {visibleItems.map(({ q, p, D, flags, severity }) => {
               const [dLabel, dTone] = difficulty(p),
                 [qLabel, qTone] = discrimination(D),
                 counts = ["A", "B", "C", "D"].map((c) => ({ c, n: q.counts[c] || 0, correct: c === q.data.correct_answer })),
@@ -245,6 +278,9 @@ export function ScoreStats({ d }: { d: Data }) {
                     ))}
                   </div>
                   <div className="ia-dist" role="cell">
+                    <details open={compactDistribution ? undefined : true}>
+                    <summary>Phân phối lựa chọn</summary>
+                    <div className="ia-dist-body">
                     <div className="ia-bar" aria-label={counts.map((x) => `${x.c}: ${x.n}`).join(", ") + `, bỏ trống: ${blank}`}>
                       {counts.filter((x) => x.n > 0).map((x) => (
                         <span key={x.c} className={x.correct ? "seg-correct" : "seg-wrong"} style={{ width: `${(x.n / Math.max(1, total)) * 100}%` }} />
@@ -260,22 +296,25 @@ export function ScoreStats({ d }: { d: Data }) {
                       ))}
                       {blank > 0 && <span className="is-zero"><b>–</b>{blank}</span>}
                     </div>
+                    </div>
+                    </details>
                   </div>
                   <div className="ia-metric" role="cell">
                     <strong>{Math.round(p * 100)}%</strong>
                     <span className={`level ${dTone}`}>{dLabel}</span>
                   </div>
                   <div className="ia-metric" role="cell">
-                    <span className={`quality ${qTone}`}>
+                    <span className={`quality ${qTone}${D >= 0 && D < 0.2 ? " is-unclassified" : ""}`}>
                       <b aria-hidden="true">{qTone === "good" ? "✓" : qTone === "warn" ? "!" : "✕"}</b>
                       {qLabel}
                     </span>
                   </div>
-                  <span className="ia-time" role="cell">{q.response_ms == null ? "—" : `${num(q.response_ms / 1000)} giây`}</span>
+                  <span className="ia-time" role="cell"><span className="ia-mobile-label">TG trả lời: </span>{q.response_ms == null ? "—" : `${num(q.response_ms / 1000)} giây`}</span>
                 </div>
               );
             })}
           </div>
+          {!visibleItems.length && <p className="analysis-empty" role="status">Không có câu phù hợp bộ lọc.</p>}
         </div>
       )}
       <details className="ss-table">

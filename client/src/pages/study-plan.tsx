@@ -117,7 +117,7 @@ export function StudyPlan({ d, id }: { d: Data; id: string }) {
                 })}
               </ol>
             ) : (
-              <p className="sp-empty">Không có câu dưới 60% đúng.</p>
+              <p className="sp-empty">Không có câu cần giảng lại (dưới 60% đúng).</p>
             )}
           </div>
         </>

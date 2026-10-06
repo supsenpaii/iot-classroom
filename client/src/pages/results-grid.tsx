@@ -76,10 +76,12 @@ export function ResultsSummary({ d }: { d: Data }) {
   return (
     <section className="results-hero" aria-label="Tóm tắt kết quả">
       <div className="results-hero-score">
-        <Gauge pct={meanPct} />
         <div>
           <span className="eyebrow-label">Điểm trung bình lớp</span>
-          <strong>{fmt(d.stats.mean)}<small>/10</small></strong>
+          <div className="summary-score-value">
+            <strong>{fmt(d.stats.mean)}<small>/10</small></strong>
+            <span className="summary-gauge"><Gauge pct={meanPct} /></span>
+          </div>
           <span className={`pill mastery-${band}`}>
             {band === "high" ? "Lớp nắm bài tốt" : band === "mid" ? "Lớp nắm bài khá" : band === "low" ? "Cần ôn lại" : "Chưa có điểm"}
           </span>
@@ -92,9 +94,9 @@ export function ResultsSummary({ d }: { d: Data }) {
           <small>{d.students.length - d.stats.participants} vắng</small>
         </div>
         <div>
-          <dt>Hoàn thành đủ {d.N} câu</dt>
+          <dt>Hoàn thành</dt>
           <dd>{pctText(completePct)}</dd>
-          <small>{d.stats.complete}/{d.stats.participants} học sinh</small>
+          <small>{d.stats.complete}/{d.stats.participants} học sinh · đủ {d.N} câu</small>
         </div>
         <div>
           <dt>Tỷ lệ đạt (≥ {fmt(d.session.config.pass_mark)})</dt>

@@ -491,6 +491,14 @@ export function attachRealtime(
     teacherSnapshot,
     schedule,
     online: (id: string) => devices.has(id),
+    disconnectSession: (id: string) => {
+      for (const [ws, p] of peers) {
+        if (p.resource === id && !p.kind) {
+          peers.delete(ws);
+          ws.close(4004, "Session deleted");
+        }
+      }
+    },
     disconnectDevice: (id: string) => {
       devices.get(id)?.close(4001, "Credentials revoked");
     },

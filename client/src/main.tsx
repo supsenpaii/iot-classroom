@@ -1,19 +1,16 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
-import "@fontsource/plus-jakarta-sans/vietnamese-400.css";
-import "@fontsource/plus-jakarta-sans/vietnamese-500.css";
-import "@fontsource/plus-jakarta-sans/vietnamese-600.css";
-import "@fontsource/plus-jakarta-sans/vietnamese-700.css";
-import "@fontsource/plus-jakarta-sans/latin-400.css";
-import "@fontsource/plus-jakarta-sans/latin-500.css";
-import "@fontsource/plus-jakarta-sans/latin-600.css";
-import "@fontsource/plus-jakarta-sans/latin-700.css";
+// Weight stylesheets include unicode-range so Vietnamese and Latin use the same family.
+import "@fontsource/plus-jakarta-sans/400.css";
+import "@fontsource/plus-jakarta-sans/500.css";
+import "@fontsource/plus-jakarta-sans/600.css";
+import "@fontsource/plus-jakarta-sans/700.css";
 import { api, fields, setCsrf, signedOut, type Data } from "./api";
 import { Context, Head, Field, Icon, Status } from "./components";
 import { Dashboard, Classes, Devices, Setup } from "./pages/manage";
 import { Banks } from "./pages/banks";
 import { SessionPage, Presentation } from "./pages/session";
-import { Reports } from "./pages/reports";
+import { ImportReportPage, Reports } from "./pages/reports";
 import { Simulator } from "./pages/simulator";
 import { Decks, FlashcardReview, Study } from "./pages/flashcards";
 import { Polls } from "./pages/polls";
@@ -188,6 +185,8 @@ function App() {
   else if (path.startsWith("/polls")) content = <Polls id={id} />;
   else if (path.startsWith("/attendance")) content = <AttendancePage id={id} />;
   else if (path.startsWith("/devices")) content = <Devices />;
+  else if (path === "/reports/import" || path === "/reports/import/")
+    content = <ImportReportPage />;
   else if (path.startsWith("/reports")) content = <Reports id={id} />;
   else if (path === "/simulator") content = <Simulator />;
   else if (path === "/account")
