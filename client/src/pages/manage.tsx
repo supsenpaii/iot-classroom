@@ -49,7 +49,7 @@ export function Dashboard() {
           </div>
         ))}
       </div>
-      <section className="card">
+      <section className="card dashboard-recent">
         <h2>Buổi kiểm tra gần đây</h2>
         <Status error={sessions.error} loading={!sessions.data} />
         {sessions.data?.length === 0 && (

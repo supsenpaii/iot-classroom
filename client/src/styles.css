@@ -1781,6 +1781,24 @@ input[type="checkbox"] { accent-color: var(--jade); }
 .login-art span { border: 0; background: var(--choice); color: var(--choice-ink); font-family: var(--display); font-weight: 700; box-shadow: 0 6px 16px #0b2a5a40; }
 .login-art span:nth-child(2) { background: var(--choice); color: var(--choice-ink); }
 .badge { background: var(--sky-soft); color: var(--blue-deep); }
+.dashboard-recent .list-item { align-items: center; gap: 12px; }
+.dashboard-recent .list-item:hover { background: #f4f8fd; }
+.dashboard-recent .list-item > .badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  height: 32px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 999px;
+  background: #eaf3ff;
+  color: #245c99;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+}
+.dashboard-recent .list-item > span:last-child { flex-shrink: 0; }
 .mode { background: var(--sun-soft); color: var(--sun-text); }
 .setup-steps li.selected, .device-tabs button.selected { background: var(--sky-soft); border-color: #a9c9f5; color: var(--blue-deep); }
 .notice { background: #e3f6ee; border-color: #9ddcc0; color: #0b5c45; box-shadow: 0 6px 20px #1b2a4a1a; }
@@ -2736,6 +2754,15 @@ button.primary.fc-sun:hover { background: #ffd766; border-color: #ffd766; color:
 .report-page .sp-topic.mastery-low, .report-page .sp-topic.mastery-mid { border-color: #eee0b9; }
 .sidebar nav a.active { background: #edf5ff; color: #246bba; border-left-color: #2877d8; }
 .sidebar nav a.active svg { color: #2877d8; }
+.sidebar .brand,
+.sidebar .brand small,
+.sidebar .nav-caption,
+.sidebar nav a,
+.sidebar nav a.active,
+.sidebar-bottom .account-email,
+.sidebar-bottom .account-email small,
+.sidebar-bottom .avatar,
+.sidebar-bottom button { font-weight: 700; }
 @media (max-width: 1150px) {
   .report-page .results-hero { grid-template-columns: minmax(0, 1.15fr) minmax(0, 3fr); }
   .report-page .summary-gauge { display: none; }

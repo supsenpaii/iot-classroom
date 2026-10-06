@@ -16,6 +16,8 @@ import { Decks, FlashcardReview, Study } from "./pages/flashcards";
 import { Polls } from "./pages/polls";
 import { AttendancePage } from "./pages/attendance";
 import "./styles.css";
+import { ThemeToggle } from "./theme";
+import "./theme.css";
 const nav = [
   ["/dashboard", "home", "Tổng quan"],
   ["/question-banks", "file", "Ngân hàng câu hỏi"],
@@ -72,11 +74,12 @@ function App() {
     }
   }
   if (path.startsWith("/present/"))
-    return <Presentation id={path.split("/")[2]} />;
-  if (path.startsWith("/study/")) return <Study token={path.split("/")[2]} />;
+    return <><Presentation id={path.split("/")[2]} /><ThemeToggle floating /></>;
+  if (path.startsWith("/study/")) return <><Study token={path.split("/")[2]} /><ThemeToggle floating /></>;
   if (loading)
     return (
       <div className="login">
+        <ThemeToggle floating />
         <Status loading />
       </div>
     );
@@ -105,6 +108,7 @@ function App() {
   if (!user)
     return (
       <main className="login">
+        <ThemeToggle floating />
         <div className="login-brand">
           <Icon name="book" />
           <h1>
@@ -281,9 +285,12 @@ function App() {
             <span>
               Lớp học <span className="muted">/</span> Không gian giáo viên
             </span>
-            <a href="/account" className="avatar" aria-label="Tài khoản">
-              GV
-            </a>
+            <div className="topbar-actions">
+              <ThemeToggle />
+              <a href="/account" className="avatar" aria-label="Tài khoản">
+                GV
+              </a>
+            </div>
           </div>
           <main className="main">
             {(error || message || busy > 0) && (
