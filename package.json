@@ -17,7 +17,8 @@
     "teacher:create": "node --env-file-if-exists=.env dist/server/scripts/admin.js create",
     "teacher:reset-password": "node --env-file-if-exists=.env dist/server/scripts/admin.js reset",
     "db:backup": "node --env-file-if-exists=.env dist/server/scripts/admin.js backup",
-    "db:restore": "node --env-file-if-exists=.env dist/server/scripts/admin.js restore"
+    "db:restore": "node --env-file-if-exists=.env dist/server/scripts/admin.js restore",
+    "test:device-simulator": "npm run build && npm --prefix esp32-simulator ci && npm --prefix esp32-simulator test && node scripts/test-esp32-simulator.mjs"
   },
   "dependencies": {
     "@fontsource/be-vietnam-pro": "5.3.0",

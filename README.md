@@ -1,3 +1,5 @@
+> **Bạn đang ở nhánh `simu_device`.** Chạy thiết bị độc lập theo [README_SIMU_DEVICE.md](README_SIMU_DEVICE.md). Phần web được phát hành ở nhánh `main`.
+
 # Lớp học tương tác — website kết nối ESP32
 
 Giáo viên chiếu một câu hỏi chung; học sinh bấm A/B/C/D trên thiết bị của mình. Backend nhận đáp án qua WebSocket, trả ACK sau khi lưu SQLite, chấm điểm và xuất Excel.

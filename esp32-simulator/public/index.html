@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="vi">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ESP32 · Thiết bị mô phỏng</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<body>
+<main>
+  <header><span class="eyebrow">ESP32 DEVICE LAB</span><h1>Thiết bị mô phỏng<span>.</span></h1><p>Kết nối như ESP32 qua HTTPS và WebSocket. Mở web giáo viên ở một cửa sổ khác để quản lý lớp và chiếu câu hỏi.</p></header>
+  <section class="panel"><h2>Thêm thiết bị</h2><form id="create"><label>Địa chỉ web giáo viên<input id="url" name="url" type="url" placeholder="https://your-classroom.ts.net" required></label><label>Tên thiết bị<input name="name" id="name" value="ESP32-01" maxlength="80" required></label><button class="primary" type="submit">+ Thêm thiết bị</button></form><p class="hint">Không cần tài khoản giáo viên. ROOM ID lấy ở phòng kiểm tra → Mở nhận thiết bị. Secret được chương trình tự tạo và lưu trên máy.</p></section>
+  <p id="error" role="alert" hidden></p><p id="notice" role="status" hidden></p>
+  <div class="bar"><h2>Bàn thiết bị <span id="count">0</span></h2><p id="connection" role="status">Đang kết nối chương trình…</p></div>
+  <section id="devices" class="grid" aria-label="Danh sách thiết bị mô phỏng"></section>
+  <p id="empty" class="empty">Thêm một thiết bị, nhập ROOM ID rồi thử bấm A/B/C/D.</p>
+  <footer>Phím tắt trên thiết bị đang chọn: A–D hoặc 1–4 · Enter = OK · Backspace = DEL.<br>Không mô phỏng chân GPIO, sóng Wi-Fi, pin hoặc màn hình phần cứng thật.</footer>
+</main>
+<template id="device-template">
+  <article class="device panel" tabindex="0">
+    <div class="device-head"><div><span class="eyebrow">ESP32 VIRTUAL DEVICE</span><h3 class="device-name"></h3></div><span class="status"></span></div>
+    <form class="join-form"><label>ROOM ID<input name="roomCode" inputmode="numeric" placeholder="4827 1936" maxlength="12" autocomplete="off" required></label><button class="primary" type="submit">Vào phòng</button></form>
+    <div class="screen" aria-label="Màn hình trạng thái thiết bị"><div class="screen-title">CHỜ KẾT NỐI</div><p class="screen-state"></p><div class="screen-answer">—</div><p class="screen-detail"></p><p class="clock"></p></div>
+    <div class="led-line"><span class="led"></span><span class="ack" role="status">Chưa gửi</span></div>
+    <div class="keys"><button data-choice="A" class="key-a">A</button><button data-choice="B" class="key-b">B</button><button data-choice="C" class="key-c">C</button><button data-choice="D" class="key-d">D</button></div>
+    <div class="extra-keys"><button data-choice="OK">OK / Nhớ</button><button data-choice="DEL">DEL / Chưa nhớ</button></div>
+    <div class="tools"><button data-action="connect">Nối lại</button><button data-action="network">Ngắt mạng</button><button data-action="reboot">Khởi động lại</button><button data-action="drop-ack">Mất ACK một lần</button><button data-action="resend">Gửi lại gói cuối</button></div>
+    <details><summary>Thông tin &amp; nhật ký</summary><dl><dt>Device ID</dt><dd class="device-id"></dd><dt>Server</dt><dd class="server-url"></dd><dt>Gói chờ</dt><dd class="pending"></dd></dl><ol class="log"></ol><button class="danger" data-action="delete">Xóa thiết bị mô phỏng trên máy này</button></details>
+  </article>
+</template>
+</body></html>
