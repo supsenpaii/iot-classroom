@@ -18,6 +18,7 @@ import {
   revokeTeacher,
 } from "./auth.js";
 import { Quiz } from "./quiz.js";
+import { Pairing, joinSchema, pairingCommandSchema, pairingSnapshot } from "./pairing.js";
 import {
   Flashcards,
   shareToken,
@@ -54,10 +55,12 @@ export function createApplication(db: DB, config: AppConfig) {
   const app = express(),
     server = createServer(app),
     quiz = new Quiz(db),
+    pairing = new Pairing(db),
     flashcards = new Flashcards(db),
     polls = new Polls(db),
     attendance = new Attendance(db);
   quiz.recover();
+  pairing.recover();
   app.disable("x-powered-by");
   if (config.trustProxy) app.set("trust proxy", config.trustProxy);
   const auth = session({
@@ -93,10 +96,12 @@ export function createApplication(db: DB, config: AppConfig) {
     res.json({ ok: true });
   });
   app.use(auth);
+  app.use("/api/device-pairing/join", express.json({ limit: "4kb" }));
   app.use(express.json({ limit: "3mb" }));
   app.use("/api", (req, res, next) => {
     if (
       !["GET", "HEAD", "OPTIONS"].includes(req.method) &&
+      !(req.path === "/device-pairing/join" && !req.get("Origin")) &&
       req.get("Origin") !== config.origin
     )
       return next(
@@ -284,6 +289,33 @@ export function createApplication(db: DB, config: AppConfig) {
       );
     res.json(flashcards.publicDeck(token));
   });
+  // Public provision endpoint for native firmware; no teacher cookie or CSRF required.
+  // Browser requests still pass the same-origin guard above; all joins require a live room code.
+  let joinWindow = 0, totalJoins = 0;
+  const joinAttempts = new Map<string, number>();
+  const joinDevice = (req: Request, allowedOwner?: string) => {
+    if (config.production && !req.secure)
+      throw new AppError("HTTPS_REQUIRED", "Kết nối thiết bị cần HTTPS", 403);
+    const window = Math.floor(Date.now() / 60000);
+    if (window !== joinWindow) { joinWindow = window; totalJoins = 0; joinAttempts.clear(); }
+    const ip = req.ip || "unknown";
+    const count = (joinAttempts.get(ip) || 0) + 1;
+    // Allow a 50-device classroom behind one NAT, including one retry per device.
+    if (++totalJoins > 240 || count > 120)
+      throw new AppError("RATE_LIMITED", "Quá nhiều lượt kết nối; thử lại sau một phút", 429);
+    joinAttempts.set(ip, count);
+    const result = pairing.join(joinSchema.parse(req.body), allowedOwner);
+    return {
+      v: 1, ...result,
+      ws_url: config.origin.replace(/^http/, "ws") + "/ws",
+      status: one(db, "SELECT 1 FROM session_devices WHERE session_id=? AND device_id=? AND active=1", result.session_id, result.device_id) ? "ASSIGNED" : "UNASSIGNED",
+    };
+  };
+  app.post("/api/device-pairing/join", (req, res) => {
+    const result = joinDevice(req);
+    realtime.schedule();
+    res.status(result.duplicate ? 200 : 201).json(result);
+  });
   app.use("/api", (req, _res, next) => {
     if (!req.session.teacherId)
       return next(new AppError("UNAUTHENTICATED", "Vui lòng đăng nhập", 401));
@@ -309,6 +341,27 @@ export function createApplication(db: DB, config: AppConfig) {
     attendance,
   );
   const changed = () => realtime.schedule();
+  app.post("/api/simulator/pairing/join", (req, res) => {
+    if (!config.simulator)
+      throw new AppError("SIMULATOR_DISABLED", "Giả lập không khả dụng", 403);
+    const result = joinDevice(req, owner(req));
+    changed();
+    res.status(result.duplicate ? 200 : 201).json(result);
+  });
+  app.get("/api/sessions/:id/pairing", (req, res) => {
+    owned(db, "quiz_sessions", param(req), owner(req));
+    res.json(pairingSnapshot(db, param(req)));
+  });
+  app.post("/api/sessions/:id/pairing/:action", (req, res) => {
+    const action = z.enum(["open", "close"]).parse(req.params.action);
+    res.json(pairing.command(param(req), owner(req), action, pairingCommandSchema.parse(req.body)));
+    changed();
+  });
+  app.delete("/api/sessions/:id/room-devices/:device", (req, res) => {
+    pairing.remove(param(req), param(req, "device"), owner(req));
+    res.json({ ok: true });
+    changed();
+  });
   app.get("/api/auth/me", (req, res) => {
     const t = must(
       one(db, "SELECT id,email FROM teachers WHERE id=?", owner(req)),
@@ -1113,6 +1166,22 @@ export function createApplication(db: DB, config: AppConfig) {
     res.json({ ok: true });
     changed();
   });
+  app.put("/api/sessions/:id/room-devices/:device/student", (req, res) => {
+    const input = z.object({ student_id: z.string().nullable(), expected_version: z.number().int().nonnegative() }).parse(req.body);
+    db.transaction(() => {
+      const s = owned(db, "quiz_sessions", param(req), owner(req));
+      const device = owned(db, "devices", param(req, "device"), owner(req));
+      if (s.state_version !== input.expected_version) throw new AppError("VERSION_CONFLICT", "Trạng thái đã thay đổi; thử lại với danh sách mới", 409);
+      if (!["LOBBY", "PAUSED"].includes(s.state)) throw new AppError("INVALID_STATE", "Tạm dừng trước khi sửa ghép", 409);
+      const current = one(db, "SELECT session_student_id FROM session_devices WHERE session_id=? AND device_id=? AND active=1", s.id, device.id);
+      if (current && current.session_student_id === input.student_id) return;
+      if (input.student_id && one(db, "SELECT 1 FROM session_devices WHERE session_student_id=? AND active=1", input.student_id))
+        throw new AppError("DEVICE_IN_USE", "Học sinh đã có thiết bị; bỏ ghép thiết bị đó trước", 409);
+      if (current) quiz.bind(s.id, current.session_student_id, null, owner(req));
+      if (input.student_id) quiz.bind(s.id, input.student_id, device.id, owner(req));
+    })();
+    res.json({ ok: true }); changed();
+  });
   app.post("/api/sessions/:id/commands", (req, res) => {
     quiz.tick();
     const input = z
@@ -1365,6 +1434,7 @@ ${q.data.explanation}` : ""),
         console.error(
           JSON.stringify({ requestId: res.getHeader("X-Request-Id"), code }),
         );
+      if (status === 429) res.setHeader("Retry-After", "60");
       res.status(status).json({
         code,
         message:

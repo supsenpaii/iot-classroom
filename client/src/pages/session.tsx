@@ -13,6 +13,7 @@ import {
 } from "../components";
 import { useClock, useSessionSocket } from "../socket";
 import { ConfigFields, readConfig } from "./manage";
+import { RoomPairing } from "./room-pairing";
 export function SessionPage({ id }: { id: string }) {
   const { run, user } = useApp(),
     initial = useResource(`/sessions/${id}`),
@@ -179,6 +180,7 @@ export function SessionPage({ id }: { id: string }) {
         </section>
       )}
       {s.state === "LOBBY" && <ol className="setup-steps" aria-label="Các bước chuẩn bị bài"><li className="selected">1. Lớp và bộ đề</li><li className="selected">2. Cấu hình</li><li className="selected">3. Ghép thiết bị</li><li>4. Sẵn sàng</li></ol>}
+      {!finished && <RoomPairing session={s} offset={live.offset} connected={live.status === "Đã kết nối"} reload={() => { initial.reload(); devices.reload(); }} />}
       <div className={`room-grid ${s.state === "LOBBY" ? "" : finished ? "is-finished" : "is-live"}`}>
         {s.state === "LOBBY" && <section className="hero session-hero">
           <div className="row spread">
@@ -192,20 +194,6 @@ export function SessionPage({ id }: { id: string }) {
             </small>
           </div>
           <h2>{s.name}</h2>
-          <div className="room-code">
-            Mã phòng <strong>{s.room_code}</strong>
-            <button
-              className="text-button"
-              onClick={() =>
-                void run(
-                  () => navigator.clipboard.writeText(s.room_code),
-                  "Đã sao chép mã phòng.",
-                )
-              }
-            >
-              Sao chép
-            </button>
-          </div>
           <div className="hero-stats">
             <div>
               <Icon name="file" />
@@ -326,7 +314,7 @@ export function SessionPage({ id }: { id: string }) {
                   void run(async () => {
                     const fresh: Data[] = await api("/devices");
                     const free = fresh.filter(
-                      (d) => !d.revoked && !d.assigned_session,
+                      (d) => !d.revoked && !d.assigned_session && (!s.room_devices?.length || s.room_devices.some((m: Data) => m.id === d.id)),
                     );
                     const unbound = s.students.filter(
                       (st: Data) => !st.absent && !st.device_id,
@@ -407,7 +395,7 @@ export function SessionPage({ id }: { id: string }) {
                             }
                           >
                             <option value="">Chưa ghép</option>
-                            {devices.data
+                            {Array.from(new Map([...(devices.data ?? []), ...(s.room_devices ?? [])].map((d: Data) => [d.id, d])).values())
                               ?.filter((d) => !d.revoked)
                               .map((d) => (
                                 <option key={d.id} value={d.id}>
@@ -667,7 +655,7 @@ function ProjectionView({ id, token }: { id: string; token: string }) {
           <p className="eyebrow">SẴN SÀNG CHO GIỜ HỌC</p>
           <h1>{s.name}</h1>
           <p>Quan sát màn hình. Chọn A, B, C hoặc D trên thiết bị.</p>
-          <strong>Mã phòng {s.room_code}</strong>
+          <strong>Chờ giáo viên bắt đầu</strong>
         </div>
       ) : s.state === "FINISHED" && s.leaderboard?.length ? (
         <Podium board={s.leaderboard} title={s.name} />

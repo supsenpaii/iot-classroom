@@ -1,0 +1,17 @@
+{
+  "class_name": "Lớp DEMO — 10 học sinh",
+  "bank_name": "DEMO — Toán cơ bản 10 câu",
+  "students": ["Học sinh Demo 01", "Học sinh Demo 02", "Học sinh Demo 03", "Học sinh Demo 04", "Học sinh Demo 05", "Học sinh Demo 06", "Học sinh Demo 07", "Học sinh Demo 08", "Học sinh Demo 09", "Học sinh Demo 10"],
+  "questions": [
+    {"question":"5 + 7 bằng bao nhiêu?","option_a":"10","option_b":"12","option_c":"14","option_d":"15","correct_answer":"B"},
+    {"question":"9 × 3 bằng bao nhiêu?","option_a":"27","option_b":"21","option_c":"24","option_d":"30","correct_answer":"A"},
+    {"question":"48 ÷ 6 bằng bao nhiêu?","option_a":"6","option_b":"7","option_c":"9","option_d":"8","correct_answer":"D"},
+    {"question":"Số nào dưới đây là số nguyên tố?","option_a":"9","option_b":"15","option_c":"13","option_d":"21","correct_answer":"C"},
+    {"question":"Một hình vuông có cạnh 4 cm. Chu vi bằng bao nhiêu?","option_a":"8 cm","option_b":"16 cm","option_c":"12 cm","option_d":"20 cm","correct_answer":"B"},
+    {"question":"Một hình chữ nhật dài 6 cm, rộng 3 cm. Diện tích bằng bao nhiêu?","option_a":"18 cm²","option_b":"9 cm²","option_c":"12 cm²","option_d":"24 cm²","correct_answer":"A"},
+    {"question":"Một nửa của 20 là bao nhiêu?","option_a":"5","option_b":"8","option_c":"15","option_d":"10","correct_answer":"D"},
+    {"question":"25% của 100 bằng bao nhiêu?","option_a":"10","option_b":"20","option_c":"25","option_d":"50","correct_answer":"C"},
+    {"question":"Số tiếp theo trong dãy 2, 4, 6, 8 là số nào?","option_a":"9","option_b":"10","option_c":"11","option_d":"12","correct_answer":"B"},
+    {"question":"2³ bằng bao nhiêu?","option_a":"6","option_b":"4","option_c":"9","option_d":"8","correct_answer":"D"}
+  ]
+}

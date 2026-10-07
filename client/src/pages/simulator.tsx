@@ -79,14 +79,14 @@ function SimDevice({ device }: { device: Data }) {
       transmit();
       return;
     }
-    if (!s.binding_id) {
-      setAck("Chưa ghép học sinh");
-      return;
-    }
     if (s.state === "LOBBY" || s.state === "PAUSED") {
       socket.current?.send(
         JSON.stringify({ v: 1, type: "button.test", choice }),
       );
+      return;
+    }
+    if (!s.binding_id) {
+      setAck("Chưa ghép học sinh");
       return;
     }
     if (s.state !== "RUNNING" || s.question?.status !== "OPEN") {
@@ -291,7 +291,10 @@ export function Simulator() {
   const { user, run } = useApp(),
     r = useResource<Data[]>("/devices"),
     [enabled, setEnabled] = useState<string[]>([]),
-    [count, setCount] = useState(1);
+    [count, setCount] = useState(1),
+    [roomCode, setRoomCode] = useState(""),
+    [joining, setJoining] = useState(false);
+  const joinBatch = useRef<{ code: string; packets: Data[] } | null>(null);
   if (!user.simulator)
     return <Status error="Giả lập đã tắt trên môi trường này." />;
   return (
@@ -301,6 +304,38 @@ export function Simulator() {
         title="Thiết bị giả. Luồng kiểm tra thật."
         description="Cùng giao thức WebSocket và quy tắc ACK như ESP32. Mỗi thẻ là một thiết bị."
       />
+      <section className="card room-pairing">
+        <h2>Tự kết nối bằng ROOM ID</h2>
+        <p className="muted">Mở nhận thiết bị ở phòng kiểm tra, nhập mã rồi kết nối. Không cần nhập secret hay giáo viên duyệt.</p>
+        <form className="row" onSubmit={(e) => {
+          e.preventDefault();
+          if (joining) return;
+          setJoining(true);
+          void run(async () => {
+            const code = roomCode.replace(/\s/g, "");
+            if (!/^\d{8}$/.test(code)) throw Error("ROOM ID cần đúng 8 chữ số.");
+            if (!Number.isInteger(count) || count < 1 || count > 50) throw Error("Chọn từ 1 đến 50 thiết bị.");
+            // Keep the exact packets in memory until the batch succeeds so a lost response is retryable.
+            if (!joinBatch.current || joinBatch.current.code !== code)
+              joinBatch.current = { code, packets: Array.from({ length: count }, (_, i) => ({
+                v: 1, room_code: code, request_id: crypto.randomUUID(),
+                device_name: `SIM-ROOM-${String(i + 1).padStart(2, "0")}`,
+                device_secret: Array.from(crypto.getRandomValues(new Uint8Array(32)), (n) => n.toString(16).padStart(2, "0")).join(""),
+              })) };
+            try {
+              for (const packet of joinBatch.current.packets) {
+                const result = await api("/simulator/pairing/join", "POST", packet);
+                setEnabled((ids) => ids.includes(result.device_id) ? ids : [...ids, result.device_id]);
+              }
+              joinBatch.current = null;
+            } finally { r.reload(); }
+          }, "Thiết bị đã tự vào phòng. Quay lại phòng để chọn học sinh và bấm thử.").finally(() => setJoining(false));
+        }}>
+          <label className="field">ROOM ID<input inputMode="numeric" autoComplete="off" required value={roomCode} placeholder="4827 1936" maxLength={12} disabled={joining} onChange={(e) => { setRoomCode(e.target.value); joinBatch.current = null; }} /></label>
+          <label className="field">Số thiết bị<input type="number" min={1} max={50} required value={count} disabled={joining} onChange={(e) => { setCount(Number(e.target.value)); joinBatch.current = null; }} /></label>
+          <button className="primary" disabled={joining}>{joining ? "Đang kết nối…" : "Kết nối bằng mã"}</button>
+        </form>
+      </section>
       <div className="card">
         <div className="row spread">
           <div>

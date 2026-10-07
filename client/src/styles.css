@@ -2803,3 +2803,23 @@ button.primary.fc-sun:hover { background: #ffd766; border-color: #ffd766; color:
   .report-page .ia-time { display: block; }
   .report-page .report-group { break-inside: auto; }
 }
+.room-pairing { margin-block: 1.25rem; }
+.pairing-code-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.pairing-code-row > div:first-child { display: grid; gap: .6rem; }
+.pairing-code { font-size: clamp(2rem, 5vw, 3rem); letter-spacing: .15em; font-variant-numeric: tabular-nums; }
+.device-id-hint { display: block; margin-top: .3rem; }
+.pairing-layout { display:grid; grid-template-columns:minmax(260px, .85fr) minmax(300px, 1.15fr); gap:24px; margin-top:20px; }
+.pairing-entry { padding:22px; border:1px solid var(--border); border-radius:14px; background:var(--paper); display:flex; flex-direction:column; align-items:flex-start; gap:12px; }
+.pairing-entry p { margin:0; }
+.pairing-entry .pairing-code { display:block; margin:12px 0; }
+.pairing-help { font-size:12px; line-height:1.6; }
+.pairing-roster h3 { margin:0; }
+.pairing-roster > .row > strong { font-size:24px; }
+.pairing-students { list-style:none; padding:0; margin:0; max-height:340px; overflow:auto; }
+.pairing-students li { display:flex; align-items:center; gap:12px; padding:13px 0; border-bottom:1px solid var(--border); }
+.pairing-students li > div { flex:1; min-width:0; }
+.pairing-students small { display:block; margin-top:4px; color:var(--muted); }
+.pairing-empty { padding:24px; border:1px dashed var(--border); border-radius:12px; }
+.pairing-management { margin-top:20px; border-top:1px solid var(--border); padding-top:14px; }
+.pairing-management summary { cursor:pointer; min-height:44px; padding:10px 0; font-weight:600; }
+@media(max-width:760px) { .pairing-layout { grid-template-columns:1fr; } .pairing-students li { flex-wrap:wrap; } }

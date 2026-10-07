@@ -31,7 +31,7 @@ Mở **http://localhost:3000/register** để tự tạo tài khoản giáo viê
 
 1. Vào `/register` để tạo tài khoản giáo viên, hoặc `/login` nếu đã có tài khoản. Mỗi giáo viên chỉ thấy dữ liệu của mình.
 2. Trong **Lớp học**, tạo lớp và thêm học sinh. Trong **Ngân hàng câu hỏi**, tải mẫu XLSX/CSV, nhập câu hỏi, xem trước rồi lưu bộ đề.
-3. Trong **Thiết bị**, đăng ký từng ESP32. Bấm ô **Device ID** cạnh thiết bị để xem URL WebSocket, ID và secret vừa cấp. Secret chỉ hiện trong lần tạo/cấp lại; lưu riêng cho firmware. Bấm **Cấp lại** nếu mất secret cũ.
+3. Trong phòng kiểm tra, nhấn **Mở nhận thiết bị** để lấy **ROOM ID** 8 chữ số, hiệu lực 5 phút. Mặc định tự ghép thiết bị vào học sinh chưa có thiết bị theo thứ tự mã; tên hiện ngay trong **Học sinh đã kết nối**. Kiểm tra tên, sửa ghép trong **Quản lý thiết bị** nếu cần, hoặc bỏ chọn tự ghép trước khi mở nhận để ghép thủ công. Firmware cũ vẫn dùng cấu hình Device ID/secret.
 4. Tạo buổi kiểm tra, chọn lớp/bộ đề, số câu và thời gian. Ghép mỗi học sinh với một thiết bị; kiểm tra nút bấm trước khi bắt đầu. Nếu chưa có ESP32, bản development có thể bật `ENABLE_SIMULATOR=true` và dùng trang **Giả lập**.
 5. Mở màn hình trình chiếu cho cả lớp. Giáo viên điều khiển buổi kiểm tra ở bảng riêng; học sinh bấm A/B/C/D trên thiết bị. Web hiển thị trạng thái kết nối, đã/chưa nộp, thời gian và kết quả sau khi đóng câu.
 6. Vào **Báo cáo** để xem biểu đồ, ma trận kết quả và xuất Excel/PDF. Có thể nhập kết quả cũ bằng XLSX/CSV ngay tại trang này.
@@ -41,6 +41,28 @@ Mở **http://localhost:3000/register** để tự tạo tài khoản giáo viê
 Để chạy web trên một máy khác qua Tailscale Funnel, kể cả máy dùng tài khoản Tailscale khác, xem [hướng dẫn chuyển máy](docs/TAILSCALE_MAY_KHAC.md). Chuyển cả database và app; chỉ bật Tailscale trên máy mới không giữ web hoạt động khi máy cũ tắt.
 
 ## Kết nối ESP32 trên mạng LAN để thử nghiệm
+
+### Cách mới: ROOM ID tự vào phòng
+
+Backend đã hỗ trợ API ghép nối ROOM ID; **firmware ESP32 hiện chưa được cung cấp trong repository**. Firmware phải triển khai [hợp đồng join](docs/PROTOCOL.md#ghép-nối-tự-động-bằng-room-id) trước khi dùng cách này. Mã không thay thế URL server hoặc cấu hình Wi-Fi.
+
+1. Tạo phòng kiểm tra, nhấn **Mở nhận thiết bị**, lấy mã 8 chữ số.
+2. ESP32 có URL server và Wi-Fi, nhập ROOM ID qua trang cấu hình thiết bị. Thiết bị tự tạo/lưu secret 256 bit, gửi HTTPS `POST /api/device-pairing/join`, nhận Device ID và tự mở WebSocket; người dùng không phải nhập secret.
+3. Web hiện học sinh đã kết nối ngay nếu bật tự ghép và còn học sinh trống. Kiểm tra đúng người cầm thiết bị; sửa ghép khi cần. Bấm thử A/B/C/D để nhận diện và kiểm tra kết nối.
+4. Đóng nhận hoặc bắt đầu bài; thiết bị đã vào vẫn giữ kết nối. Mất mạng tự nối lại bằng cấu hình đã lưu, không cần mã mới.
+5. Khi thay thiết bị, tạm dừng bài; có thể mở nhận thêm. **Gỡ khỏi phòng** bỏ ghép hiện tại, giữ thiết bị và lịch sử; **Thu hồi** trong mục Thiết bị vô hiệu thông tin xác thực.
+
+**Demo không cần phần cứng:** ở môi trường development bật `ENABLE_SIMULATOR=true`, khởi động lại app, mở `/simulator` trong tab khác. Nhập ROOM ID và số thiết bị (1–50), nhấn **Kết nối bằng mã**. Quay lại phòng ghép học sinh rồi bấm A/B/C/D trên simulator. Không bật simulator trên production.
+
+**Chương trình ESP32 mô phỏng riêng:** được phát hành ở [nhánh simu_device](https://github.com/supsenpaii/iot-classroom/tree/simu_device), trong thư mục `esp32-simulator`. Tải nhánh đó vào thư mục khác để chạy độc lập, kể cả khi web production tắt simulator. Xem [hướng dẫn simulator](https://github.com/supsenpaii/iot-classroom/blob/simu_device/README_SIMU_DEVICE.md).
+
+**Hướng dẫn chức năng mới:** [ROOM ID, tự ghép học sinh và demo 10 câu](README_ROOM_ID.md).
+
+Mã chỉ hiện trên bảng giáo viên; ai biết mã trong thời gian mở nhận đều có thể vào. Hết 5 phút, bắt đầu/tiếp tục bài, kết thúc hoặc restart server sẽ ngừng nhận mới. Restart vẫn giữ tài khoản, thiết bị, ghép học sinh và đáp án đã lưu.
+
+**Tạo dữ liệu demo tùy chọn:** sau build, dừng app và backup, chạy `npm run demo:create -- email-giao-vien` với đúng `.env` database cần dùng, rồi mở lại app. Lệnh tạo bản mới gồm lớp 10 học sinh, bộ đề Toán 10 câu và phòng chờ 15 giây/câu; không sửa lớp/đề/buổi cũ. Dữ liệu nguồn tách tại `samples/demo-room-id-10-cau.json`, không tự seed khi khởi động production.
+
+### Cách tương thích: đăng ký Device ID/secret
 
 1. Cho máy chạy backend và ESP32 vào mạng có thể truy cập nhau. Xác định IP LAN của máy, ví dụ `192.168.1.10`.
 2. Sửa `.env` rồi khởi động lại `npm start`:
@@ -94,6 +116,7 @@ Mỗi lần đổi đáp án tăng `seq`, tạo request ID mới. Mất ACK thì
 - Trang Báo cáo cho phép nhập kết quả XLSX/CSV đã có để tạo báo cáo lịch sử không cần chạy buổi live; tải mẫu ngay trong trang và xem [runbook](docs/RUNBOOK.md).
 - `npm run typecheck`: kiểm tra TypeScript; `npm run build`: build lại sau sửa source.
 - `npm run test:auth`: build và kiểm tra đăng ký, đăng nhập, phân quyền giáo viên, giới hạn đăng ký.
+- `npm run test:pairing`: build và kiểm tra ROOM ID, quyền/CSRF, thời hạn, retry/rollback, ghép học sinh, ACK, reconnect/restart SQLite, xuất Excel và 50 thiết bị WebSocket. Dùng database tạm riêng, không ghi production.
 - Có [Dockerfile](deploy/Dockerfile), [Compose](deploy/compose.yml), [Caddyfile](deploy/Caddyfile) để triển khai HTTPS/WSS; xem [runbook](docs/RUNBOOK.md). Cấu hình container/TLS cần kiểm chứng trên hạ tầng thật.
 
 Bản tải về giữ source, lockfile, migration, công cụ quản trị, kiểm thử đăng ký, cấu hình triển khai và tài liệu kết nối. Không kèm secret, database, tài khoản mẫu, ảnh thiết kế hoặc báo cáo phát triển. Backend vẫn chứa hỗ trợ giả lập trình duyệt tùy chọn để chẩn đoán giao thức, mặc định tắt và không bật trong production.

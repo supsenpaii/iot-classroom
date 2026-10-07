@@ -4,6 +4,59 @@ WebSocket chuẩn tại `/ws`. Production dùng WSS cùng origin. JSON UTF-8, t�
 
 ## Provision và xác thực
 
+### Ghép nối tự động bằng ROOM ID
+
+Backend hỗ trợ luồng này; firmware phải bổ sung nhập mã và API join. Không yêu cầu giáo viên duyệt. ROOM ID là **chuỗi 8 chữ số** (giữ số 0 đầu), dùng chung cho nhiều thiết bị, hiệu lực 5 phút theo server. Chỉ nhận trong LOBBY/PAUSED khi giáo viên mở nhận. Bắt đầu/resume/kết thúc/hủy hoặc restart backend đóng nhận mới; thiết bị đã đăng ký vẫn xác thực/reconnect bằng credentials riêng.
+
+`room_code` 6 chữ số trong snapshot v1 cũ chỉ là mã tham chiếu buổi, không được dùng để join. ROOM ID mới chỉ trả qua API/snapshot có quyền giáo viên, trong `pairing.room_code`; không gửi mã này cho projection/device.
+
+Web mới mặc định chọn **Tự ghép học sinh khi thiết bị vào** khi mở nhận. Lệnh open gửi `auto_assign:true`; backend ghép thiết bị mới vào học sinh không vắng/chưa có binding đầu tiên theo thứ tự mã học sinh, trong cùng transaction join. Retry không ghép lại. Khi không còn học sinh trống, thiết bị vẫn vào với `UNASSIGNED`. Có thể bỏ chọn trước khi mở nhận để ghép thủ công; API cũ không có trường này vẫn giữ chế độ thủ công. Việc ghép theo thứ tự không xác minh danh tính người cầm thiết bị: giáo viên kiểm tra tên và sửa ghép nếu cần. Không trả tên/mã học sinh cho thiết bị.
+
+Thiết bị cấu hình trước URL server và Wi-Fi. Tạo secret 32 byte bằng nguồn ngẫu nhiên mật mã, encode **64 ký tự hex thường**, lưu trong NVS trước khi gửi. Tạo/lưu request ID cùng gói join để retry sau mất nguồn/phản hồi. Không suy ra secret từ ROOM ID, MAC hoặc thời gian. Không đổi credentials trước khi biết kết quả join.
+
+```http
+POST /api/device-pairing/join
+Content-Type: application/json
+```
+
+```json
+{
+  "v": 1,
+  "room_code": "48271936",
+  "request_id": "unique-persistent-pairing-request-id",
+  "device_name": "ESP32-01",
+  "device_secret": "<64 lowercase hex characters>"
+}
+```
+
+Native firmware không cần Origin, cookie giáo viên hoặc CSRF. Production bắt buộc HTTPS, kiểm tra TLS CA; chỉ dùng HTTP khi thử development trong mạng kiểm soát. Không gửi secret/mã trong URL hoặc log. Body tối đa 4 KiB; tên tối đa 80 ký tự, request ID 1–100 ký tự.
+
+Sau commit, trả HTTP 201 (retry đã commit trả 200):
+
+```json
+{
+  "v": 1,
+  "device_id": "device UUID",
+  "session_id": "session UUID",
+  "label": "ESP32-01",
+  "ws_url": "wss://your-server/ws",
+  "status": "UNASSIGNED",
+  "duplicate": false
+}
+```
+
+Lưu Device ID và URL; dùng secret đã tạo mở `/ws` bằng header dưới đây. Backend chỉ lưu hash secret. Người dùng chỉ nhập ROOM ID, không thao tác secret. Web tự hiện thiết bị; giáo viên chọn học sinh để tạo binding. Thiết bị chưa ghép nhận snapshot `assignment: "UNASSIGNED"`, có ID/trạng thái buổi, không có câu hỏi/roster/đáp án đúng; được bấm thử trong LOBBY/PAUSED, không được nộp bài tính điểm.
+
+Mất phản hồi: gửi lại **nguyên gói** cùng request ID và secret, kể cả mã đã hết hạn hoặc đóng nhận; không tạo thiết bị trùng. Request ID đổi payload nhận `REQUEST_REUSED`. Nếu giáo viên đã gỡ khỏi phòng, retry cũ trả `DEVICE_REMOVED`; nếu thu hồi hoặc đổi secret, retry cũ không còn hợp lệ. Retry thành công không mở lại cửa sổ nhận.
+
+Thiết bị đã đăng ký muốn vào buổi mới: thêm `device_id`, dùng secret hiện có và request ID mới. Backend tái sử dụng thiết bị; không chuyển chủ sang giáo viên khác. Phải gỡ khỏi phòng cũ nếu phòng đó chưa kết thúc. Khi nhận `DEVICE_OWNER_MISMATCH`, cần đặt lại cấu hình và tạo credentials mới để đăng ký thiết bị mới; lịch sử cũ vẫn thuộc chủ cũ.
+
+Lỗi JSON có `code`, `message`, `requestId`: `ROOM_UNAVAILABLE` (sai/hết hạn/đóng), `ROOM_FULL`, `DEVICE_BUSY`, `DEVICE_OWNER_MISMATCH`, `DEVICE_REMOVED`, `DEVICE_REVOKED`, `REQUEST_REUSED`, `INVALID_PAYLOAD`, `HTTPS_REQUIRED`, `RATE_LIMITED`. Lỗi lưu trữ không trả thành công; với lỗi mạng/5xx giữ nguyên gói để retry có backoff. Phòng tối đa 50 thiết bị chưa thu hồi. Giới hạn 120 lượt join/phút/IP, 240 lượt/phút/backend; HTTP 429 kèm `Retry-After: 60`. Ngưỡng cho phép 50 thiết bị chung NAT và một lượt retry mỗi thiết bị.
+
+Simulator browser vẫn cần đăng nhập giáo viên và `ENABLE_SIMULATOR=true`, gọi `/api/simulator/pairing/join` với Origin/CSRF rồi lấy ticket như cơ chế cũ. Simulator chỉ ghép vào phòng thuộc giáo viên đang đăng nhập. Không có endpoint ticket công khai để biến secret thành quyền truy cập browser.
+
+### Đăng ký thủ công tương thích firmware cũ
+
 Giáo viên tạo thiết bị tại `/devices`: lưu `id` và secret chỉ hiện một lần. Backend chỉ giữ SHA-256 của secret 256 bit ngẫu nhiên. Firmware kết nối với:
 
 ```text
@@ -32,7 +85,7 @@ Server gửi ngay sau kết nối và khi có thay đổi (gom trong tối đa k
 }
 ```
 
-Chưa ghép hoặc buổi đã kết thúc: `data.state = WAITING`. Không gửi tên/mã học sinh, đề đúng, lời giải hoặc secret cho thiết bị. Projection nhận nội dung câu/bốn lựa chọn/tổng số trả lời, không có roster hoặc lựa chọn cá nhân. Trạng thái chính: LOBBY/RUNNING/PAUSED/FINISHED/CANCELLED. Câu: OPEN/CLOSED. Full snapshot luôn là nguồn khôi phục; bỏ snapshot có version cũ. `server_time`/`deadline_at` là milliseconds UTC, thời gian client không có giá trị quyết định hạn.
+Chưa vào phòng hoặc buổi đã kết thúc: `data.state = WAITING`. Đã vào bằng ROOM ID nhưng chưa ghép: snapshot có `assignment = UNASSIGNED`, ID và trạng thái buổi, không có `binding_id`. Không gửi tên/mã học sinh, đề đúng, lời giải hoặc secret cho thiết bị. Projection nhận nội dung câu/bốn lựa chọn/tổng số trả lời, không có roster hoặc lựa chọn cá nhân. Trạng thái chính: LOBBY/RUNNING/PAUSED/FINISHED/CANCELLED. Câu: OPEN/CLOSED. Full snapshot luôn là nguồn khôi phục; bỏ snapshot có version cũ. `server_time`/`deadline_at` là milliseconds UTC, thời gian client không có giá trị quyết định hạn.
 
 Khi giáo viên chủ động bấm **Công bố kết quả** sau lúc câu đã đóng, snapshot của màn chiếu mới có `question.results = {counts:{A,B,C,D},correct_answer}`. Trước thời điểm đó `results:null`; firmware vẫn chỉ nhận snapshot tối giản, không nhận đáp án đúng. Snapshot giáo viên có thêm danh sách học sinh, trạng thái đáp án đã commit theo câu, thời điểm ghi nhận và tín hiệu màn chiếu đang kết nối; dữ liệu này không gửi cho projection/device.
 

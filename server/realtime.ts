@@ -3,6 +3,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import type { RequestHandler, Request, Response } from "express";
 import { type DB, type Row, one, all, owned, AppError } from "./db.js";
 import { hash } from "./auth.js";
+import { pairingSnapshot } from "./pairing.js";
 import type { Quiz } from "./quiz.js";
 import type { Flashcards } from "./flashcards.js";
 import type { Polls, Attendance } from "./live.js";
@@ -52,6 +53,9 @@ export function attachRealtime(
     return {
       ...quiz.snapshot(id),
       bank_id: s.bank_id,
+      pairing: pairingSnapshot(db, id),
+      room_devices: all(db, "SELECT d.id,d.label,d.revoked,d.last_seen,m.joined_at,m.tested_at,m.test_choice,b.session_student_id FROM room_devices m JOIN devices d ON d.id=m.device_id LEFT JOIN session_devices b ON b.device_id=d.id AND b.session_id=m.session_id AND b.active=1 WHERE m.session_id=? ORDER BY m.joined_at,d.label", id)
+        .map((d) => ({ ...d, online: !d.revoked && devices.has(d.id) })),
       leaderboard_full: s.state === "LOBBY" ? null : quiz.standings(id),
       students: all(
         db,
@@ -367,12 +371,14 @@ export function attachRealtime(
             "SELECT session_id FROM session_devices WHERE device_id=? AND active=1",
             p.device,
           );
-          const state = b && one(db, "SELECT state FROM quiz_sessions WHERE id=?", b.session_id)?.state;
-          if (b && !["LOBBY", "PAUSED"].includes(state))
+          const m = b ?? one(db, "SELECT m.session_id FROM room_devices m JOIN quiz_sessions s ON s.id=m.session_id WHERE m.device_id=? AND s.state IN ('LOBBY','RUNNING','PAUSED') ORDER BY m.joined_at DESC LIMIT 1", p.device);
+          const state = m && one(db, "SELECT state FROM quiz_sessions WHERE id=?", m.session_id)?.state;
+          if (m && !["LOBBY", "PAUSED"].includes(state))
             send(ws, { v: 1, type: "error", code: "INVALID_STATE" });
           else {
-            if (b) {
-              quiz.event(b.session_id, "device.test", {
+            if (m) {
+              db.prepare("UPDATE room_devices SET tested_at=?,test_choice=? WHERE session_id=? AND device_id=?").run(Date.now(), ["A", "B", "C", "D"].includes(msg.choice) ? msg.choice : "A", m.session_id, p.device);
+              quiz.event(m.session_id, "device.test", {
                 device_id: p.device,
                 choice: ["A", "B", "C", "D"].includes(msg.choice)
                   ? msg.choice

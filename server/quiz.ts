@@ -80,11 +80,14 @@ export class Quiz {
             this.db,
             "SELECT 1 FROM session_devices WHERE device_id=? AND active=1",
             st.device_id,
-          )
+          ) &&
+          !one(this.db, "SELECT 1 FROM room_devices m JOIN quiz_sessions s ON s.id=m.session_id WHERE m.device_id=? AND s.state IN ('LOBBY','RUNNING','PAUSED')", st.device_id) &&
+          one(this.db, "SELECT count(*) n FROM room_devices WHERE session_id=?", id)!.n < 50
         ) {
           this.db
             .prepare("INSERT INTO session_devices VALUES (?,?,?,?,1,?)")
             .run(randomUUID(), id, sessionStudent, st.device_id, this.now());
+          this.db.prepare("INSERT OR IGNORE INTO room_devices(session_id,device_id,joined_at) VALUES (?,?,?)").run(id, st.device_id, this.now());
           this.event(id, "binding.changed", {
             student: sessionStudent,
             device: st.device_id,
@@ -138,6 +141,11 @@ export class Quiz {
             "Thiết bị đang ghép với học sinh khác",
             409,
           );
+        if (one(this.db, "SELECT 1 FROM room_devices m JOIN quiz_sessions s ON s.id=m.session_id WHERE m.device_id=? AND m.session_id<>? AND s.state IN ('LOBBY','RUNNING','PAUSED')", device, id))
+          throw new AppError("DEVICE_IN_USE", "Gỡ thiết bị khỏi phòng cũ trước khi ghép", 409);
+        if (!one(this.db, "SELECT 1 FROM room_devices WHERE session_id=? AND device_id=?", id, device) &&
+          one(this.db, "SELECT count(*) n FROM room_devices m JOIN devices d ON d.id=m.device_id WHERE m.session_id=? AND d.revoked=0", id)!.n >= 50)
+          throw new AppError("ROOM_FULL", "Phòng đã đủ 50 thiết bị", 409);
       }
       this.db
         .prepare(
@@ -148,6 +156,8 @@ export class Quiz {
         this.db
           .prepare("INSERT INTO session_devices VALUES (?,?,?,?,1,?)")
           .run(randomUUID(), id, student, device, this.now());
+      if (device)
+        this.db.prepare("INSERT OR IGNORE INTO room_devices(session_id,device_id,joined_at) VALUES (?,?,?)").run(id, device, this.now());
       this.db
         .prepare(
           "UPDATE quiz_sessions SET state_version=state_version+1 WHERE id=?",
@@ -186,6 +196,7 @@ export class Quiz {
     this.db
       .prepare("UPDATE session_devices SET active=0 WHERE session_id=?")
       .run(id);
+    this.db.prepare("UPDATE room_pairing SET closed_at=? WHERE session_id=? AND closed_at IS NULL").run(now, id);
     this.db
       .prepare(
         "DELETE FROM access_tokens WHERE kind LIKE 'projection%' AND resource_id=?",
@@ -460,6 +471,8 @@ export class Quiz {
           "UPDATE quiz_sessions SET state_version=state_version+1 WHERE id=?",
         )
         .run(id);
+      if (["RUNNING", "FINISHED", "CANCELLED"].includes(this.get(id).state))
+        this.db.prepare("UPDATE room_pairing SET closed_at=? WHERE session_id=? AND closed_at IS NULL").run(now, id);
       this.event(id, input.action, {}, owner);
       const result = this.snapshot(id);
       this.db
@@ -548,7 +561,10 @@ export class Quiz {
       "SELECT b.* FROM session_devices b JOIN devices d ON d.id=b.device_id WHERE b.device_id=? AND b.active=1 AND d.revoked=0",
       device,
     );
-    if (!b) return { state: "WAITING", server_time: this.now() };
+    if (!b) {
+      const member = one(this.db, "SELECT s.id,s.state,s.state_version FROM room_devices m JOIN quiz_sessions s ON s.id=m.session_id WHERE m.device_id=? AND s.state IN ('LOBBY','RUNNING','PAUSED') ORDER BY m.joined_at DESC LIMIT 1", device);
+      return { ...(member ?? { state: "WAITING" }), assignment: "UNASSIGNED", server_time: this.now() };
+    }
     const s = this.snapshot(b.session_id);
     const a = s.question
       ? one(

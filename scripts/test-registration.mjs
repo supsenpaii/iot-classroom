@@ -11,8 +11,7 @@ const config = {
   simulator: false,
   trustProxy: 0,
   maxUpload: 5242880,
-  geminiApiKey: "",
-  geminiModel: "",
+  openRouterApiKeys: [],
 };
 const app = createApplication(db, config);
 await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
