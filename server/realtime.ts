@@ -336,6 +336,33 @@ export function attachRealtime(
             p.resource = String(msg.session_id);
           } else throw Error("auth");
           snapshot(ws, p);
+        } else if (msg.type === "device.rename" && p.role === "device" && p.device) {
+          // Only the authenticated device may rename itself; never trust a payload ID.
+          const label = typeof msg.label === "string" ? msg.label.trim() : "";
+          const requestId = typeof msg.request_id === "string" ? msg.request_id : "";
+          if (!requestId || requestId.length > 100) throw Error("invalid");
+          const device = one(db, "SELECT owner_teacher_id FROM devices WHERE id=?", p.device);
+          if (!device) throw Error("auth");
+          let code = "";
+          if (!/^[0-9]{1,10}$/.test(label)) code = "INVALID_LABEL";
+          if (!code && !one(db, "SELECT 1 FROM students st JOIN classes c ON c.id=st.class_id WHERE c.owner_teacher_id=? AND c.archived=0 AND st.student_code=?", device.owner_teacher_id, label))
+            code = "STUDENT_UNAVAILABLE";
+          const rooms = all(db, "SELECT s.id,s.state FROM room_devices m JOIN quiz_sessions s ON s.id=m.session_id WHERE m.device_id=? AND s.state IN ('LOBBY','PAUSED','RUNNING')", p.device);
+          if (!code && one(db, "SELECT 1 FROM devices WHERE owner_teacher_id=? AND id<>? AND revoked=0 AND lower(label)=lower(?)", device.owner_teacher_id, p.device, label))
+            code = "DUPLICATE_LABEL";
+          const bindings = all(db, "SELECT b.session_id,b.session_student_id,s.state FROM session_devices b JOIN quiz_sessions s ON s.id=b.session_id WHERE b.device_id=? AND b.active=1 AND s.state IN ('LOBBY','RUNNING','PAUSED')", p.device);
+          if (!code && [...bindings, ...rooms].some(b => b.state === "RUNNING")) code = "DEVICE_BUSY";
+          if (!code) db.transaction(() => {
+            // A new student entry starts a fresh room join, even for the same code.
+            for (const b of bindings) quiz.bind(b.session_id, b.session_student_id, null, device.owner_teacher_id);
+            for (const room of rooms) {
+              db.prepare("DELETE FROM room_devices WHERE session_id=? AND device_id=?").run(room.id, p.device);
+              db.prepare("UPDATE quiz_sessions SET state_version=state_version+1 WHERE id=?").run(room.id);
+            }
+            db.prepare("UPDATE devices SET label=? WHERE id=?").run(label, p.device);
+          })();
+          send(ws, { v: 1, type: "device.rename.ack", request_id: requestId, accepted: !code, label, ...(code ? { code } : {}) });
+          if (!code) schedule();
         } else if (
           msg.type === "answer.submit" &&
           p.role === "device" &&

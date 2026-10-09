@@ -1,0 +1,8 @@
+#pragma once
+#define WIFI_SSID "S21"
+#define WIFI_PASSWORD "12345789"
+#define DEVICE_ID "DIEN_DEVICE_ID_VAO_DAY"
+#define DEVICE_SECRET "DIEN_DEVICE_SECRET_VAO_DAY"
+#define WS_HOST "10.0.151.181"
+#define WS_PORT 3000
+#define WS_PATH "/ws"

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { api, fields, stateLabel, type Data } from "../api";
 import {
   Empty,
@@ -610,6 +610,17 @@ export function Devices() {
     [selectedDevice, setSelectedDevice] = useState(""),
     [credentials, setCredentials] = useState<Record<string, string>>({}),
     [filter, setFilter] = useState<"active" | "offline" | "revoked">("active");
+  const { setData } = r;
+  useEffect(() => {
+    let live = true;
+    const timer = window.setInterval(() => {
+      if (document.hidden) return;
+      api<Data[]>("/devices").then((devices) => {
+        if (live) setData(devices);
+      }).catch(() => {});
+    }, 2000);
+    return () => { live = false; window.clearInterval(timer); };
+  }, [setData]);
   const visible = r.data?.filter((d) =>
     filter === "revoked"
       ? d.revoked

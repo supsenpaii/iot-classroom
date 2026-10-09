@@ -1,3 +1,4 @@
+import { createUuid } from "../uuid";
 import { useEffect, useState } from "react";
 import { api, type Data } from "../api";
 import { useApp } from "../components";
@@ -22,7 +23,7 @@ export function RoomPairing({ session: s, offset, connected, reload }: { session
   };
   const command = (action: string) => execute(async () => {
     await api(`/sessions/${s.id}/pairing/${action}`, "POST", {
-      command_id: crypto.randomUUID(), expected_version: s.state_version, ...(action === "open" ? { auto_assign: autoAssign } : {}),
+      command_id: createUuid(), expected_version: s.state_version, ...(action === "open" ? { auto_assign: autoAssign } : {}),
     });
   }, action === "open" ? "Đã mở nhận thiết bị trong 5 phút." : "Đã đóng nhận thiết bị mới.");
   return <section className="card room-pairing" aria-label="Kết nối bằng ROOM ID">
@@ -62,7 +63,7 @@ export function RoomPairing({ session: s, offset, connected, reload }: { session
           <td>{editable && !d.revoked ? <select aria-label={`Ghép học sinh cho ${d.label}`} value={d.session_student_id || ""} disabled={busy || !connected} onChange={e => {
             const studentId = e.target.value || null;
             execute(async () => { await api(`/sessions/${s.id}/room-devices/${d.id}/student`, "PUT", { student_id: studentId, expected_version: s.state_version }); }, "Đã cập nhật ghép học sinh.");
-          }}><option value="">Chưa ghép học sinh</option>{students.filter(st => !st.device_id || st.id === d.session_student_id).map(st => <option key={st.id} value={st.id}>{st.student_code} · {st.full_name}</option>)}</select> : (s.students.find((st: Data) => st.id === d.session_student_id)?.full_name || "Chưa ghép học sinh")}</td>
+          }}><option value="">Chưa ghép học sinh</option>{students.filter(st => st.student_code === d.label && (!st.device_id || st.id === d.session_student_id)).map(st => <option key={st.id} value={st.id}>{st.student_code} · {st.full_name}</option>)}</select> : (s.students.find((st: Data) => st.id === d.session_student_id)?.full_name || "Chưa ghép học sinh")}</td>
           <td>{d.revoked ? "Đã thu hồi" : d.online ? "Đang kết nối" : "Mất kết nối"}</td>
           <td>{d.tested_at ? `${d.test_choice} · ${new Date(d.tested_at).toLocaleTimeString("vi-VN")}` : "Chưa bấm thử"}</td>
           <td><button disabled={!editable || busy || !connected} onClick={() => {

@@ -1,0 +1,222 @@
+[
+  {
+    "question": "IoT là viết tắt của cụm từ nào?",
+    "option_a": "Internet of Things",
+    "option_b": "Input of Technology",
+    "option_c": "Interface of Tools",
+    "option_d": "Internet of Text",
+    "correct_answer": "A",
+    "explanation": "IoT là Internet of Things, thường gọi là Internet vạn vật.",
+    "topic": "Tổng quan",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Vai trò chính của cảm biến trong hệ thống IoT là gì?",
+    "option_a": "Lưu mật khẩu người dùng",
+    "option_b": "Thu thập đại lượng vật lý và chuyển thành tín hiệu",
+    "option_c": "Chỉ hiển thị hình ảnh",
+    "option_d": "Thay thế hoàn toàn bộ xử lý",
+    "correct_answer": "B",
+    "explanation": "Cảm biến đo các đại lượng như nhiệt độ, độ ẩm hoặc ánh sáng.",
+    "topic": "Cảm biến",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Thiết bị nào sau đây là cơ cấu chấp hành?",
+    "option_a": "Cảm biến nhiệt độ",
+    "option_b": "Cảm biến ánh sáng",
+    "option_c": "Động cơ đóng mở rèm",
+    "option_d": "Cảm biến độ ẩm",
+    "correct_answer": "C",
+    "explanation": "Cơ cấu chấp hành biến tín hiệu điều khiển thành tác động vật lý.",
+    "topic": "Điều khiển",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Trong mô hình nhà thông minh, trường hợp nào thể hiện điều khiển tự động?",
+    "option_a": "Người dùng ghi nhiệt độ vào giấy",
+    "option_b": "Đọc hướng dẫn sử dụng quạt",
+    "option_c": "Đặt tên cho thiết bị",
+    "option_d": "Quạt bật khi nhiệt độ đo được vượt ngưỡng",
+    "correct_answer": "D",
+    "explanation": "Hệ thống tự dùng dữ liệu cảm biến và quy tắc để điều khiển quạt.",
+    "topic": "Ứng dụng",
+    "difficulty": "easy"
+  },
+  {
+    "question": "GPIO trên vi điều khiển được dùng chủ yếu để làm gì?",
+    "option_a": "Nhận hoặc xuất tín hiệu số theo cấu hình",
+    "option_b": "Cấp Internet miễn phí",
+    "option_c": "Lưu dữ liệu vô hạn",
+    "option_d": "Thay thế bộ nguồn",
+    "correct_answer": "A",
+    "explanation": "GPIO là chân vào/ra đa dụng, có thể cấu hình để đọc hoặc xuất tín hiệu số.",
+    "topic": "Vi điều khiển",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Bộ ADC có chức năng gì?",
+    "option_a": "Chuyển điện áp một chiều thành xoay chiều",
+    "option_b": "Chuyển tín hiệu tương tự thành giá trị số",
+    "option_c": "Mã hóa mật khẩu Wi-Fi",
+    "option_d": "Tăng dung lượng bộ nhớ",
+    "correct_answer": "B",
+    "explanation": "ADC chuyển đổi tín hiệu analog thành giá trị số để bộ xử lý sử dụng.",
+    "topic": "Vi điều khiển",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Khi đọc nút nhấn cơ, vì sao thường cần chống dội phím?",
+    "option_a": "Để tăng điện áp nguồn",
+    "option_b": "Để đổi địa chỉ IP",
+    "option_c": "Để một lần nhấn không bị nhận thành nhiều lần",
+    "option_d": "Để xóa chương trình cũ",
+    "correct_answer": "C",
+    "explanation": "Tiếp điểm cơ có thể dao động nhanh lúc nhấn hoặc nhả, tạo nhiều chuyển mức.",
+    "topic": "Nút nhấn",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Trong mạch nút nhấn dùng điện trở kéo lên, nút nối chân vào với GND khi nhấn. Mức logic lúc nhấn là gì?",
+    "option_a": "Luôn là HIGH",
+    "option_b": "Luôn bằng điện áp nguồn",
+    "option_c": "Không thể đọc được",
+    "option_d": "LOW",
+    "correct_answer": "D",
+    "explanation": "Khi nhấn, chân vào được nối xuống GND nên đọc mức LOW.",
+    "topic": "Nút nhấn",
+    "difficulty": "medium"
+  },
+  {
+    "question": "MQTT sử dụng mô hình trao đổi thông điệp nào?",
+    "option_a": "Publish/subscribe thông qua broker",
+    "option_b": "Chỉ truyền tệp qua USB",
+    "option_c": "Chỉ giao tiếp trực tiếp không qua trung gian",
+    "option_d": "Chỉ gửi thư điện tử",
+    "correct_answer": "A",
+    "explanation": "Client gửi thông điệp lên topic và broker phân phối cho các client đăng ký phù hợp.",
+    "topic": "MQTT",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Trong MQTT, topic có vai trò gì?",
+    "option_a": "Cung cấp điện cho cảm biến",
+    "option_b": "Định tuyến và phân loại thông điệp",
+    "option_c": "Thay thế địa chỉ MAC",
+    "option_d": "Đo cường độ tín hiệu Wi-Fi",
+    "correct_answer": "B",
+    "explanation": "Topic là tên dùng khi publish và subscribe để phân phối thông điệp.",
+    "topic": "MQTT",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Ưu điểm chính của WebSocket cho bảng điều khiển IoT thời gian thực là gì?",
+    "option_a": "Không cần mạng",
+    "option_b": "Tự sửa mọi lỗi cảm biến",
+    "option_c": "Cho phép giao tiếp hai chiều trên kết nối duy trì",
+    "option_d": "Không cần xác thực thiết bị",
+    "correct_answer": "C",
+    "explanation": "WebSocket cho phép server và client chủ động gửi dữ liệu trên cùng kết nối.",
+    "topic": "Kết nối",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Thiết bị IoT dùng localhost làm địa chỉ server thì địa chỉ đó trỏ tới đâu?",
+    "option_a": "Máy tính giáo viên",
+    "option_b": "Router Wi-Fi",
+    "option_c": "Máy chủ trên Internet",
+    "option_d": "Chính thiết bị đang thực hiện kết nối",
+    "correct_answer": "D",
+    "explanation": "localhost là địa chỉ loopback của chính máy hoặc thiết bị đang truy cập.",
+    "topic": "Mạng",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Để thiết bị khác trong LAN kết nối được tới backend, backend nên lắng nghe ở đâu?",
+    "option_a": "Địa chỉ LAN hoặc tất cả giao diện phù hợp, không chỉ loopback",
+    "option_b": "Chỉ tại 127.0.0.1",
+    "option_c": "Chỉ trên một tệp văn bản",
+    "option_d": "Chỉ trong bộ nhớ trình duyệt",
+    "correct_answer": "A",
+    "explanation": "Backend cần lắng nghe trên giao diện mà thiết bị khác có thể truy cập; firewall cũng phải cho phép.",
+    "topic": "Mạng",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Vai trò chính của DHCP trong mạng IP là gì?",
+    "option_a": "Mã hóa mọi gói tin",
+    "option_b": "Tự động cấp cấu hình IP cho thiết bị",
+    "option_c": "Đo nhiệt độ router",
+    "option_d": "Tạo chương trình cho vi điều khiển",
+    "correct_answer": "B",
+    "explanation": "DHCP có thể cấp địa chỉ IP và các thông số mạng như gateway hoặc DNS.",
+    "topic": "Mạng",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Vì sao nên dùng HTTPS hoặc WSS khi truyền dữ liệu IoT qua mạng không tin cậy?",
+    "option_a": "Để cảm biến không cần nguồn",
+    "option_b": "Để loại bỏ hoàn toàn độ trễ",
+    "option_c": "Để bảo vệ dữ liệu truyền bằng TLS khi cấu hình đúng",
+    "option_d": "Để thiết bị không cần địa chỉ IP",
+    "correct_answer": "C",
+    "explanation": "TLS bảo vệ tính bí mật và toàn vẹn dữ liệu; client cần xác minh chứng chỉ đúng cách.",
+    "topic": "Bảo mật",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Cách quản lý khóa bí mật của thiết bị nào phù hợp nhất?",
+    "option_a": "Đưa khóa lên kho mã công khai",
+    "option_b": "Dùng một khóa mặc định cho mọi hệ thống",
+    "option_c": "In khóa trên màn hình chiếu lớp học",
+    "option_d": "Lưu ở nơi hạn chế truy cập và thay khóa khi bị lộ",
+    "correct_answer": "D",
+    "explanation": "Khóa bí mật cần được bảo vệ và thay thế khi nghi ngờ bị lộ.",
+    "topic": "Bảo mật",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Xử lý tại biên (edge computing) nghĩa là gì?",
+    "option_a": "Xử lý dữ liệu gần nơi phát sinh, như trên thiết bị hoặc gateway",
+    "option_b": "Luôn gửi mọi dữ liệu lên đám mây trước khi xử lý",
+    "option_c": "Chỉ lưu dữ liệu trên giấy",
+    "option_d": "Tắt toàn bộ thiết bị mạng",
+    "correct_answer": "A",
+    "explanation": "Xử lý tại biên có thể giảm độ trễ và lượng dữ liệu cần gửi đi.",
+    "topic": "Kiến trúc",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Khi mất mạng tạm thời, cách nào giúp hạn chế mất dữ liệu đo?",
+    "option_a": "Xóa ngay dữ liệu chưa gửi",
+    "option_b": "Đệm dữ liệu cục bộ rồi gửi lại khi có kết nối",
+    "option_c": "Khởi tạo lại cảm biến liên tục",
+    "option_d": "Ngừng lưu mọi thông tin thời gian",
+    "correct_answer": "B",
+    "explanation": "Bộ đệm cục bộ cho phép giữ dữ liệu trong giới hạn dung lượng và gửi lại sau.",
+    "topic": "Độ tin cậy",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Server đã lưu đáp án nhưng ACK bị mất. Thiết bị nên gửi lại thế nào để server nhận diện bản gửi trùng?",
+    "option_a": "Tạo mã yêu cầu mới sau mỗi lần gửi lại",
+    "option_b": "Đổi đáp án ngẫu nhiên",
+    "option_c": "Gửi lại cùng mã yêu cầu và nội dung ban đầu",
+    "option_d": "Xóa định danh thiết bị",
+    "correct_answer": "C",
+    "explanation": "Mã yêu cầu ổn định giúp server phát hiện lần gửi lại và xử lý chống trùng.",
+    "topic": "Độ tin cậy",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Với cảm biến chạy pin chỉ cần đo mỗi 10 phút, giải pháp nào thường giúp tiết kiệm năng lượng?",
+    "option_a": "Giữ CPU chạy liên tục ở mức tối đa",
+    "option_b": "Truyền dữ liệu liên tục dù không có mẫu mới",
+    "option_c": "Bật mọi đèn báo liên tục",
+    "option_d": "Cho thiết bị ngủ giữa các lần đo và truyền",
+    "correct_answer": "D",
+    "explanation": "Chế độ ngủ giảm thời gian hoạt động của bộ xử lý và khối truyền thông.",
+    "topic": "Năng lượng",
+    "difficulty": "easy"
+  }
+]

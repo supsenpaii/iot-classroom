@@ -1,3 +1,4 @@
+import { createUuid } from "../uuid";
 import { useEffect, useState } from "react";
 import { api, fields, stateLabel, eventLabel, type Data } from "../api";
 import {
@@ -55,7 +56,7 @@ export function SessionPage({ id }: { id: string }) {
     setBusy(true);
     void run(async () => {
       await api(`/sessions/${id}/commands`, "POST", {
-        command_id: crypto.randomUUID(),
+        command_id: createUuid(),
         expected_version: s.state_version,
         action,
       });
@@ -396,7 +397,7 @@ export function SessionPage({ id }: { id: string }) {
                           >
                             <option value="">Chưa ghép</option>
                             {Array.from(new Map([...(devices.data ?? []), ...(s.room_devices ?? [])].map((d: Data) => [d.id, d])).values())
-                              ?.filter((d) => !d.revoked)
+                              ?.filter((d) => !d.revoked && d.label === st.student_code)
                               .map((d) => (
                                 <option key={d.id} value={d.id}>
                                   {d.label} · {d.id.slice(-6)}
@@ -614,7 +615,7 @@ function ProjectionView({ id, token }: { id: string; token: string }) {
     if (!s) return;
     setNextError("");
     setNextPending(true);
-    if (!live.sendProjectionNext(crypto.randomUUID(), s.state_version)) {
+    if (!live.sendProjectionNext(createUuid(), s.state_version)) {
       setNextPending(false);
       setNextError("Màn hình trình chiếu đang mất kết nối. Hãy thử lại khi đã kết nối.");
     }

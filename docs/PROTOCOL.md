@@ -6,11 +6,13 @@ WebSocket chuẩn tại `/ws`. Production dùng WSS cùng origin. JSON UTF-8, t�
 
 ### Ghép nối tự động bằng ROOM ID
 
-Backend hỗ trợ luồng này; firmware phải bổ sung nhập mã và API join. Không yêu cầu giáo viên duyệt. ROOM ID là **chuỗi 8 chữ số** (giữ số 0 đầu), dùng chung cho nhiều thiết bị, hiệu lực 5 phút theo server. Chỉ nhận trong LOBBY/PAUSED khi giáo viên mở nhận. Bắt đầu/resume/kết thúc/hủy hoặc restart backend đóng nhận mới; thiết bị đã đăng ký vẫn xác thực/reconnect bằng credentials riêng.
+Backend và firmware ESP32 hỗ trợ nhập MSSV rồi ROOM ID (firmware dùng credentials đã cấu hình). Không yêu cầu giáo viên duyệt. ROOM ID là **chuỗi 8 chữ số** (giữ số 0 đầu), dùng chung cho nhiều thiết bị, hiệu lực 5 phút theo server. Chỉ nhận trong LOBBY/PAUSED khi giáo viên mở nhận. Bắt đầu/resume/kết thúc/hủy hoặc restart backend đóng nhận mới; thiết bị đã đăng ký vẫn xác thực/reconnect bằng credentials riêng.
 
 `room_code` 6 chữ số trong snapshot v1 cũ chỉ là mã tham chiếu buổi, không được dùng để join. ROOM ID mới chỉ trả qua API/snapshot có quyền giáo viên, trong `pairing.room_code`; không gửi mã này cho projection/device.
 
 Web mới mặc định chọn **Tự ghép học sinh khi thiết bị vào** khi mở nhận. Lệnh open gửi `auto_assign:true`; backend ghép thiết bị mới vào học sinh không vắng/chưa có binding đầu tiên theo thứ tự mã học sinh, trong cùng transaction join. Retry không ghép lại. Khi không còn học sinh trống, thiết bị vẫn vào với `UNASSIGNED`. Có thể bỏ chọn trước khi mở nhận để ghép thủ công; API cũ không có trường này vẫn giữ chế độ thủ công. Việc ghép theo thứ tự không xác minh danh tính người cầm thiết bị: giáo viên kiểm tra tên và sửa ghép nếu cần. Không trả tên/mã học sinh cho thiết bị.
+
+Có thể gửi thêm `student_code` (chuỗi 1–10 chữ số) trong join. Backend ghép đúng MSSV trong danh sách buổi thi, không phụ thuộc `auto_assign`; không tự đổi sang học sinh khác. MSSV không có hoặc vắng trả `STUDENT_UNAVAILABLE`; học sinh đã có thiết bị khác hoặc thiết bị đã ghép học sinh khác trả `STUDENT_ALREADY_BOUND`. Lỗi rollback toàn bộ join. MSSV là thông tin tự khai, không phải bằng chứng xác thực danh tính; giáo viên vẫn kiểm tra người cầm thiết bị. Client cũ không gửi trường này giữ hành vi cũ.
 
 Thiết bị cấu hình trước URL server và Wi-Fi. Tạo secret 32 byte bằng nguồn ngẫu nhiên mật mã, encode **64 ký tự hex thường**, lưu trong NVS trước khi gửi. Tạo/lưu request ID cùng gói join để retry sau mất nguồn/phản hồi. Không suy ra secret từ ROOM ID, MAC hoặc thời gian. Không đổi credentials trước khi biết kết quả join.
 
@@ -178,3 +180,21 @@ Bấm phím bất kỳ: `{"v":1,"type":"attendance.checkin","request_id":"unique
 ## Thi đua
 
 Cấu hình buổi `leaderboard` (mặc định bật). Câu đúng được 500–1000 điểm theo thời gian trả lời, chuỗi đúng liên tiếp thưởng thêm 100/câu (tối đa +500); điểm thi đua tách khỏi điểm /10. Snapshot màn chiếu có `leaderboard` (top 5: `rank,name,points,last_gain,streak`, `name` là tên gọi) chỉ khi giáo viên đã công bố kết quả câu hoặc buổi FINISHED; snapshot giáo viên có `leaderboard_full`. Thiết bị không nhận bảng xếp hạng.
+
+## Đổi tên từ bàn phím ESP32
+
+Socket đã xác thực gửi `{ "v":1, "type":"device.rename", "request_id":"rename-1", "label":"0012345678" }`.
+Server chỉ đổi nhãn của chính thiết bị trên socket, giữ nguyên ID, secret và ghép học sinh.
+Nhãn là MSSV 1–10 chữ số, giữ số 0 đầu; không trùng thiết bị đang dùng của cùng giáo viên.
+Phản hồi `device.rename.ack` có `request_id`, `accepted`, `label`; khi từ chối có `code` là `INVALID_LABEL` hoặc `DUPLICATE_LABEL`.
+Gửi lại cùng nhãn là an toàn. Đổi tên không tự gán thiết bị cho học sinh có MSSV đó.
+
+## Tiến độ và kết quả trên ESP32
+
+Snapshot thiết bị có `total_questions`, `seconds_per_question`, `question.question_order` (bắt đầu từ 1).
+Khi kết thúc, thiết bị còn được ghép tại thời điểm kết thúc nhận `state: FINISHED` và
+`result: {correct, total, score}` của chính học sinh đã ghép. `total` chỉ tính câu đã đóng,
+không bị hủy; `score` theo thang 10 giống báo cáo, hoặc null nếu không có điểm.
+Trước kết thúc `result` là null. Kết quả cuối được khôi phục khi nối lại, cho đến khi có
+lượt ghép mới; thu hồi thiết bị chặn truy cập. Các buổi kết thúc trước bản cập nhật này
+không có dấu ghi nhận thiết bị nhận kết quả nên không khôi phục kết quả trên OLED.

@@ -1,3 +1,4 @@
+import { createUuid } from "../uuid";
 import { useEffect, useRef, useState } from "react";
 import { api, stateLabel, errorLabel, type Data } from "../api";
 import { Head, Status, useApp, useResource } from "../components";
@@ -37,7 +38,7 @@ function SimDevice({ device }: { device: Data }) {
     }
     if (s.mode === "attendance") {
       send(
-        { v: 1, type: "attendance.checkin", request_id: crypto.randomUUID(), attendance_id: s.id },
+        { v: 1, type: "attendance.checkin", request_id: createUuid(), attendance_id: s.id },
         "điểm danh",
       );
       return;
@@ -48,7 +49,7 @@ function SimDevice({ device }: { device: Data }) {
         return;
       }
       send(
-        { v: 1, type: "poll.vote", request_id: crypto.randomUUID(), poll_id: s.id, choice },
+        { v: 1, type: "poll.vote", request_id: createUuid(), poll_id: s.id, choice },
         `ý kiến ${choice}`,
       );
       return;
@@ -68,7 +69,7 @@ function SimDevice({ device }: { device: Data }) {
       const packet = {
         v: 1,
         type: "flashcard.rate",
-        request_id: crypto.randomUUID(),
+        request_id: createUuid(),
         review_id: s.id,
         card_id: s.card.id,
         rating,
@@ -104,7 +105,7 @@ function SimDevice({ device }: { device: Data }) {
       session_id: s.id,
       question_instance_id: s.question.id,
       binding_id: s.binding_id,
-      request_id: crypto.randomUUID(),
+      request_id: createUuid(),
       seq: ++seq.current,
       choice,
     };
@@ -318,7 +319,7 @@ export function Simulator() {
             // Keep the exact packets in memory until the batch succeeds so a lost response is retryable.
             if (!joinBatch.current || joinBatch.current.code !== code)
               joinBatch.current = { code, packets: Array.from({ length: count }, (_, i) => ({
-                v: 1, room_code: code, request_id: crypto.randomUUID(),
+                v: 1, room_code: code, request_id: createUuid(),
                 device_name: `SIM-ROOM-${String(i + 1).padStart(2, "0")}`,
                 device_secret: Array.from(crypto.getRandomValues(new Uint8Array(32)), (n) => n.toString(16).padStart(2, "0")).join(""),
               })) };

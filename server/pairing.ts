@@ -16,6 +16,7 @@ export const joinSchema = z.object({
   device_name: z.string().trim().min(1).max(80),
   device_secret: z.string().regex(/^[a-f0-9]{64}$/),
   device_id: z.string().uuid().optional(),
+  student_code: z.string().regex(/^\d{1,10}$/).optional(),
 });
 
 export function pairingSnapshot(db: DB, session: string, now = Date.now()) {
@@ -95,12 +96,29 @@ export class Pairing {
         throw new AppError("DEVICE_BUSY", "Thiết bị đang ở phòng khác; gỡ khỏi phòng cũ trước", 409);
       const member = d && one(this.db, "SELECT 1 FROM room_devices WHERE session_id=? AND device_id=?", room.session_id, d.id);
       const count = one(this.db, "SELECT count(*) n FROM (SELECT device_id FROM room_devices WHERE session_id=? UNION SELECT device_id FROM session_devices WHERE session_id=? AND active=1) m JOIN devices d ON d.id=m.device_id WHERE d.revoked=0", room.session_id, room.session_id)!.n;
-      const bound = d && one(this.db, "SELECT 1 FROM session_devices WHERE session_id=? AND device_id=? AND active=1", room.session_id, d.id);
+      const bound = d && one(this.db, "SELECT session_student_id FROM session_devices WHERE session_id=? AND device_id=? AND active=1", room.session_id, d.id);
       if (!member && !bound && count >= 50)
         throw new AppError("ROOM_FULL", "Phòng đã đủ 50 thiết bị", 409);
+      const requestedStudent = input.student_code
+        ? one(this.db, "SELECT id,absent FROM session_students WHERE session_id=? AND student_code=?", room.session_id, input.student_code)
+        : undefined;
+      if (input.student_code) {
+        if (!requestedStudent || requestedStudent.absent)
+          throw new AppError("STUDENT_UNAVAILABLE", "MSSV không có trong phòng hoặc đã đánh dấu vắng", 409);
+        const occupied = one(this.db, "SELECT device_id FROM session_devices WHERE session_student_id=? AND active=1", requestedStudent.id);
+        if ((occupied && occupied.device_id !== d?.id) || (bound && bound.session_student_id !== requestedStudent.id))
+          throw new AppError("STUDENT_ALREADY_BOUND", "Học sinh hoặc thiết bị đã được ghép; nhờ giáo viên sửa ghép", 409);
+      }
+      if (d && input.student_code) {
+        let label = input.student_code;
+        if (one(this.db, "SELECT 1 FROM devices WHERE owner_teacher_id=? AND id<>? AND revoked=0 AND lower(label)=lower(?)", room.owner_teacher_id, d.id, label))
+          throw new AppError("DUPLICATE_LABEL", "MSSV đang được dùng bởi thiết bị khác", 409);
+        this.db.prepare("UPDATE devices SET label=? WHERE id=?").run(label, d.id);
+        d.label = label;
+      }
       if (!d) {
         const id = randomUUID();
-        let label = input.device_name;
+        let label = input.student_code ?? input.device_name;
         if (one(this.db, "SELECT 1 FROM devices WHERE owner_teacher_id=? AND revoked=0 AND lower(label)=lower(?)", room.owner_teacher_id, label))
           label = `${label} · ${id}`;
         this.db.prepare("INSERT INTO devices(id,owner_teacher_id,label,secret_hash) VALUES (?,?,?,?)").run(id, room.owner_teacher_id, label, secretHash);
@@ -108,8 +126,10 @@ export class Pairing {
       }
       this.db.prepare("INSERT OR IGNORE INTO room_devices(session_id,device_id,joined_at) VALUES (?,?,?)").run(room.session_id, d.id, this.now());
       this.db.prepare("INSERT INTO room_join_receipts VALUES (?,?,?,?,?)").run(input.request_id, digest, d.id, room.session_id, this.now());
-      if (room.auto_assign && !bound) {
-        const student = one(this.db, "SELECT s.id FROM session_students s WHERE s.session_id=? AND s.absent=0 AND NOT EXISTS(SELECT 1 FROM session_devices b WHERE b.session_student_id=s.id AND b.active=1) ORDER BY s.student_code,s.id LIMIT 1", room.session_id);
+      if (requestedStudent && !bound) {
+        new Quiz(this.db, this.now).bind(room.session_id, requestedStudent.id, d.id, room.owner_teacher_id);
+      } else if (room.auto_assign && !bound) {
+        const student = one(this.db, "SELECT s.id FROM session_students s WHERE s.session_id=? AND s.student_code=? AND s.absent=0 AND NOT EXISTS(SELECT 1 FROM session_devices b WHERE b.session_student_id=s.id AND b.active=1) LIMIT 1", room.session_id, d.label);
         if (student) new Quiz(this.db, this.now).bind(room.session_id, student.id, d.id, room.owner_teacher_id);
       }
       this.bump(room.session_id);

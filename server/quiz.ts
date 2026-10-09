@@ -63,7 +63,7 @@ export class Quiz {
         );
       for (const st of all(
         this.db,
-        "SELECT s.*,sd.device_id FROM students s LEFT JOIN student_devices sd ON sd.student_id=s.id LEFT JOIN devices d ON d.id=sd.device_id AND d.revoked=0 WHERE s.class_id=?",
+        "SELECT * FROM students WHERE class_id=?",
         cls.id,
       )) {
         const sessionStudent = randomUUID();
@@ -72,28 +72,6 @@ export class Quiz {
             "INSERT INTO session_students(id,session_id,student_id,student_code,full_name) VALUES (?,?,?,?,?)",
           )
           .run(sessionStudent, id, st.id, st.student_code, st.full_name);
-        // Pre-bind the student's default device unless another unfinished room still holds it.
-        if (
-          st.device_id &&
-          one(this.db, "SELECT 1 FROM devices WHERE id=? AND revoked=0", st.device_id) &&
-          !one(
-            this.db,
-            "SELECT 1 FROM session_devices WHERE device_id=? AND active=1",
-            st.device_id,
-          ) &&
-          !one(this.db, "SELECT 1 FROM room_devices m JOIN quiz_sessions s ON s.id=m.session_id WHERE m.device_id=? AND s.state IN ('LOBBY','RUNNING','PAUSED')", st.device_id) &&
-          one(this.db, "SELECT count(*) n FROM room_devices WHERE session_id=?", id)!.n < 50
-        ) {
-          this.db
-            .prepare("INSERT INTO session_devices VALUES (?,?,?,?,1,?)")
-            .run(randomUUID(), id, sessionStudent, st.device_id, this.now());
-          this.db.prepare("INSERT OR IGNORE INTO room_devices(session_id,device_id,joined_at) VALUES (?,?,?)").run(id, st.device_id, this.now());
-          this.event(id, "binding.changed", {
-            student: sessionStudent,
-            device: st.device_id,
-            source: "default",
-          }, owner);
-        }
       }
     })();
     return id;
@@ -128,6 +106,8 @@ export class Quiz {
         throw new AppError("ABSENT", "Học sinh được đánh dấu vắng");
       if (device) {
         const d = owned(this.db, "devices", device, owner);
+        if (d.label !== st.student_code)
+          throw new AppError("STUDENT_CODE_MISMATCH", "Mã thiết bị phải trùng MSSV của học sinh", 409);
         if (d.revoked)
           throw new AppError("DEVICE_REVOKED", "Thiết bị đã thu hồi");
         const occupied = one(
@@ -193,6 +173,10 @@ export class Quiz {
         "UPDATE quiz_sessions SET state=?,finished_at=?,early_finish=?,next_transition_at=NULL WHERE id=?",
       )
       .run(state, now, +early, id);
+    if (state === "FINISHED") {
+      for (const binding of all(this.db, "SELECT id FROM session_devices WHERE session_id=? AND active=1", id))
+        this.event(id, "device.result", { binding_id: binding.id });
+    }
     this.db
       .prepare("UPDATE session_devices SET active=0 WHERE session_id=?")
       .run(id);
@@ -560,12 +544,30 @@ export class Quiz {
       this.db,
       "SELECT b.* FROM session_devices b JOIN devices d ON d.id=b.device_id WHERE b.device_id=? AND b.active=1 AND d.revoked=0",
       device,
+    ) ?? one(
+      this.db,
+      `SELECT b.* FROM session_devices b JOIN devices d ON d.id=b.device_id
+       JOIN quiz_sessions s ON s.id=b.session_id
+       WHERE b.device_id=? AND d.revoked=0 AND s.state='FINISHED'
+       AND NOT EXISTS(SELECT 1 FROM room_devices m JOIN quiz_sessions current ON current.id=m.session_id WHERE m.device_id=b.device_id AND current.state IN ('LOBBY','RUNNING','PAUSED'))
+       AND b.rowid=(SELECT max(latest.rowid) FROM session_devices latest WHERE latest.device_id=b.device_id)
+       AND EXISTS(SELECT 1 FROM session_events e WHERE e.session_id=b.session_id AND e.type='device.result' AND json_extract(e.detail,'$.binding_id')=b.id)`,
+      device,
     );
     if (!b) {
       const member = one(this.db, "SELECT s.id,s.state,s.state_version FROM room_devices m JOIN quiz_sessions s ON s.id=m.session_id WHERE m.device_id=? AND s.state IN ('LOBBY','RUNNING','PAUSED') ORDER BY m.joined_at DESC LIMIT 1", device);
       return { ...(member ?? { state: "WAITING" }), assignment: "UNASSIGNED", server_time: this.now() };
     }
     const s = this.snapshot(b.session_id);
+    let result = null;
+    if (s.state === "FINISHED") {
+      const student = this.report(s.id).students.find((st) => (st as Row).id === b.session_student_id);
+      if (student) result = {
+        correct: student.C,
+        total: student.details.filter((q) => q.scored).length,
+        score: student.score,
+      };
+    }
     const a = s.question
       ? one(
           this.db,
@@ -580,9 +582,13 @@ export class Quiz {
       state_version: s.state_version,
       server_time: s.server_time,
       binding_id: b.id,
+      total_questions: s.config.count,
+      seconds_per_question: s.config.seconds,
+      result,
       question: s.question
         ? {
             id: s.question.id,
+            question_order: s.question.question_order,
             status: s.question.status,
             deadline_at: s.question.deadline_at,
             remaining_ms: s.question.remaining_ms,
