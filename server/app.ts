@@ -39,7 +39,7 @@ import {
   flashcardSchema,
 } from "../shared/protocol.js";
 import { attachRealtime } from "./realtime.js";
-import { createStudyGuide } from "./study-guide.js";
+import { createStudyGuide, type GuideInput } from "./study-guide.js";
 export type AppConfig = {
   origin: string;
   secret: string;
@@ -48,6 +48,7 @@ export type AppConfig = {
   trustProxy: number;
   maxUpload: number;
   openRouterApiKeys: string[];
+  openRouterModels?: string[];
 };
 const nameSchema = z.string().trim().min(1).max(150);
 export function createApplication(db: DB, config: AppConfig) {
@@ -1195,23 +1196,6 @@ ${q.data.explanation}` : ""),
         "Đang tạo gợi ý cho buổi này. Vui lòng chờ.",
         409,
       );
-    const topicByQuestion = new Map<string, string>(),
-      topicStats = new Map<
-        string,
-        { correctRate: number; questionCount: number }
-      >();
-    for (const question of questions) {
-      if (question.status !== "CLOSED" || question.voided) continue;
-      const topic =
-        typeof question.data.topic === "string" && question.data.topic.trim()
-          ? question.data.topic.trim().slice(0, 100)
-          : "Chủ đề chưa phân loại";
-      topicByQuestion.set(question.id, topic);
-      const stats = topicStats.get(topic) || { correctRate: 0, questionCount: 0 };
-      stats.correctRate += question.correct_rate ?? 0;
-      stats.questionCount++;
-      topicStats.set(topic, stats);
-    }
     const student = students.find((candidate) => candidate.id === student_id);
     if (!student || student.absent)
       throw new AppError(
@@ -1219,38 +1203,48 @@ ${q.data.explanation}` : ""),
         "Không tìm thấy học sinh dự thi trong báo cáo này.",
         404,
       );
-    const weakTopics = new Set<string>();
-    for (const answer of student.details as Row[])
-      if (answer.scored && answer.choice !== answer.correct_answer) {
-        const topic = topicByQuestion.get(String(answer.question_id));
-        if (topic) weakTopics.add(topic);
-      }
-    if (!weakTopics.size)
+    const scoredQuestions = new Map(
+      questions
+        .filter((q) => q.status === "CLOSED" && !q.voided)
+        .map((q) => [String(q.id), q]),
+    );
+    const input: GuideInput = { missed: [] };
+    for (const answer of student.details as Row[]) {
+      const q = scoredQuestions.get(String(answer.question_id));
+      if (!q || !answer.scored || answer.choice === answer.correct_answer) continue;
+      const text = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
+      const options = {
+        A: text(q.data.option_a, 300),
+        B: text(q.data.option_b, 300),
+        C: text(q.data.option_c, 300),
+        D: text(q.data.option_d, 300),
+      };
+      const chosen = answer.choice ? String(answer.choice) : null,
+        correct = String(answer.correct_answer);
+      input.missed.push({
+        no: Number(q.question_order),
+        topic: text(q.data.topic, 100),
+        question: text(q.data.question, 1000),
+        options,
+        chosen,
+        chosen_text: chosen ? `${chosen}. ${options[chosen as keyof typeof options]}` : null,
+        correct,
+        correct_text: `${correct}. ${options[correct as keyof typeof options]}`,
+        teacher_note: text(q.data.explanation, 600),
+      });
+    }
+    if (!input.missed.length)
       throw new AppError(
         "NO_WEAK_TOPICS",
-        "Học sinh này không có chủ đề sai hoặc bỏ trống trong các câu được tính điểm.",
+        "Học sinh này không có câu sai hoặc bỏ trống trong các câu được tính điểm.",
         409,
       );
-    const input = {
-      topics: [...topicStats]
-        .filter(([topic]) => weakTopics.has(topic))
-        .map(([topic, stats]) => ({
-          topic,
-          participants: report.stats.participants,
-          correct_rate: Math.round(stats.correctRate / stats.questionCount),
-        })),
-      learners: [
-        {
-          learner_ref: "HV-01",
-          weak_topics: [...weakTopics].slice(0, 12),
-        },
-      ],
-    };
+    input.missed = input.missed.sort((a, b) => a.no - b.no).slice(0, 15);
 
     studyGuideInFlight.add(requestKey);
     try {
       res.json(
-        await createStudyGuide(input, config.openRouterApiKeys),
+        await createStudyGuide(input, config.openRouterApiKeys, config.openRouterModels),
       );
     } finally {
       studyGuideInFlight.delete(requestKey);

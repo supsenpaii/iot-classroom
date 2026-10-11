@@ -176,7 +176,8 @@ svg {
   display: block;
   font-size: 10px;
   font-weight: 400;
-  letter-spacing: 3px;
+  letter-spacing: 1.2px;
+  white-space: nowrap;
   color: #b7c8c3;
   margin-top: 3px;
 }
@@ -2512,9 +2513,9 @@ button.primary.fc-sun:hover { background: #ffd766; border-color: #ffd766; color:
 .sp-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .sp-deck { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 16px; border: 1px solid #9ddcc0; border-radius: 12px; background: #effaf5; color: #0b5c45; }
 .sp-deck code { padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: #fff; color: var(--green); font-size: 13px; }
-.sp-ai { padding: 16px 18px; border: 1px solid #a9c9f5; border-radius: 14px; background: var(--surface); }
-.sp-ai h3 { margin-top: 0; }
-.sp-ai h4 { margin: 14px 0 4px; }
-.sp-ai ul { margin: 6px 0; padding-left: 20px; line-height: 1.7; }
-.sp-ai-res { color: var(--muted); }
+.sp-option { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 10px; background: var(--surface); font-size: 14px; }
+.sp-option b { background: #b7c3d3; }
+.sp-ai-explain { padding: 10px 12px; border: 1px solid #a9c9f5; border-radius: 10px; background: #f3f8ff; font-size: 14px; }
+.sp-ai-explain strong { color: var(--blue-deep); font-size: 12px; letter-spacing: .4px; text-transform: uppercase; }
+.sp-ai-explain p { margin: 4px 0 0; line-height: 1.55; white-space: pre-line; }
 @media (max-width: 900px) { .sp-questions { grid-template-columns: minmax(0, 1fr); } }

@@ -111,9 +111,9 @@ function App() {
         <div className="login-brand">
           <Icon name="book" />
           <h1>
-            Lớp học
+            Smart
             <br />
-            tương tác<span>.</span>
+            Class<span>.</span>
           </h1>
           <p>Mỗi câu trả lời đều được lắng nghe.</p>
           <div className="login-art">
@@ -235,7 +235,7 @@ function App() {
           <a href="/dashboard" className="brand">
             <Icon name="book" />
             <span>
-              Lớp học<small>TƯƠNG TÁC</small>
+              SmartClass<small>LỚP HỌC TƯƠNG TÁC</small>
             </span>
           </a>
           <p className="nav-caption">KHÔNG GIAN DẠY HỌC</p>
@@ -280,7 +280,7 @@ function App() {
         <div className="workspace">
           <div className="topbar">
             <span>
-              Lớp học <span className="muted">/</span> Không gian giáo viên
+              SmartClass <span className="muted">/</span> Không gian giáo viên
             </span>
             <a href="/account" className="avatar" aria-label="Tài khoản">
               GV
@@ -306,7 +306,7 @@ function App() {
             )}
             {content}
           </main>
-          <footer>Lớp học tương tác · Cùng nhau tiến xa hơn</footer>
+          <footer>SmartClass · Cùng nhau tiến xa hơn</footer>
         </div>
       </div>
     </Context.Provider>

@@ -635,7 +635,7 @@ function ProjectionView({ id, token }: { id: string; token: string }) {
         <a href="#" onClick={(e) => e.preventDefault()} className="brand">
           <Icon name="book" />
           <span>
-            Lớp học<small>TƯƠNG TÁC</small>
+            SmartClass<small>LỚP HỌC TƯƠNG TÁC</small>
           </span>
         </a>
         <span>
