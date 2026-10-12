@@ -4,18 +4,24 @@ import { useApp } from "../components";
 import { mastery } from "./results-grid";
 
 type StudyGuide = {
-  summary: string;
-  topic_guides: Array<{
+  explanations: Array<{ no: number; explanation: string }>;
+  practice: Array<{
     topic: string;
-    why: string;
-    activities: string[];
-    resources: Array<{ title: string; reason: string }>;
+    question: string;
+    option_a: string;
+    option_b: string;
+    option_c: string;
+    option_d: string;
+    correct_answer: string;
+    explanation: string;
   }>;
-  learner_guides: Array<{ learner_ref: string; actions: string[] }>;
 };
 const LETTERS = ["A", "B", "C", "D"];
 const optionText = (q: Data, c: string) => q.data[`option_${c.toLowerCase()}`];
 const topicOf = (q: Data) => (q.data.topic || "").trim() || "Chưa phân loại";
+// Models often mark key terms with **bold**; render that instead of showing the asterisks.
+const rich = (text: string) =>
+  text.split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 ? <strong key={i}>{part}</strong> : part));
 
 // Review plan built from the session's own results; AI wording is an optional extra when a key is configured.
 export function StudyPlan({ d, id }: { d: Data; id: string }) {
@@ -54,6 +60,7 @@ export function StudyPlan({ d, id }: { d: Data; id: string }) {
     total: scored.filter((q) => topicOf(q) === topic).length,
   }));
   const reviewCount = who === "class" ? reteach.length : missed.length;
+  const aiNote = (no: number) => aiGuide?.explanations.find((e) => e.no === no)?.explanation;
   const choose = (value: string) => {
     setWho(value);
     setDeck(null);
@@ -148,11 +155,17 @@ export function StudyPlan({ d, id }: { d: Data; id: string }) {
                   <p className="sp-q-text">{q.data.question}</p>
                   <div className="sp-answers">
                     <span className="sp-wrong">
-                      {a.choice ? <><b>{a.choice}</b>{optionText(q, a.choice)}<em>em chọn</em></> : <em>bỏ trống</em>}
+                      {a.choice ? <><b>{a.choice}</b>{optionText(q, a.choice)}<em>đã chọn</em></> : <em>bỏ trống</em>}
                     </span>
                     <span className="sp-right"><b>{q.data.correct_answer}</b>{optionText(q, q.data.correct_answer)}</span>
                   </div>
                   {q.data.explanation && <p className="sp-explain">{q.data.explanation}</p>}
+                  {aiNote(q.question_order) && (
+                    <div className="sp-ai-explain">
+                      <strong>Giải chi tiết</strong>
+                      <p>{rich(aiNote(q.question_order)!)}</p>
+                    </div>
+                  )}
                 </li>
               ))}
             </ol>
@@ -183,7 +196,7 @@ export function StudyPlan({ d, id }: { d: Data; id: string }) {
               }).finally(() => setBusy(""));
             }}
           >
-            {busy === "ai" ? "AI đang viết…" : "Viết gợi ý bằng AI"}
+            {busy === "ai" ? "AI đang viết…" : "AI giải chi tiết + câu luyện thêm"}
           </button>
         )}
       </div>
@@ -208,37 +221,28 @@ export function StudyPlan({ d, id }: { d: Data; id: string }) {
         </div>
       )}
       {aiGuide && (
-        <div className="sp-ai">
-          <h3>Gợi ý từ AI</h3>
-          <p>{aiGuide.summary}</p>
-          {aiGuide.topic_guides.map((g) => (
-            <article key={g.topic}>
-              <h4>{g.topic}</h4>
-              <p>{g.why}</p>
-              <ul>
-                {g.activities.map((x, i) => (
-                  <li key={i}>{x}</li>
-                ))}
-              </ul>
-              <ul className="sp-ai-res">
-                {g.resources.map((r, i) => (
-                  <li key={i}>
-                    <strong>{r.title}</strong> · {r.reason}
-                  </li>
-                ))}
-              </ul>
-            </article>
-          ))}
-          {aiGuide.learner_guides[0]?.actions.length ? (
-            <>
-              <h4>Cho {student?.full_name}</h4>
-              <ul>
-                {aiGuide.learner_guides[0].actions.map((x, i) => (
-                  <li key={i}>{x}</li>
-                ))}
-              </ul>
-            </>
-          ) : null}
+        <div className="sp-block">
+          <h3>Câu luyện thêm <span className="sp-count">{aiGuide.practice.length}</span></h3>
+          <ol className="sp-questions">
+            {aiGuide.practice.map((p, i) => (
+              <li key={i}>
+                <div className="sp-q-head">
+                  <span className="sp-q-no">Câu {i + 1}</span>
+                  {p.topic && <span className="sp-q-topic">{p.topic}</span>}
+                </div>
+                <p className="sp-q-text">{rich(p.question)}</p>
+                <div className="sp-answers">
+                  {LETTERS.map((c) => (
+                    <span key={c} className={c === p.correct_answer ? "sp-right" : "sp-option"}>
+                      <b>{c}</b>
+                      {rich(p[`option_${c.toLowerCase()}` as "option_a"])}
+                    </span>
+                  ))}
+                </div>
+                <p className="sp-explain">{rich(p.explanation)}</p>
+              </li>
+            ))}
+          </ol>
         </div>
       )}
     </section>

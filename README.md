@@ -1,4 +1,4 @@
-# Lớp học tương tác — website kết nối ESP32
+# SmartClass — website kết nối ESP32
 
 Giáo viên chiếu một câu hỏi chung; học sinh bấm A/B/C/D trên thiết bị của mình. Backend nhận đáp án qua WebSocket, trả ACK sau khi lưu SQLite, chấm điểm và xuất Excel.
 

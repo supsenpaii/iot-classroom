@@ -22,6 +22,10 @@ const application = createApplication(db, {
   simulator: process.env.ENABLE_SIMULATOR === "true",
   trustProxy: Number(process.env.TRUST_PROXY || 0),
   maxUpload: Number(process.env.MAX_UPLOAD_BYTES || 5242880),
+  openRouterModels: (process.env.OPENROUTER_MODELS || "")
+    .split(",")
+    .map((model) => model.trim())
+    .filter(Boolean),
   openRouterApiKeys: [
     ...new Set(
       (process.env.OPENROUTER_API_KEYS || "")
@@ -35,7 +39,7 @@ const host = process.env.HOST || "127.0.0.1",
   port = Number(process.env.PORT || 3000),
   displayHost = host === "127.0.0.1" ? "localhost" : host;
 application.server.listen(port, host, () =>
-  console.log(`Lớp học: http://${displayHost}:${port}`),
+  console.log(`SmartClass: http://${displayHost}:${port}`),
 );
 let stopping = false;
 for (const signal of ["SIGINT", "SIGTERM"] as const)
