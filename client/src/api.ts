@@ -2,7 +2,7 @@ export type Data = Record<string, any>; // JSON API documents; inputs are valida
 let csrf = "";
 const authChannel = new BroadcastChannel("classroom-auth");
 authChannel.onmessage = (event) => {
-  if (event.data === "signed-out") window.location.replace("/login");
+  if (event.data === "signed-out" && !["/student", "/student/"].includes(window.location.pathname)) window.location.replace("/login");
 };
 export function signedOut() {
   csrf = "";

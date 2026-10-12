@@ -22,7 +22,7 @@ npm run db:migrate
 npm start
 ```
 
-Mở http://localhost:3000/register để đăng ký email và mật khẩu ít nhất 12 ký tự, sau đó đăng nhập. Không có tài khoản hoặc mật khẩu mặc định. Với máy khác truy cập, cấu hình `HOST`, `PUBLIC_ORIGIN` theo [README](README.md) và [hướng dẫn Tailscale](docs/TAILSCALE_MAY_KHAC.md).
+Mở http://localhost:3000/register để đăng ký email và mật khẩu từ 1 đến 200 ký tự, sau đó đăng nhập. Không có tài khoản hoặc mật khẩu mặc định. Với máy khác truy cập, cấu hình `HOST`, `PUBLIC_ORIGIN` theo [README](README.md) và [hướng dẫn Tailscale](docs/TAILSCALE_MAY_KHAC.md).
 
 ## Chuẩn bị demo 10 câu
 

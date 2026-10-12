@@ -71,6 +71,27 @@ Firmware không cần gửi Origin. Browser bắt buộc đúng PUBLIC_ORIGIN; k
 
 Giáo viên dùng cookie, gửi `{ "v":1,"type":"hello","session_id":"..." }`; server kiểm tra quyền sở hữu. Projection dùng grant từ `/api/presentation/exchange`, hello với `ticket`. Projection không được dùng API ghi hoặc gửi đáp án. Logout/đổi mật khẩu/thu hồi quyền đóng socket liên quan. Firmware phải xác minh chứng chỉ TLS (CA và thời gian); không dùng insecure TLS.
 
+## Học sinh làm bài trên trình duyệt
+
+Trang `/student` dùng `GET /api/student/session` để tạo/khôi phục phiên và lấy CSRF,
+`POST /api/student/join` với `{student_code, room_code, request_id}` để ghép đúng MSSV.
+Các POST cần Origin đúng `PUBLIC_ORIGIN` và header `X-CSRF-Token` của phiên học sinh.
+Cookie `classroom.student.sid` là HttpOnly, tách khỏi cookie giáo viên. Credentials thiết bị
+được tạo và lưu ở server; không gửi secret về browser. Yêu cầu join đang chờ được lưu trước
+transaction, retry dùng nguyên gói kể cả khi phòng đã đóng nhận. Không cần bật simulator.
+
+`POST /api/student/ticket` cấp ticket dùng một lần, hiệu lực 60 giây, ràng buộc cookie và
+binding học sinh. Browser nối `/ws/student`, gửi hello với ticket rồi dùng cùng
+`answer.submit`/`answer.ack` như ESP32. Snapshot học sinh chỉ có danh tính của chính mình,
+câu hỏi hiện tại/bốn lựa chọn, thời gian, đáp án đã lưu và kết quả riêng sau khi kết thúc.
+Không gửi roster, lời giải hoặc đáp án đúng. Ticket học sinh không dùng được ở `/ws`;
+ticket giáo viên/màn chiếu không dùng được ở `/ws/student`. Browser không được đổi tên
+thiết bị hoặc điều khiển phòng qua socket này.
+
+`POST /api/student/leave` kết thúc quyền browser sau khi bài đã kết thúc/hủy hoặc đã gỡ ghép;
+không cho bỏ phiên đang làm bài để chiếm một MSSV khác. Thu hồi thiết bị/gỡ ghép chặn cả
+socket hiện tại và cấp ticket mới. Web dùng chung giới hạn phòng và luật chấm điểm với ESP32.
+
 ## Snapshot
 
 Server gửi ngay sau kết nối và khi có thay đổi (gom trong tối đa khoảng 40 ms), cùng heartbeat cập nhật trạng thái. Firmware nhận tối thiểu:

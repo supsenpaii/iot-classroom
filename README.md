@@ -25,9 +25,14 @@ npm run db:migrate
 npm start
 ```
 
-Mở **http://localhost:3000/register** để tự tạo tài khoản giáo viên bằng email và mật khẩu ít nhất 12 ký tự. Có thể dùng `npm run teacher:create` để tạo tài khoản qua terminal. Không có tài khoản mặc định hoặc dữ liệu học sinh đi kèm. SQLite lưu ở `data/app.sqlite`; giữ thư mục này khi nâng cấp.
+Mở **http://localhost:3000/register** để tự tạo tài khoản giáo viên bằng email và mật khẩu từ 1 đến 200 ký tự. Có thể dùng `npm run teacher:create` để tạo tài khoản qua terminal. Không có tài khoản mặc định hoặc dữ liệu học sinh đi kèm. SQLite lưu ở `data/app.sqlite`; giữ thư mục này khi nâng cấp.
 
 ## Sử dụng app từ đầu đến báo cáo
+
+Học sinh có thể làm bài trên điện thoại hoặc máy tính tại **`/student`**, nhập **MSSV + Room ID**,
+không cần đăng nhập hoặc ESP32. Trang hiển thị câu hỏi, bốn lựa chọn, thời gian còn lại và điểm
+của chính học sinh khi kết thúc. Giáo viên dùng cùng phòng kiểm tra để điều khiển và xem báo cáo.
+Xem [hướng dẫn làm bài trên web](docs/STUDENT_WEB.md).
 
 1. Vào `/register` để tạo tài khoản giáo viên, hoặc `/login` nếu đã có tài khoản. Mỗi giáo viên chỉ thấy dữ liệu của mình.
 2. Trong **Lớp học**, tạo lớp và thêm học sinh. Trong **Ngân hàng câu hỏi**, tải mẫu XLSX/CSV, nhập câu hỏi, xem trước rồi lưu bộ đề.

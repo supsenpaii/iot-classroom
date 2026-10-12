@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, fields, stateLabel, type Data } from "../api";
 import {
   Empty,
@@ -11,6 +11,7 @@ import {
 } from "../components";
 import { socketUrl } from "../socket";
 import { questionSchema, flashcardSchema } from "../../../shared/protocol";
+import "./class-management.css";
 export function Dashboard() {
   const sessions = useResource<Data[]>("/sessions"),
     classes = useResource<Data[]>("/classes"),
@@ -85,13 +86,30 @@ export function Dashboard() {
 export function Importer({
   kind,
   onCommit,
+  customUpload = false,
 }: {
   kind: "questions" | "students" | "flashcards";
   onCommit: (rows: Data[]) => Promise<void>;
+  customUpload?: boolean;
 }) {
   const { run } = useApp(),
     [preview, setPreview] = useState<Data | null>(null),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [fileName, setFileName] = useState(""),
+    [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
+  function inspectFile(file?: File) {
+    if (!file || busy) return;
+    if (customUpload) {
+      setFileName(file.name);
+      setPreview(null);
+    }
+    setBusy(true);
+    void run(async () => {
+      if (file.size > 5242880) throw Error("File vượt quá 5 MB");
+      setPreview(await api(`/imports/${kind}/preview`, "POST", file));
+    }).finally(() => setBusy(false));
+  }
   const columns =
     kind === "students"
       ? ["student_code", "full_name"]
@@ -201,22 +219,68 @@ export function Importer({
           <a href={`/api/templates/${kind}.csv`}>Mẫu CSV ↓</a>
         </div>
       </div>
-      <Field label="Chọn file để xem trước">
-        <input
-          type="file"
-          accept=".xlsx,.csv"
-          disabled={busy}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (!file) return;
-            setBusy(true);
-            void run(async () => {
-              if (file.size > 5242880) throw Error("File vượt quá 5 MB");
-              setPreview(await api(`/imports/${kind}/preview`, "POST", file));
-            }).finally(() => setBusy(false));
-          }}
-        />
-      </Field>
+      {customUpload ? (
+        <div className="class-upload">
+          <label
+            aria-busy={busy}
+            className={`class-upload-area${dragging ? " is-dragging" : ""}${busy ? " is-busy" : ""}`}
+            onDragEnter={(e) => {
+              if (busy || !e.dataTransfer.types.includes("Files")) return;
+              e.preventDefault();
+              dragDepth.current++;
+              setDragging(true);
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = busy ? "none" : "copy";
+            }}
+            onDragLeave={() => {
+              dragDepth.current = Math.max(0, dragDepth.current - 1);
+              if (!dragDepth.current) setDragging(false);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              dragDepth.current = 0;
+              setDragging(false);
+              inspectFile(e.dataTransfer.files[0]);
+            }}
+          >
+            <input
+              className="class-upload-input"
+              type="file"
+              accept=".xlsx,.csv"
+              aria-label="Chọn file Excel hoặc CSV để xem trước danh sách học sinh"
+              disabled={busy}
+              onChange={(e) => {
+                inspectFile(e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
+            <span className="class-upload-icon">
+              <Icon name="upload" />
+            </span>
+            <strong>
+              {dragging ? "Thả file để xem trước" : "Kéo thả file hoặc nhấn để chọn"}
+            </strong>
+            <span>Hỗ trợ XLSX, CSV · Tối đa 5MB</span>
+          </label>
+          {fileName && (
+            <div className="class-upload-file" role="status">
+              <Icon name="file" />
+              <span>{fileName}</span>
+            </div>
+          )}
+        </div>
+      ) : (
+        <Field label="Chọn file để xem trước">
+          <input
+            type="file"
+            accept=".xlsx,.csv"
+            disabled={busy}
+            onChange={(e) => inspectFile(e.target.files?.[0])}
+          />
+        </Field>
+      )}
       {busy && <p role="status">Đang đọc file…</p>}
       {preview && (
         <>
@@ -300,8 +364,24 @@ export function Classes({ id }: { id?: string }) {
     [editing, setEditing] = useState<Data | null>(null),
     [deleting, setDeleting] = useState(false),
     [search, setSearch] = useState("");
+  const studentCodeInput = useRef<HTMLInputElement>(null);
+  const focusStudentForm = () => {
+    setEditing(null);
+    requestAnimationFrame(() => {
+      studentCodeInput.current?.focus({ preventScroll: true });
+      studentCodeInput.current?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+        block: "nearest",
+      });
+    });
+  };
   if (!resource.data) return <Status loading error={resource.error} />;
   const d = resource.data;
+  const visibleStudents: Data[] = id
+    ? d.students.filter((s: Data) =>
+        (s.full_name + s.student_code).toLowerCase().includes(search.toLowerCase()),
+      )
+    : [];
   return (
     <>
       <Head
@@ -381,104 +461,135 @@ export function Classes({ id }: { id?: string }) {
           </form>
         </div>
       ) : (
-        <>
-          <div className="two-col">
-            <section className="card">
-              <div className="row spread">
-                <h2>Danh sách học sinh</h2>
-                <input
-                  aria-label="Tìm học sinh"
-                  placeholder="Tìm học sinh…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
+        <div className="class-detail">
+          <div className="class-management-grid">
+            <section
+              className="card class-roster-card"
+              aria-labelledby="class-roster-heading"
+            >
+              <div className="class-roster-header">
+                <h2 id="class-roster-heading">
+                  <Icon name="users" /> Danh sách học sinh
+                </h2>
+                <span className="badge">{d.students.length} học sinh</span>
               </div>
-              <div className="table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Mã học sinh</th>
-                      <th>Họ tên</th>
-                      <th>Thiết bị mặc định</th>
-                      <th>Thao tác</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {d.students
-                      .filter((s: Data) =>
-                        (s.full_name + s.student_code)
-                          .toLowerCase()
-                          .includes(search.toLowerCase()),
-                      )
-                      .map((s: Data) => (
-                        <tr key={s.id}>
-                          <td>{s.student_code}</td>
-                          <td>{s.full_name}</td>
-                          <td>
-                            <select
-                              aria-label={`Thiết bị mặc định của ${s.full_name}`}
-                              value={s.device_id ?? ""}
-                              onChange={(e) =>
-                                void run(async () => {
-                                  await api(
-                                    `/classes/${id}/students/${s.id}/device`,
-                                    "PUT",
-                                    { device_id: e.target.value || null },
-                                  );
-                                  resource.reload();
-                                })
-                              }
-                            >
-                              <option value="">— Chưa gán —</option>
-                              {s.device_id && s.device_revoked ? (
-                                <option value={s.device_id}>
-                                  {s.device_label} (đã thu hồi)
-                                </option>
-                              ) : null}
-                              {devices.data
-                                ?.filter((dv) => !dv.revoked)
-                                .map((dv) => (
-                                  <option key={dv.id} value={dv.id}>
-                                    {dv.label}
-                                  </option>
-                                ))}
-                            </select>
-                          </td>
-                          <td>
-                            <button
-                              className="text-button"
-                              onClick={() => setEditing(s)}
-                            >
-                              Sửa
-                            </button>
-                            <button
-                              className="text-button danger"
-                              onClick={() => {
-                                if (
-                                  confirm(
-                                    `Xóa ${s.full_name} khỏi danh sách lớp? Kết quả cũ vẫn được giữ.`,
-                                  )
-                                )
+              <label className="class-roster-search">
+                <span>Tìm học sinh</span>
+                <span className="class-search-input">
+                  <Icon name="search" />
+                  <input
+                    type="search"
+                    placeholder="Tìm theo mã hoặc họ tên…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </span>
+              </label>
+              <div className="class-roster-content">
+                {!visibleStudents.length ? (
+                  <div className="class-empty-state" role="status">
+                    <span className="class-empty-icon">
+                      <Icon name={d.students.length ? "search" : "users"} />
+                    </span>
+                    <h3>
+                      {d.students.length
+                        ? "Không tìm thấy học sinh phù hợp"
+                        : "Chưa có học sinh nào"}
+                    </h3>
+                    <p>{d.students.length
+                      ? "Thử tìm bằng mã học sinh hoặc họ tên khác."
+                      : "Thêm học sinh mới hoặc nhập danh sách từ Excel/CSV để bắt đầu quản lý lớp."}</p>
+                    {!d.students.length && (
+                      <button type="button" className="primary" onClick={focusStudentForm}>
+                        <Icon name="plus" /> Thêm học sinh
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div
+                    className="table-scroll class-roster-table"
+                    tabIndex={0}
+                    role="region"
+                    aria-label="Bảng danh sách học sinh"
+                  >
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Mã học sinh</th>
+                          <th>Họ tên</th>
+                          <th>Thiết bị mặc định</th>
+                          <th>Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {visibleStudents.map((s) => (
+                          <tr key={s.id}>
+                            <td>{s.student_code}</td>
+                            <td>{s.full_name}</td>
+                            <td>
+                              <select
+                                aria-label={`Thiết bị mặc định của ${s.full_name}`}
+                                value={s.device_id ?? ""}
+                                onChange={(e) =>
                                   void run(async () => {
                                     await api(
-                                      `/classes/${id}/students/${s.id}`,
-                                      "DELETE",
+                                      `/classes/${id}/students/${s.id}/device`,
+                                      "PUT",
+                                      { device_id: e.target.value || null },
                                     );
                                     resource.reload();
-                                  });
-                              }}
-                            >
-                              Xóa
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
+                                  })
+                                }
+                              >
+                                <option value="">— Chưa gán —</option>
+                                {s.device_id && s.device_revoked ? (
+                                  <option value={s.device_id}>
+                                    {s.device_label} (đã thu hồi)
+                                  </option>
+                                ) : null}
+                                {devices.data
+                                  ?.filter((dv) => !dv.revoked)
+                                  .map((dv) => (
+                                    <option key={dv.id} value={dv.id}>
+                                      {dv.label}
+                                    </option>
+                                  ))}
+                              </select>
+                            </td>
+                            <td>
+                              <button
+                                className="text-button"
+                                onClick={() => setEditing(s)}
+                              >
+                                Sửa
+                              </button>
+                              <button
+                                className="text-button danger"
+                                onClick={() => {
+                                  if (
+                                    confirm(
+                                      `Xóa ${s.full_name} khỏi danh sách lớp? Kết quả cũ vẫn được giữ.`,
+                                    )
+                                  )
+                                    void run(async () => {
+                                      await api(
+                                        `/classes/${id}/students/${s.id}`,
+                                        "DELETE",
+                                      );
+                                      resource.reload();
+                                    });
+                                }}
+                              >
+                                Xóa
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
-              {!d.students.length && (
-                <Empty>Nhập file hoặc thêm học sinh đầu tiên.</Empty>
-              )}
               {d.students.length > 0 && (
                 <p className="muted class-device-hint">
                   Gán thiết bị mặc định để học sinh bấm phím điểm danh, và để
@@ -486,9 +597,9 @@ export function Classes({ id }: { id?: string }) {
                 </p>
               )}
             </section>
-            <div>
+            <div className="class-management-side">
               <form
-                className="card form"
+                className="card form class-student-form"
                 key={editing?.id || "new"}
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -509,9 +620,13 @@ export function Classes({ id }: { id?: string }) {
                   }, "Đã lưu học sinh.");
                 }}
               >
-                <h2>{editing ? "Sửa học sinh" : "Thêm học sinh"}</h2>
+                <h2>
+                  <Icon name={editing ? "users" : "plus"} />
+                  {editing ? "Sửa học sinh" : "Thêm học sinh"}
+                </h2>
                 <Field label="Mã học sinh">
                   <input
+                    ref={studentCodeInput}
                     name="student_code"
                     defaultValue={editing?.student_code}
                     required
@@ -526,7 +641,9 @@ export function Classes({ id }: { id?: string }) {
                     maxLength={150}
                   />
                 </Field>
-                <button className="primary">Lưu học sinh</button>
+                <button className="primary">
+                  <Icon name={editing ? "check" : "plus"} /> Lưu học sinh
+                </button>
                 {editing && (
                   <button type="button" onClick={() => setEditing(null)}>
                     Hủy sửa
@@ -534,7 +651,7 @@ export function Classes({ id }: { id?: string }) {
                 )}
               </form>
               <form
-                className="card form"
+                className="card form class-settings-form"
                 onSubmit={(e) => {
                   e.preventDefault();
                   const body = fields(e.currentTarget);
@@ -547,7 +664,9 @@ export function Classes({ id }: { id?: string }) {
                   }, "Đã lưu lớp.");
                 }}
               >
-                <h3>Cài đặt lớp</h3>
+                <h2>
+                  <Icon name="settings" /> Cài đặt lớp
+                </h2>
                 <Field label="Tên lớp">
                   <input name="name" defaultValue={d.name} required />
                 </Field>
@@ -559,30 +678,33 @@ export function Classes({ id }: { id?: string }) {
                   />{" "}
                   Lưu trữ lớp
                 </label>
-                <button>Lưu cài đặt</button>
-                <button
-                  type="button"
-                  className="danger"
-                  disabled={deleting}
-                  onClick={() => {
-                    if (!window.confirm(
-                      `Xóa lớp “${d.name}” và ${d.students.length} học sinh? Các gán thiết bị sẽ được gỡ. Thao tác này không thể hoàn tác. Lớp có lịch sử kiểm tra hoặc điểm danh chỉ có thể lưu trữ.`,
-                    )) return;
-                    setDeleting(true);
-                    void run(async () => {
-                      await api(`/classes/${id}`, "DELETE");
-                      window.location.href = "/classes";
-                    }).finally(() => setDeleting(false));
-                  }}
-                >
-                  {deleting ? "Đang xóa lớp…" : "Xóa lớp"}
-                </button>
+                <div className="class-settings-actions">
+                  <button className="primary">Lưu cài đặt</button>
+                  <button
+                    type="button"
+                    className="danger"
+                    disabled={deleting}
+                    onClick={() => {
+                      if (!window.confirm(
+                        `Xóa lớp “${d.name}” và ${d.students.length} học sinh? Các gán thiết bị sẽ được gỡ. Thao tác này không thể hoàn tác. Lớp có lịch sử kiểm tra hoặc điểm danh chỉ có thể lưu trữ.`,
+                      )) return;
+                      setDeleting(true);
+                      void run(async () => {
+                        await api(`/classes/${id}`, "DELETE");
+                        window.location.href = "/classes";
+                      }).finally(() => setDeleting(false));
+                    }}
+                  >
+                    {deleting ? "Đang xóa lớp…" : "Xóa lớp"}
+                  </button>
+                </div>
               </form>
             </div>
           </div>
-          <section className="card">
+          <section className="card class-import-card">
             <Importer
               kind="students"
+              customUpload
               onCommit={async (rows) => {
                 await api(`/classes/${id}/students/import`, "POST", { rows });
                 resource.reload();
@@ -599,7 +721,7 @@ export function Classes({ id }: { id?: string }) {
             ))}
             {!d.sessions.length && <Empty>Lớp chưa có buổi kiểm tra.</Empty>}
           </section>
-        </>
+        </div>
       )}
     </>
   );

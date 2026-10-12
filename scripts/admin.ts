@@ -74,7 +74,7 @@ if (action === "restore") {
       const email = (await rl.question("Email giáo viên: "))
         .trim()
         .toLowerCase();
-      process.stdout.write("Mật khẩu (ít nhất 12 ký tự, ẩn): ");
+      process.stdout.write("Mật khẩu (ẩn): ");
       muted = true;
       const password = await rl.question("");
       muted = false;
@@ -82,7 +82,7 @@ if (action === "restore") {
       rl.close();
       if (
         !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
-        password.length < 12 ||
+        password.length < 1 ||
         password.length > 200
       )
         throw Error("Email hoặc mật khẩu không hợp lệ");

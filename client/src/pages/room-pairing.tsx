@@ -28,9 +28,10 @@ export function RoomPairing({ session: s, offset, connected, reload }: { session
   }, action === "open" ? "Đã mở nhận thiết bị trong 5 phút." : "Đã đóng nhận thiết bị mới.");
   return <section className="card room-pairing" aria-label="Kết nối bằng ROOM ID">
     <div className="row spread">
-      <div><h2>Kết nối lớp học bằng ROOM ID</h2><p className="muted">Mở nhận → nhập mã trên thiết bị → học sinh hiện ngay khi kết nối.</p></div>
+      <div><h2>Kết nối lớp học bằng ROOM ID</h2><p className="muted">Mở nhận, học sinh nhập MSSV và mã phòng trên ESP32 hoặc trang làm bài.</p></div>
       {user.simulator && <a className="button" href="/simulator" target="_blank" rel="noreferrer">Mở giả lập ↗</a>}
     </div>
+    <div className="student-share"><p><strong>Làm bài trên điện thoại hoặc máy tính</strong></p><a href="/student" target="_blank" rel="noreferrer">{window.location.origin}/student</a><p className="muted">Gửi đường dẫn này cho học sinh cùng Room ID. Học sinh nhập đúng MSSV để được ghép vào bài kiểm tra.</p></div>
     <div className="pairing-layout">
       <div className="pairing-entry">
         <span className="badge">{open ? "Đang nhận thiết bị" : p?.status === "EXPIRED" || (p?.status === "OPEN" && !remaining) ? "Mã hết hạn" : "Chưa mở nhận thiết bị"}</span>

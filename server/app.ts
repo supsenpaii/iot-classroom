@@ -41,6 +41,7 @@ import {
 } from "../shared/protocol.js";
 import { attachRealtime } from "./realtime.js";
 import { createStudyGuide } from "./study-guide.js";
+import { createStudentPortal } from "./student.js";
 export type AppConfig = {
   origin: string;
   secret: string;
@@ -95,8 +96,12 @@ export function createApplication(db: DB, config: AppConfig) {
     db.prepare("SELECT 1 FROM migrations").get();
     res.json({ ok: true });
   });
-  app.use(auth);
+  app.use((req, res, next) => {
+    if (req.path === "/api/student" || req.path.startsWith("/api/student/")) next();
+    else auth(req, res, next);
+  });
   app.use("/api/device-pairing/join", express.json({ limit: "4kb" }));
+  app.use("/api/student", express.json({ limit: "4kb" }));
   app.use(express.json({ limit: "3mb" }));
   app.use("/api", (req, res, next) => {
     if (
@@ -131,7 +136,7 @@ export function createApplication(db: DB, config: AppConfig) {
     const input = z
       .object({
         email: z.string().trim().email().max(200),
-        password: z.string().min(12).max(200),
+        password: z.string().min(1).max(200),
       })
       .strict()
       .parse(req.body);
@@ -293,7 +298,7 @@ export function createApplication(db: DB, config: AppConfig) {
   // Browser requests still pass the same-origin guard above; all joins require a live room code.
   let joinWindow = 0, totalJoins = 0;
   const joinAttempts = new Map<string, number>();
-  const joinDevice = (req: Request, allowedOwner?: string) => {
+  const limitJoin = (req: Request) => {
     if (config.production && !req.secure)
       throw new AppError("HTTPS_REQUIRED", "Kết nối thiết bị cần HTTPS", 403);
     const window = Math.floor(Date.now() / 60000);
@@ -304,6 +309,9 @@ export function createApplication(db: DB, config: AppConfig) {
     if (++totalJoins > 240 || count > 120)
       throw new AppError("RATE_LIMITED", "Quá nhiều lượt kết nối; thử lại sau một phút", 429);
     joinAttempts.set(ip, count);
+  };
+  const joinDevice = (req: Request, allowedOwner?: string) => {
+    limitJoin(req);
     const result = pairing.join(joinSchema.parse(req.body), allowedOwner);
     return {
       v: 1, ...result,
@@ -316,6 +324,8 @@ export function createApplication(db: DB, config: AppConfig) {
     realtime.schedule();
     res.status(result.duplicate ? 200 : 201).json(result);
   });
+  const studentPortal = createStudentPortal(db, config, quiz, pairing, limitJoin, () => realtime.schedule());
+  app.use("/api/student", studentPortal.router);
   app.use("/api", (req, _res, next) => {
     if (!req.session.teacherId)
       return next(new AppError("UNAUTHENTICATED", "Vui lòng đăng nhập", 401));
@@ -339,6 +349,7 @@ export function createApplication(db: DB, config: AppConfig) {
     flashcards,
     polls,
     attendance,
+    studentPortal.auth,
   );
   const changed = () => realtime.schedule();
   app.post("/api/simulator/pairing/join", (req, res) => {
@@ -389,7 +400,7 @@ export function createApplication(db: DB, config: AppConfig) {
     const input = z
       .object({
         current: z.string().max(200),
-        password: z.string().min(12).max(200),
+        password: z.string().min(1).max(200),
       })
       .parse(req.body);
     const t = must(one(db, "SELECT * FROM teachers WHERE id=?", owner(req)));

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
 // Weight stylesheets include unicode-range so Vietnamese and Latin use the same family.
 import "@fontsource/plus-jakarta-sans/400.css";
@@ -7,17 +7,28 @@ import "@fontsource/plus-jakarta-sans/600.css";
 import "@fontsource/plus-jakarta-sans/700.css";
 import { api, fields, setCsrf, signedOut, type Data } from "./api";
 import { Context, Head, Field, Icon, Status } from "./components";
-import { Dashboard, Classes, Devices, Setup } from "./pages/manage";
-import { Banks } from "./pages/banks";
-import { SessionPage, Presentation } from "./pages/session";
-import { ImportReportPage, Reports } from "./pages/reports";
-import { Simulator } from "./pages/simulator";
-import { Decks, FlashcardReview, Study } from "./pages/flashcards";
-import { Polls } from "./pages/polls";
-import { AttendancePage } from "./pages/attendance";
+// Preserve stylesheet order so asynchronously loaded pages keep the theme overrides.
+import "./pages/class-management.css";
+import "./pages/student.css";
 import "./styles.css";
 import { ThemeToggle } from "./theme";
 import "./theme.css";
+const Dashboard = lazy(() => import("./pages/manage").then(m => ({ default: m.Dashboard })));
+const Classes = lazy(() => import("./pages/manage").then(m => ({ default: m.Classes })));
+const Devices = lazy(() => import("./pages/manage").then(m => ({ default: m.Devices })));
+const Setup = lazy(() => import("./pages/manage").then(m => ({ default: m.Setup })));
+const Banks = lazy(() => import("./pages/banks").then(m => ({ default: m.Banks })));
+const SessionPage = lazy(() => import("./pages/session").then(m => ({ default: m.SessionPage })));
+const Presentation = lazy(() => import("./pages/session").then(m => ({ default: m.Presentation })));
+const ImportReportPage = lazy(() => import("./pages/reports").then(m => ({ default: m.ImportReportPage })));
+const Reports = lazy(() => import("./pages/reports").then(m => ({ default: m.Reports })));
+const Simulator = lazy(() => import("./pages/simulator").then(m => ({ default: m.Simulator })));
+const Decks = lazy(() => import("./pages/flashcards").then(m => ({ default: m.Decks })));
+const FlashcardReview = lazy(() => import("./pages/flashcards").then(m => ({ default: m.FlashcardReview })));
+const Study = lazy(() => import("./pages/flashcards").then(m => ({ default: m.Study })));
+const Polls = lazy(() => import("./pages/polls").then(m => ({ default: m.Polls })));
+const AttendancePage = lazy(() => import("./pages/attendance").then(m => ({ default: m.AttendancePage })));
+const StudentPage = lazy(() => import("./pages/student").then(m => ({ default: m.StudentPage })));
 const nav = [
   ["/dashboard", "home", "Tổng quan"],
   ["/question-banks", "file", "Ngân hàng câu hỏi"],
@@ -35,8 +46,9 @@ function App() {
     [error, setError] = useState(""),
     [busy, setBusy] = useState(0);
   const path = window.location.pathname;
+  const studentPage = path === "/student" || path === "/student/";
   useEffect(() => {
-    if (path.startsWith("/present/") || path.startsWith("/study/")) {
+    if (studentPage || path.startsWith("/present/") || path.startsWith("/study/")) {
       setLoading(false);
       return;
     }
@@ -49,7 +61,7 @@ function App() {
       .finally(() => setLoading(false));
   }, [path]);
   useEffect(() => {
-    if (!user || path.startsWith("/present/") || path.startsWith("/study/"))
+    if (!user || studentPage || path.startsWith("/present/") || path.startsWith("/study/"))
       return;
     const verify = () => {
       if (document.visibilityState === "visible")
@@ -73,6 +85,7 @@ function App() {
       setBusy((n) => n - 1);
     }
   }
+  if (studentPage) return <StudentPage />;
   if (path.startsWith("/present/"))
     return <><Presentation id={path.split("/")[2]} /><ThemeToggle floating /></>;
   if (path.startsWith("/study/")) return <><Study token={path.split("/")[2]} /><ThemeToggle floating /></>;
@@ -135,11 +148,10 @@ function App() {
           <Field label="Email">
             <input name="email" type="email" autoComplete="username" required />
           </Field>
-          <Field label={registering ? "Mật khẩu (ít nhất 12 ký tự)" : "Mật khẩu"}>
+          <Field label="Mật khẩu">
             <input
               name="password"
               type="password"
-              minLength={registering ? 12 : undefined}
               maxLength={200}
               autoComplete={registering ? "new-password" : "current-password"}
               required
@@ -150,7 +162,6 @@ function App() {
               <input
                 name="confirm"
                 type="password"
-                minLength={12}
                 maxLength={200}
                 autoComplete="new-password"
                 required
@@ -173,6 +184,7 @@ function App() {
               {registering ? "Đăng nhập" : "Đăng ký ngay"}
             </a>
           </small>
+          <a href="/student">Học sinh: vào phòng làm bài</a>
         </form>
       </main>
     );
@@ -216,11 +228,10 @@ function App() {
               required
             />
           </Field>
-          <Field label="Mật khẩu mới (ít nhất 12 ký tự)">
+          <Field label="Mật khẩu mới">
             <input
               name="password"
               type="password"
-              minLength={12}
               maxLength={200}
               autoComplete="new-password"
               required
@@ -318,4 +329,8 @@ function App() {
     </Context.Provider>
   );
 }
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(
+  <Suspense fallback={<div className="login"><Status loading /></div>}>
+    <App />
+  </Suspense>,
+);

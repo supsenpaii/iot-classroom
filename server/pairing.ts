@@ -65,7 +65,7 @@ export class Pairing {
       return result;
     })();
   }
-  join(input: z.infer<typeof joinSchema>, allowedOwner?: string) {
+  join(input: z.infer<typeof joinSchema>, allowedOwner?: string, options: { browser?: boolean } = {}) {
     return this.db.transaction(() => {
       const digest = hash(JSON.stringify(input));
       const secretHash = hash(input.device_secret);
@@ -111,7 +111,7 @@ export class Pairing {
       }
       if (d && input.student_code) {
         let label = input.student_code;
-        if (one(this.db, "SELECT 1 FROM devices WHERE owner_teacher_id=? AND id<>? AND revoked=0 AND lower(label)=lower(?)", room.owner_teacher_id, d.id, label))
+        if (!options.browser && one(this.db, "SELECT 1 FROM devices WHERE owner_teacher_id=? AND id<>? AND revoked=0 AND lower(label)=lower(?)", room.owner_teacher_id, d.id, label))
           throw new AppError("DUPLICATE_LABEL", "MSSV đang được dùng bởi thiết bị khác", 409);
         this.db.prepare("UPDATE devices SET label=? WHERE id=?").run(label, d.id);
         d.label = label;
@@ -119,7 +119,8 @@ export class Pairing {
       if (!d) {
         const id = randomUUID();
         let label = input.student_code ?? input.device_name;
-        if (one(this.db, "SELECT 1 FROM devices WHERE owner_teacher_id=? AND revoked=0 AND lower(label)=lower(?)", room.owner_teacher_id, label))
+        // Web clients may share a historical label; the active student binding above is unique.
+        if (!options.browser && one(this.db, "SELECT 1 FROM devices WHERE owner_teacher_id=? AND revoked=0 AND lower(label)=lower(?)", room.owner_teacher_id, label))
           label = `${label} · ${id}`;
         this.db.prepare("INSERT INTO devices(id,owner_teacher_id,label,secret_hash) VALUES (?,?,?,?)").run(id, room.owner_teacher_id, label, secretHash);
         d = { id, label };

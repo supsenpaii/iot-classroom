@@ -28,7 +28,7 @@ App chạy user `node`; volume `/data`, `/backups` khởi tạo quyền từ ima
 
 ## Tài khoản
 
-Người dùng có thể tự tạo tài khoản tại `/register` bằng email và mật khẩu tối thiểu 12 ký tự. API giới hạn 5 lượt thử đăng ký mỗi IP trong một giờ và tự đăng nhập sau khi tạo thành công. `npm run teacher:create` vẫn tạo tài khoản qua terminal; `npm run teacher:reset-password` hỏi email và mật khẩu ẩn, thu hồi phiên cũ. Logout/đổi mật khẩu đóng socket liên quan; reset bằng CLI được phát hiện trên message tiếp theo hoặc heartbeat <= 5 giây. UI `/account` đổi mật khẩu khi biết mật khẩu hiện tại.
+Người dùng có thể tự tạo tài khoản tại `/register` bằng email và mật khẩu từ 1 đến 200 ký tự. API giới hạn 5 lượt thử đăng ký mỗi IP trong một giờ và tự đăng nhập sau khi tạo thành công. `npm run teacher:create` vẫn tạo tài khoản qua terminal; `npm run teacher:reset-password` hỏi email và mật khẩu ẩn, thu hồi phiên cũ. Logout/đổi mật khẩu đóng socket liên quan; reset bằng CLI được phát hiện trên message tiếp theo hoặc heartbeat <= 5 giây. UI `/account` đổi mật khẩu khi biết mật khẩu hiện tại.
 
 Chưa có xác minh email hoặc tự đặt lại mật khẩu qua email; người vận hành dùng lệnh reset nếu giáo viên quên mật khẩu. Bản phân phối không có dữ liệu mẫu hoặc tài khoản mặc định.
 

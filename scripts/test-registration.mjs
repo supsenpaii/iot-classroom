@@ -35,9 +35,9 @@ async function request(path, { method = "GET", body, cookie, csrf, origin = conf
 }
 
 try {
-  const password = "ExamplePassword2026!";
+  const password = "a";
   assert.equal((await request("/api/auth/register", { method: "POST", origin: "https://invalid.test", body: { email: "x@example.test", password } })).status, 403);
-  assert.equal((await request("/api/auth/register", { method: "POST", body: { email: "x@example.test", password: "short" } })).status, 422);
+  assert.equal((await request("/api/auth/register", { method: "POST", body: { email: "x@example.test", password: "" } })).status, 422);
 
   const first = await request("/api/auth/register", { method: "POST", body: { email: " TeacherA@Example.Test ", password } });
   assert.equal(first.status, 201);
@@ -49,7 +49,7 @@ try {
   assert.equal(duplicate.status, 409);
   assert.equal(duplicate.data.code, "EMAIL_EXISTS");
 
-  const second = await request("/api/auth/register", { method: "POST", body: { email: "teacherb@example.test", password } });
+  const second = await request("/api/auth/register", { method: "POST", body: { email: "teacherb@example.test", password: "ExamplePassword2026!" } });
   assert.equal(second.status, 201);
   const ownClass = await request("/api/classes", { method: "POST", body: { name: "Lớp riêng A" }, cookie: first.cookie, csrf: first.data.csrf });
   assert.equal(ownClass.status, 201);
@@ -58,9 +58,16 @@ try {
 
   assert.equal((await request("/api/auth/login", { method: "POST", body: { email: first.data.email, password: "wrong" } })).status, 401);
   assert.equal((await request("/api/auth/login", { method: "POST", body: { email: first.data.email, password } })).status, 200);
-  assert.equal((await request("/api/auth/register", { method: "POST", body: { email: "third@example.test", password: "short" } })).status, 422);
-  assert.equal((await request("/api/auth/register", { method: "POST", body: { email: "third@example.test", password: "short" } })).status, 429);
-  console.log("Đăng ký, đăng nhập, quyền sở hữu và giới hạn lượt thử: đạt.");
+  assert.equal((await request("/api/auth/change-password", { method: "POST", body: { current: password, password: "" }, cookie: first.cookie, csrf: first.data.csrf })).status, 422);
+  assert.equal((await request("/api/auth/change-password", { method: "POST", body: { current: password, password: "xy" }, cookie: first.cookie, csrf: first.data.csrf })).status, 200);
+  assert.equal((await request("/api/auth/me", { cookie: first.cookie })).status, 401);
+  assert.equal((await request("/api/auth/login", { method: "POST", body: { email: first.data.email, password } })).status, 401);
+  const changedLogin = await request("/api/auth/login", { method: "POST", body: { email: first.data.email, password: "xy" } });
+  assert.equal(changedLogin.status, 200);
+  assert.equal((await request(`/api/classes/${ownClass.data.id}`, { cookie: changedLogin.cookie })).status, 200);
+  assert.equal((await request("/api/auth/register", { method: "POST", body: { email: "third@example.test", password: "" } })).status, 422);
+  assert.equal((await request("/api/auth/register", { method: "POST", body: { email: "third@example.test", password: "" } })).status, 429);
+  console.log("Đăng ký/đổi mật khẩu ngắn, từ chối mật khẩu trống, đăng nhập, thu hồi phiên, quyền sở hữu và giới hạn lượt thử: đạt.");
 } finally {
   await app.close();
   db.close();

@@ -128,6 +128,14 @@ export function Icon({ name }: { name: string }) {
       </>
     ),
     moon: <path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z" />,
+    search: (
+      <>
+        <circle cx="10.5" cy="10.5" r="6.5" />
+        <path d="m16 16 5 5" />
+      </>
+    ),
+    upload: <path d="M12 16V3m-5 5 5-5 5 5M4 16v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" />,
+    plus: <path d="M12 5v14M5 12h14" />,
     home: (
       <>
         <path d="m3 10 9-7 9 7v11h-6v-8H9v8H3z" />

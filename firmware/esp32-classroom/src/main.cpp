@@ -21,10 +21,15 @@ constexpr unsigned long BUTTON_DEBOUNCE_MS = 40;
 constexpr uint8_t ROW_PINS[4] = {9, 10, 20, 21};
 constexpr uint8_t COLUMN_PINS[4] = {8, 7, 6, 5};
 
-// S1..S16; '\b' = DELETE, '\n' = ENTER.
+// Thu tu quet GPIO khac so S tren mach; mapping theo ket qua bam thuc te.
+// '\b' = DELETE, '\n' = ENTER.
 constexpr char KEY_MAP[16] = {
-    'A', 'B', 'C', 'D', '3', '6', '9', '\b',
-    '2', '5', '8', '0', '1', '4', '7', '\n'};
+    'D', '\b', '0', '\n',  // S4, S8, S12, S16
+    'C', '9', '8', '7',    // S3, S7, S11, S15
+    'B', '6', '5', '4',    // S2, S6, S10, S14
+    'A', '3', '2', '1'     // S1, S5, S9, S13
+};
+
 constexpr uint8_t OLED_SDA = 0;
 constexpr uint8_t OLED_SCL = 1;
 constexpr size_t MAX_INPUT_LENGTH = 10;
@@ -37,6 +42,7 @@ Preferences pairingStore;
 String joinPayload;
 unsigned long lastJoinAttempt = 0;
 void connectToWebsite();
+void connectToWiFi();
 bool inputConfirmed = false;
 String renameRequestId;
 unsigned long renameSentAt = 0;

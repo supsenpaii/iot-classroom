@@ -8,6 +8,7 @@ import type { Quiz } from "./quiz.js";
 import type { Flashcards } from "./flashcards.js";
 import type { Polls, Attendance } from "./live.js";
 import type { AppConfig } from "./app.js";
+import { studentBinding, studentSnapshot, type StudentIdentity } from "./student.js";
 export function attachRealtime(
   server: Server,
   db: DB,
@@ -17,6 +18,7 @@ export function attachRealtime(
   flashcards: Flashcards,
   polls: Polls,
   attendance: Attendance,
+  studentAuth: RequestHandler,
 ) {
   const wss = new WebSocketServer({
     noServer: true,
@@ -24,7 +26,9 @@ export function attachRealtime(
     perMessageDeflate: false,
   });
   type Peer = {
-    role: "teacher" | "device" | "projection" | "pending";
+    role: "teacher" | "device" | "student" | "projection" | "pending";
+    studentTransport?: boolean;
+    student?: StudentIdentity;
     kind?: "flashcard" | "poll" | "attendance";
     owner?: string;
     sid?: string;
@@ -76,6 +80,11 @@ export function attachRealtime(
   const valid = (p: Peer) => {
     if (p.role === "pending") return Date.now() - p.started < 5000;
     if (p.expires && p.expires < Date.now()) return false;
+    if (p.student) {
+      const login = p.sid && one(db, "SELECT data FROM auth_sessions WHERE sid=? AND expires>?", p.sid, Date.now());
+      const identity = login && JSON.parse(login.data).student;
+      if (!identity || identity.binding_id !== p.student.binding_id || !studentBinding(db, p.student)) return false;
+    }
     if (
       p.sid &&
       !one(
@@ -118,7 +127,9 @@ export function attachRealtime(
       ws.close(4001, "Access expired");
       return;
     }
-    if (p.role === "device" && p.device)
+    if (p.role === "student" && p.student)
+      send(ws, { v: 1, type: "session.snapshot", data: studentSnapshot(db, quiz, p.student) });
+    else if (p.role === "device" && p.device)
       send(ws, {
         v: 1,
         type: "session.snapshot",
@@ -167,7 +178,7 @@ export function attachRealtime(
   const activate = (ws: WebSocket, p: Peer, device: string) => {
     devices.get(device)?.close(4002, "Replaced connection");
     devices.set(device, ws);
-    p.role = "device";
+    p.role = p.student ? "student" : "device";
     p.device = device;
     db.prepare("UPDATE devices SET last_seen=? WHERE id=?").run(
       Date.now(),
@@ -183,7 +194,7 @@ export function attachRealtime(
   };
   server.on("upgrade", (request, socket, head) => {
     if (
-      request.url !== "/ws" ||
+      !["/ws", "/ws/student"].includes(request.url ?? "") ||
       (request.headers.origin && request.headers.origin !== config.origin)
     ) {
       socket.destroy();
@@ -191,6 +202,20 @@ export function attachRealtime(
     }
     if (peers.size >= 160) {
       socket.destroy();
+      return;
+    }
+    if (request.url === "/ws/student") {
+      if (request.headers.origin !== config.origin) {
+        socket.destroy();
+        return;
+      }
+      studentAuth(request as Request, new ServerResponse(request) as unknown as Response, () => {
+        const req = request as Request;
+        wss.handleUpgrade(request, socket, head, ws => connect(ws, {
+          role: "pending", studentTransport: true, sid: req.sessionID,
+          alive: Date.now(), rate: 0, window: Date.now(), started: Date.now(),
+        }));
+      });
       return;
     }
     const raw = request.headers.authorization;
@@ -274,7 +299,7 @@ export function attachRealtime(
         const msg = JSON.parse(raw.toString());
         if (msg.v !== 1) throw Error("version");
         if (msg.type === "hello") {
-          if (p.role === "device" || p.role === "projection")
+          if (p.role === "device" || p.role === "student" || p.role === "projection")
             throw Error("already authenticated");
           if (msg.ticket) {
             const value = String(msg.ticket);
@@ -295,7 +320,18 @@ export function attachRealtime(
               )
             )
               throw Error("ticket");
-            if (
+            if (t.kind === "student" && p.studentTransport && !t.used && t.auth_sid === p.sid) {
+              const login = one(db, "SELECT data FROM auth_sessions WHERE sid=? AND expires>?", t.auth_sid, Date.now());
+              const identity: StudentIdentity | undefined = login && JSON.parse(login.data).student;
+              const binding = identity && studentBinding(db, identity);
+              if (!identity || !binding || identity.device_id !== t.resource_id || binding.owner_teacher_id !== t.owner_teacher_id)
+                throw Error("ticket");
+              db.prepare("UPDATE access_tokens SET used=1 WHERE hash=?").run(t.hash);
+              p.student = identity;
+              p.owner = t.owner_teacher_id;
+              activate(ws, p, identity.device_id);
+            } else if (
+              !p.studentTransport &&
               t.kind === "simulator" &&
               config.simulator &&
               !t.used &&
@@ -310,7 +346,7 @@ export function attachRealtime(
                 Date.now() + 86400000;
               activate(ws, p, t.resource_id);
               p.grant = undefined;
-            } else if (t.kind === "projection") {
+            } else if (!p.studentTransport && t.kind === "projection") {
               p.role = "projection";
               p.owner = t.owner_teacher_id;
               p.sid = t.auth_sid;
@@ -365,9 +401,11 @@ export function attachRealtime(
           if (!code) schedule();
         } else if (
           msg.type === "answer.submit" &&
-          p.role === "device" &&
+          (p.role === "device" || p.role === "student") &&
           p.device
         ) {
+          if (p.student && (msg.session_id !== p.student.session_id || msg.binding_id !== p.student.binding_id))
+            throw Error("student scope");
           const ack = quiz.answer(p.device, msg);
           send(ws, ack);
           schedule();
@@ -390,7 +428,7 @@ export function attachRealtime(
           schedule();
         } else if (
           msg.type === "button.test" &&
-          p.role === "device" &&
+          (p.role === "device" || p.role === "student") &&
           p.device
         ) {
           const b = one(
