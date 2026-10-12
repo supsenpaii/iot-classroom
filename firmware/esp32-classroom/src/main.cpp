@@ -13,7 +13,10 @@ using namespace websockets;
 
 constexpr unsigned long CONNECT_TIMEOUT_MS = 20000;
 constexpr unsigned long RECONNECT_INTERVAL_MS = 10000;
+constexpr unsigned long WIFI_CONNECTED_NOTICE_MS = 3000;
 constexpr unsigned long BUTTON_DEBOUNCE_MS = 40;
+constexpr unsigned long OLED_IDLE_TIMEOUT_MS = 60000;
+constexpr size_t OLED_BUFFER_SIZE = 128 * 32 / 8;
 
 // Theo thu tu chan tren ESP32-C3 trong anh:
 // R4 -> GPIO21, R3 -> GPIO20, R2 -> GPIO10, R1 -> GPIO9
@@ -35,20 +38,62 @@ constexpr uint8_t OLED_SCL = 1;
 constexpr size_t MAX_INPUT_LENGTH = 10;
 Adafruit_SSD1306 display(128, 32, &Wire, -1);
 bool oledReady = false;
+bool oledSleeping = false;
+unsigned long lastOledActivityAt = 0;
+uint8_t lastOledFrame[OLED_BUFFER_SIZE] = {};
+bool oledFrameValid = false;
+bool wifiConnecting = false;
+bool wifiWasConnected = false;
+unsigned long wifiConnectedAt = 0;
 String inputText;
+String roomCode;
 String studentCode;
-bool enteringRoom = false;
+bool enteringRoom = true;
 Preferences pairingStore;
 String joinPayload;
 unsigned long lastJoinAttempt = 0;
 void connectToWebsite();
 void connectToWiFi();
 bool inputConfirmed = false;
-String renameRequestId;
-unsigned long renameSentAt = 0;
 String renameNotice;
 unsigned long renameNoticeAt = 0;
 void renderStatus();
+
+void wakeOled() {
+  lastOledActivityAt = millis();
+  if (oledReady && oledSleeping) {
+    display.ssd1306_command(SSD1306_DISPLAYON);
+    oledSleeping = false;
+  }
+}
+
+// Chi truyen frame moi qua I2C khi noi dung man hinh thay doi.
+void presentOledFrame() {
+  const uint8_t* frame = display.getBuffer();
+  if (!oledFrameValid || memcmp(frame, lastOledFrame, OLED_BUFFER_SIZE) != 0) {
+    display.display();
+    memcpy(lastOledFrame, frame, OLED_BUFFER_SIZE);
+    oledFrameValid = true;
+  }
+}
+
+void updateWiFiStatus() {
+  const bool connected = WiFi.status() == WL_CONNECTED;
+  if (connected && !wifiWasConnected) {
+    wifiConnectedAt = millis();
+    Serial.printf("\nDa ket noi toi Wi-Fi: %s\n", WiFi.SSID().c_str());
+    Serial.print("Dia chi IP: ");
+    Serial.println(WiFi.localIP());
+    Serial.printf("Cuong do song (RSSI): %d dBm\n", WiFi.RSSI());
+  } else if (!connected && wifiWasConnected) {
+    Serial.println("Mat ket noi Wi-Fi; dang tu ket noi lai...");
+  }
+  if (connected != wifiWasConnected) {
+    wifiWasConnected = connected;
+    wakeOled();
+    renderStatus();
+  }
+}
 
 void showInput(const char* status) {
   (void)status;
@@ -72,6 +117,7 @@ void setupOled() {
     Serial.println("Khong khoi tao duoc OLED; kiem tra day va loai man hinh.");
     return;
   }
+  wakeOled();
   showInput("READY");
 }
 
@@ -114,6 +160,18 @@ int64_t snapshotVersion = -1;
 String answerNotice;
 unsigned long lastDisplayAt = 0;
 
+void updateOledPower() {
+  if (!oledReady) return;
+  // Giu man hinh sang khi mat Wi-Fi, dang thi hoac cho ACK dap an.
+  if (WiFi.status() != WL_CONNECTED || sessionState == "RUNNING" ||
+      !pendingRequestId.isEmpty()) {
+    wakeOled();
+  } else if (!oledSleeping && millis() - lastOledActivityAt >= OLED_IDLE_TIMEOUT_MS) {
+    display.ssd1306_command(SSD1306_DISPLAYOFF);
+    oledSleeping = true;
+  }
+}
+
 uint32_t remainingMs() {
   if (questionStatus != "OPEN") return 0;
   if (sessionState == "PAUSED") return countdownAtSnapshot;
@@ -135,16 +193,27 @@ void clearPending() {
 }
 
 void renderStatus() {
-  if (!oledReady) return;
+  if (!oledReady || oledSleeping) return;
   display.clearDisplay();
   display.setTextColor(SSD1306_WHITE);
   display.setTextSize(1);
   display.setTextWrap(false);
   display.setCursor(0, 0);
+  if (WiFi.status() == WL_CONNECTED && wifiWasConnected &&
+      millis() - wifiConnectedAt < WIFI_CONNECTED_NOTICE_MS) {
+    display.print("Connected");
+    display.setCursor(0, 11);
+    // Cho ten Wi-Fi dai xuong dong tren OLED 128x32.
+    display.setTextWrap(true);
+    display.print(WiFi.SSID());
+    presentOledFrame();
+    return;
+  }
   if (WiFi.status() != WL_CONNECTED) display.print("CONNECTING WI-FI...");
-  else if (!webSocketConnected) display.print("CONNECTING SERVER...");
-  else if (!snapshotReady) display.print("SYNCING...");
-  else if (sessionState == "WAITING") display.print("ONLINE / UNASSIGNED");
+  else if (!webSocketConnected || !snapshotReady || sessionState == "WAITING") {
+    display.print("Connected ");
+    display.print(WiFi.SSID());
+  }
   else if (sessionState == "LOBBY") display.print("READY / WAITING");
   else if (sessionState == "PAUSED") display.print("PAUSED");
   else if (sessionState == "FINISHED") display.print("QUIZ COMPLETE");
@@ -157,7 +226,7 @@ void renderStatus() {
     display.setCursor(0, 22);
     if (resultHasScore) display.printf("Score: %.2f/10", resultScore);
     else display.print("Score: --");
-    display.display();
+    presentOledFrame();
     return;
   }
   if (!renameNotice.isEmpty() && uint32_t(millis() - renameNoticeAt) < 5000) {
@@ -165,7 +234,7 @@ void renderStatus() {
     display.print(renameNotice);
     display.setCursor(0, 22);
     display.print(renameNotice == "NOT ON THE LIST" ? "PLEASE RE-ENTER" : inputText);
-    display.display();
+    presentOledFrame();
     return;
   }
   display.setCursor(0, 11);
@@ -174,15 +243,16 @@ void renderStatus() {
       if (!questionId.isEmpty()) display.printf("Q %lu/%lu  %lus", (unsigned long)questionOrder, (unsigned long)totalQuestions, (unsigned long)((remainingMs() + 999) / 1000));
       else display.print("WAITING FOR QUESTION");
     }
-    else if (enteringRoom) display.print("ROOM ID + ENTER");
     else if (sessionState == "LOBBY") display.printf("%lu Q / %lu sec each", (unsigned long)totalQuestions, (unsigned long)secondsPerQuestion);
-    else if (sessionState == "FINISHED" && resultDismissed) display.print("STUDENT ID + ENTER");
+    else if (sessionState == "FINISHED" && resultDismissed) display.print(enteringRoom ? "ROOM ID + ENTER" : "STUDENT ID + ENTER");
     else if (!questionId.isEmpty()) display.printf("Q %lu/%lu  %lus", (unsigned long)questionOrder, (unsigned long)totalQuestions, (unsigned long)((remainingMs() + 999) / 1000));
     else display.print(enteringRoom ? "ROOM ID + ENTER" : "STUDENT ID + ENTER");
+  } else {
+    display.print(enteringRoom ? "ROOM ID + ENTER" : "STUDENT ID + ENTER");
   }
   display.setCursor(0, 22);
   display.print(answerNotice.isEmpty() ? inputText : answerNotice);
-  display.display();
+  presentOledFrame();
 }
 
 bool deviceConfigurationIsReady() {
@@ -192,7 +262,7 @@ bool deviceConfigurationIsReady() {
 
 bool shouldKeepNetworkAlive() {
   return deviceConfigurationIsReady() &&
-         (!joinPayload.isEmpty() || enteringRoom || !studentCode.isEmpty() || webSocketClientStarted);
+         (!joinPayload.isEmpty() || !studentCode.isEmpty() || webSocketClientStarted);
 }
 
 void sendJson(const JsonDocument& document) {
@@ -257,6 +327,7 @@ void handleChoice(char choice) {
 void showRenameNotice(const char* notice) {
   renameNotice = notice;
   renameNoticeAt = millis();
+  wakeOled();
   renderStatus();
 }
 
@@ -276,10 +347,11 @@ void joinRoom() {
     showRenameNotice("WAIT 60s THEN ENTER"); return;
   }
   if (joinPayload.isEmpty()) {
-    if (inputText.length() != 8) { showRenameNotice("ROOM NEEDS 8 DIGITS"); return; }
+    if (roomCode.length() != 8) { showRenameNotice("ROOM NEEDS 8 DIGITS"); return; }
+    if (studentCode.isEmpty()) { showRenameNotice("ENTER STUDENT ID"); return; }
     JsonDocument packet;
     packet["v"] = 1;
-    packet["room_code"] = inputText;
+    packet["room_code"] = roomCode;
     packet["student_code"] = studentCode;
     packet["device_name"] = studentCode;
     packet["device_id"] = DEVICE_ID;
@@ -321,8 +393,14 @@ void joinRoom() {
     lastJoinAttempt = 0;
     const String code = response["code"] | "JOIN REJECTED";
     if (code == "STUDENT_UNAVAILABLE") { requestStudentAgain(); return; }
-    const char* notice = code == "STUDENT_ALREADY_BOUND" ? "STUDENT IN USE" :
-        code == "STUDENT_UNAVAILABLE" ? "STUDENT NOT IN ROOM" :
+    if (code == "ROOM_UNAVAILABLE") {
+      enteringRoom = true;
+      inputText = roomCode;
+      roomCode = "";
+      studentCode = "";
+      inputConfirmed = false;
+    }
+    const char* notice = (code == "STUDENT_ALREADY_BOUND" || code == "DUPLICATE_LABEL") ? "STUDENT IN USE" :
         code == "ROOM_UNAVAILABLE" ? "ROOM INVALID/EXPIRED" :
         code == "DEVICE_OWNER_MISMATCH" ? "WRONG TEACHER" :
         code == "DEVICE_BUSY" ? "LEAVE OLD ROOM FIRST" :
@@ -333,31 +411,34 @@ void joinRoom() {
   }
 }
 
-void renameDevice() {
-  if (enteringRoom) { joinRoom(); return; }
-  if (inputText.isEmpty()) { showRenameNotice("ENTER STUDENT ID"); return; }
+void confirmPairingInput() {
+  if (inputText.isEmpty()) {
+    showRenameNotice(enteringRoom ? "ENTER ROOM ID" : "ENTER STUDENT ID");
+    return;
+  }
   for (size_t i = 0; i < inputText.length(); i++) {
     if (inputText[i] < '0' || inputText[i] > '9') {
       showRenameNotice("DIGITS ONLY"); return;
     }
   }
+  if (enteringRoom) {
+    if (inputText.length() != 8) { showRenameNotice("ROOM NEEDS 8 DIGITS"); return; }
+    roomCode = inputText;
+    studentCode = "";
+    enteringRoom = false;
+    inputText = "";
+    inputConfirmed = false;
+    showRenameNotice("STUDENT ID + ENTER");
+    return;
+  }
   if (WiFi.status() != WL_CONNECTED) connectToWiFi();
-  if (WiFi.status() == WL_CONNECTED && !webSocketClientStarted) connectToWebsite();
-  if (!webSocketConnected) { showRenameNotice("SERVER OFFLINE"); return; }
   studentCode = inputText;
-  renameRequestId = String(DEVICE_ID) + "-rename-" + String(esp_random(), HEX);
-  renameSentAt = millis();
-  JsonDocument packet;
-  packet["v"] = 1;
-  packet["type"] = "device.rename";
-  packet["request_id"] = renameRequestId;
-  packet["label"] = studentCode;
-  sendJson(packet);
-  showRenameNotice("SAVING STUDENT ID...");
+  joinRoom();
 }
 
 void handleKey(uint8_t button) {
   if (button == 0 || button > 16) return;
+  wakeOled();
   const char key = KEY_MAP[button - 1];
   Serial.printf("S%u -> %s\n", button,
                 key == '\b' ? "DELETE" : key == '\n' ? "ENTER" : String(key).c_str());
@@ -373,26 +454,32 @@ void handleKey(uint8_t button) {
       inputText = "";
       inputConfirmed = false;
       answerNotice = "";
-      renameRequestId = "";
-      showRenameNotice(enteringRoom ? "ROOM ID + ENTER" : "STUDENT ID + ENTER");
+      enteringRoom = true;
+      roomCode = "";
+      studentCode = "";
+      showRenameNotice("ROOM ID + ENTER");
     }
     return;
   }
-  if (!renameRequestId.isEmpty() && !(key >= 'A' && key <= 'D')) return;
   if (!joinPayload.isEmpty()) {
     if (key == '\n') joinRoom();
     return;
   }
   if (key == '\b') {
-    if (enteringRoom && inputText.isEmpty()) {
-      enteringRoom = false;
-      inputText = studentCode;
+    if (!enteringRoom && inputText.isEmpty()) {
+      enteringRoom = true;
+      inputText = roomCode;
+      roomCode = "";
+      studentCode = "";
+      inputConfirmed = false;
+      showRenameNotice("ROOM ID + ENTER");
+      return;
     }
     inputConfirmed = false;
     if (!inputText.isEmpty()) inputText.remove(inputText.length() - 1);
     showRenameNotice(enteringRoom ? "ROOM ID + ENTER" : "STUDENT ID + ENTER");
   } else if (key == '\n') {
-    renameDevice();
+    confirmPairingInput();
   } else if (key >= 'A' && key <= 'D') {
     renameNotice = "";
     if (enteringRoom) return;
@@ -421,24 +508,7 @@ void handleWebSocketMessage(const String& payload) {
   const char* type = document["type"] | "";
 
   if ((document["v"] | 0) != 1) return;
-  if (strcmp(type, "device.rename.ack") == 0) {
-    if (renameRequestId.isEmpty() || String(document["request_id"] | "") != renameRequestId) return;
-    renameRequestId = "";
-    if (document["accepted"] | false) {
-      studentCode = String(document["label"] | "");
-      inputText = "";
-      inputConfirmed = false;
-      enteringRoom = true;
-      showRenameNotice("ROOM ID + ENTER");
-    } else {
-      if (strcmp(document["code"] | "", "STUDENT_UNAVAILABLE") == 0) {
-        requestStudentAgain();
-        return;
-      }
-      showRenameNotice(strcmp(document["code"] | "", "DUPLICATE_LABEL") == 0
-          ? "STUDENT ID IN USE" : "INVALID STUDENT ID");
-    }
-  } else if (strcmp(type, "device.connected") == 0) {
+  if (strcmp(type, "device.connected") == 0) {
     Serial.println("May chu xac nhan: da ket noi ESP32.");
     renderStatus();
   } else if (strcmp(type, "session.snapshot") == 0) {
@@ -450,6 +520,9 @@ void handleWebSocketMessage(const String& payload) {
     const int64_t version = data["state_version"] | int64_t(-1);
     if (snapshotReady && nextSession == sessionId && nextBinding == bindingId && version < snapshotVersion) return;
     const bool changed = nextSession != sessionId || nextBinding != bindingId || nextQuestion != questionId;
+    const String nextState = String(data["state"] | "WAITING");
+    const String nextQuestionStatus = String(data["question"]["status"] | "");
+    if (changed || nextState != sessionState || nextQuestionStatus != questionStatus) wakeOled();
     if (changed) {
       clearPending();
       answerSequence = 0;
@@ -460,15 +533,14 @@ void handleWebSocketMessage(const String& payload) {
     bindingId = nextBinding;
     questionId = nextQuestion;
     snapshotVersion = version;
-    sessionState = String(data["state"] | "WAITING");
+    sessionState = nextState;
     if (sessionState == "RUNNING" || sessionState == "PAUSED") {
       enteringRoom = false;
       inputText = "";
       inputConfirmed = false;
       renameNotice = "";
-      renameRequestId = "";
     }
-    questionStatus = String(data["question"]["status"] | "");
+    questionStatus = nextQuestionStatus;
     resultReady = sessionState == "FINISHED" && data["result"].is<JsonObject>();
     resultCorrect = data["result"]["correct"] | 0U;
     resultTotal = data["result"]["total"] | 0U;
@@ -526,6 +598,7 @@ void onWebSocketEvent(WebsocketsEvent event, String data) {
     case WebsocketsEvent::ConnectionOpened:
       webSocketConnected = true;
       snapshotReady = false;
+      wakeOled();
       renderStatus();
       lastHeartbeatAt = millis();
       Serial.println("Da ket noi WebSocket voi website.");
@@ -534,6 +607,7 @@ void onWebSocketEvent(WebsocketsEvent event, String data) {
       webSocketConnected = false;
       snapshotReady = false;
       queuedChoice = '\0';
+      wakeOled();
       renderStatus();
       Serial.printf("Mat ket noi WebSocket%s%s; dang tu ket noi lai...\n",
                     data.isEmpty() ? "" : " (", data.isEmpty() ? "" : data.c_str());
@@ -610,12 +684,13 @@ void updateKeypad() {
 }
 
 void connectToWiFi() {
+  if (wifiConnecting || WiFi.status() == WL_CONNECTED) return;
+  wifiConnecting = true;
   Serial.printf("\nDang ket noi toi Wi-Fi: %s\n", WIFI_SSID);
 
   WiFi.mode(WIFI_STA);
-  // Tat modem sleep de ket noi TCP/WebSocket tren ESP32-C3 khong bi rot
-  // theo chu ky khi thiet bi dang it truyen du lieu.
-  WiFi.setSleep(false);
+  // MIN_MODEM: tiet kiem dien giua cac lan truyen, van giu ket noi Wi-Fi.
+  WiFi.setSleep(true);
   WiFi.setAutoReconnect(true);
   WiFi.persistent(false);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -631,14 +706,10 @@ void connectToWiFi() {
     Serial.print('.');
   }
 
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\nDa ket noi Wi-Fi!");
-    Serial.print("Dia chi IP: ");
-    Serial.println(WiFi.localIP());
-    Serial.print("Cuong do song (RSSI): ");
-    Serial.print(WiFi.RSSI());
-    Serial.println(" dBm");
-  } else {
+  wifiConnecting = false;
+  lastReconnectAttempt = millis();
+  updateWiFiStatus();
+  if (WiFi.status() != WL_CONNECTED) {
     Serial.println("\nKet noi that bai. Se tu thu lai sau 10 giay.");
   }
 }
@@ -646,14 +717,18 @@ void connectToWiFi() {
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  pairingStore.begin("room-pairing", false);
-  joinPayload = pairingStore.getString("pending", "");
+  if (!pairingStore.begin("room-pairing", false)) {
+    Serial.println("Khong mo duoc NVS de luu yeu cau ghep phong.");
+  } else if (pairingStore.isKey("pending")) {
+    joinPayload = pairingStore.getString("pending", "");
+  }
   if (!joinPayload.isEmpty()) {
     JsonDocument packet;
     if (!deserializeJson(packet, joinPayload)) {
-      enteringRoom = true;
+      enteringRoom = false;
+      roomCode = String(packet["room_code"] | "");
       studentCode = String(packet["student_code"] | "");
-      inputText = String(packet["room_code"] | "");
+      inputText = studentCode;
     }
   }
   setupOled();
@@ -667,15 +742,13 @@ void setup() {
     pinMode(COLUMN_PINS[column], INPUT_PULLUP);
   }
 
+  connectToWiFi();
   Serial.println("San sang. Hay nhan mot nut tu 1 den 16.");
 }
 
 void loop() {
-  if (!renameRequestId.isEmpty() && uint32_t(millis() - renameSentAt) >= 5000) {
-    renameRequestId = "";
-    showRenameNotice("NO REPLY: HIT ENTER");
-  }
-  if (shouldKeepNetworkAlive() && WiFi.status() != WL_CONNECTED &&
+  updateWiFiStatus();
+  if (WiFi.status() != WL_CONNECTED &&
       millis() - lastReconnectAttempt >= RECONNECT_INTERVAL_MS) {
     lastReconnectAttempt = millis();
     Serial.println("Mat ket noi Wi-Fi, dang thu ket noi lai...");
@@ -717,6 +790,7 @@ void loop() {
   }
 
   updateKeypad();
+  updateOledPower();
   if (millis() - lastDisplayAt >= 100) {
     lastDisplayAt = millis();
     renderStatus();

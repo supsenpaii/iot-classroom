@@ -485,6 +485,8 @@
             "defines": [
                 "PLATFORMIO=60200",
                 "ARDUINO_ESP32C3_DEV",
+                "ARDUINO_USB_MODE=1",
+                "ARDUINO_USB_CDC_ON_BOOT=1",
                 "HAVE_CONFIG_H",
                 "MBEDTLS_CONFIG_FILE=\"mbedtls/esp_config.h\"",
                 "UNITY_INCLUDE_CONFIG_H",
