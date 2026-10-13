@@ -15,7 +15,7 @@ try{
  const result=db.transaction(()=>{
   const classId=randomUUID(),bankId=randomUUID();
   db.prepare('INSERT INTO classes VALUES (?,?,?,0)').run(classId,teacher.id,sample.class_name);
-  sample.students.forEach((name,i)=>db.prepare('INSERT INTO students VALUES (?,?,?,?)').run(randomUUID(),classId,`DEMO${String(i+1).padStart(2,'0')}`,name));
+  sample.students.forEach((name,i)=>db.prepare('INSERT INTO students VALUES (?,?,?,?)').run(randomUUID(),classId,String(i+1).padStart(3,'0'),name));
   db.prepare('INSERT INTO question_banks(id,owner_teacher_id,name,subject) VALUES (?,?,?,?)').run(bankId,teacher.id,sample.bank_name,'Toán — dữ liệu demo');
   for(const q of questions)db.prepare('INSERT INTO questions VALUES (?,?,?)').run(randomUUID(),bankId,JSON.stringify(q));
   const sessionId=new Quiz(db).create(teacher.id,{class_id:classId,bank_id:bankId,name:'DEMO ROOM ID — 10 câu',config:{count:10,seconds:15,random:false,auto_next:true,allow_change:true,pass_mark:5,leaderboard:false}});

@@ -78,9 +78,12 @@ export const flashcardRateSchema = z
     request_id: z.string().min(1).max(100),
     review_id: z.string().max(80),
     card_id: z.string().max(80),
+    round: z.number().int().positive().max(2147483647),
+    display_id: z.string().min(1).max(80),
     rating: flashcardRating,
   })
   .strict();
+export type FlashcardRatePacket = z.infer<typeof flashcardRateSchema>;
 export type PublicQuestion = {
   id: string;
   question: string;

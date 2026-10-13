@@ -9,9 +9,10 @@ import {
   type ReactNode,
 } from "react";
 import { api, type Data } from "./api";
+import type { RequestScope } from "./pages/study-plan-requests";
 export const Context = createContext<{
   user: Data;
-  run: (fn: () => Promise<unknown>, success?: string) => Promise<void>;
+  run: (fn: () => Promise<unknown>, success?: string, scope?: RequestScope) => Promise<void>;
 }>({ user: {}, run: async () => {} });
 export const useApp = () => useContext(Context);
 export function DeleteSessionButton({ id, name, state }: { id: string; name: string; state: string }) {

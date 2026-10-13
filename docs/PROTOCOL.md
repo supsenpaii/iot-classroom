@@ -12,7 +12,7 @@ Firmware ESP32 nhập ROOM ID rồi MSSV, dùng credentials đã cấu hình. Jo
 
 `device_id`/secret xác thực thiết bị; `device.label` là nhãn quản lý, độc lập với MSSV. Backend không đổi nhãn thiết bị đã đăng ký khi join. Thiết bị mới dùng `device_name` làm nhãn (thêm hậu tố nếu trùng nhãn quản lý). Không suy học sinh từ label hoặc thứ tự kết nối. Join không có `student_code` nhận `UNASSIGNED`, chờ giáo viên chọn học sinh. Trường `auto_assign` và snapshot tương ứng vẫn được chấp nhận/lưu để tương thích cấu trúc API cũ, nhưng không còn kích hoạt ghép theo label hoặc thứ tự. Web không còn lựa chọn ghép theo thứ tự. Không trả tên/mã học sinh cho thiết bị.
 
-Có thể gửi thêm `student_code` (chuỗi 1–10 chữ số) trong join. Backend ghép đúng MSSV trong snapshot học sinh của buổi thi, không phụ thuộc `auto_assign`; không tự đổi sang học sinh khác. MSSV không có hoặc vắng trả `STUDENT_UNAVAILABLE`; học sinh đã có thiết bị khác hoặc thiết bị đã ghép học sinh khác trả `STUDENT_ALREADY_BOUND`. Lỗi rollback toàn bộ join. MSSV là thông tin tự khai, không phải bằng chứng xác thực danh tính; giáo viên vẫn kiểm tra người cầm thiết bị. Client cũ không gửi MSSV cần được giáo viên ghép thủ công.
+Có thể gửi thêm `student_code` (string 1–10 chữ số ASCII 0–9, trim hai đầu, giữ số 0 đầu) trong join. Không ép number thành string hoặc xóa ký tự sai; mã sai trả `INVALID_PAYLOAD`. Xem [quy tắc MSSV](STUDENT_CODES.md). Backend ghép đúng MSSV trong snapshot học sinh của buổi thi, không phụ thuộc `auto_assign`; không tự đổi sang học sinh khác. MSSV không có hoặc vắng trả `STUDENT_UNAVAILABLE`; học sinh đã có thiết bị khác hoặc thiết bị đã ghép học sinh khác trả `STUDENT_ALREADY_BOUND`. Lỗi rollback toàn bộ join. MSSV là thông tin tự khai, không phải bằng chứng xác thực danh tính; giáo viên vẫn kiểm tra người cầm thiết bị. Client cũ không gửi MSSV cần được giáo viên ghép thủ công.
 
 Giáo viên có thể ghép nhãn thiết bị bất kỳ với học sinh hợp lệ trong LOBBY/PAUSED qua các endpoint binding hiện có. Endpoint `/api/sessions/:id/room-devices/:device/student` sửa ghép với `expected_version`; gỡ binding cũ và tạo binding mới trong cùng transaction, lỗi giữ nguyên binding cũ. Không chiếm học sinh đã ghép hoặc thiết bị thuộc phòng khác chưa kết thúc. Sau FINISHED/CANCELLED, cùng ID/secret được join phiên mới với MSSV khác và request ID mới, không xóa dữ liệu phiên cũ.
 
@@ -157,7 +157,7 @@ Giáo viên mở **Flashcard → bộ thẻ → Bắt đầu ôn tập**. Trong 
   "v":1,"type":"session.snapshot",
   "data":{
     "mode":"flashcard","id":"review UUID","state":"RUNNING","state_version":7,
-    "server_time":1800000000000,
+    "server_time":1800000000000,"round":2,"display_id":"display UUID",
     "card":{"id":"card UUID","index":3,"total":20,"side":"front"},
     "current_rating":null
   }
@@ -166,17 +166,23 @@ Giáo viên mở **Flashcard → bộ thẻ → Bắt đầu ôn tập**. Trong 
 
 Thiết bị không nhận nội dung thẻ (mặt trước/mặt sau chỉ hiện trên màn chiếu). `current_rating` là lựa chọn đã lưu của chính thiết bị cho thẻ hiện tại (`KNOWN`, `AGAIN` hoặc `null`). Snapshot không có `mode` là chế độ kiểm tra như các mục trên. Kết thúc buổi ôn tập: thiết bị quay về snapshot kiểm tra/WAITING.
 
-Học sinh tự đánh giá: firmware hiện tại dùng **A = Nhớ (`KNOWN`)**, **B = Chưa nhớ (`AGAIN`)**; bàn phím 13 phím nên dùng OK = Nhớ, DEL = Chưa nhớ.
+Học sinh tự đánh giá trên simulator: **A = Nhớ (`KNOWN`)**, **B = Chưa nhớ (`AGAIN`)**. Firmware trong repository chưa gửi `flashcard.rate`; khi bổ sung phải dùng định danh lượt từ snapshot.
 
 ```json
-{"v":1,"type":"flashcard.rate","request_id":"unique-id","review_id":"review UUID","card_id":"card UUID","rating":"KNOWN"}
+{"v":1,"type":"flashcard.rate","request_id":"unique-id","review_id":"review UUID","card_id":"card UUID","round":2,"display_id":"display UUID","rating":"KNOWN"}
 ```
 
 ```json
-{"v":1,"type":"flashcard.ack","request_id":"unique-id","accepted":true,"card_id":"card UUID","rating":"KNOWN"}
+{"v":1,"type":"flashcard.ack","request_id":"unique-id","accepted":true,"review_id":"review UUID","card_id":"card UUID","round":2,"display_id":"display UUID","rating":"KNOWN","duplicate":false}
 ```
 
-Lựa chọn sau ghi đè lựa chọn trước của cùng thiết bị cho cùng thẻ trong cùng vòng; gửi lại nguyên gói khi mất ACK là an toàn. Vẫn chỉ giữ một request chờ ACK/device như phần đáp án. Lỗi (`accepted:false`): `CARD_CHANGED` (giáo viên đã chuyển thẻ, chờ snapshot mới), `REVIEW_CLOSED`, `DEVICE_BUSY` (thiết bị đang làm bài kiểm tra), `DEVICE_NOT_ASSIGNED`. Sai schema: `error` `INVALID_PAYLOAD`.
+`round` và `display_id` bắt buộc lấy từ snapshot tại thời điểm bấm, không tự gán lại khi retry. Mỗi `next`, `prev`, `repeat` tạo `display_id` mới, kể cả khi quay lại cùng thẻ trong cùng vòng. `flip`, reconnect và restart giữ nguyên mã lượt. Không dùng `state_version` thay mã lượt vì lật thẻ cũng tăng version.
+
+Lựa chọn mới với request_id mới ghi đè lựa chọn trước của cùng thiết bị cho cùng thẻ trong cùng vòng. Backend commit rating và receipt trong cùng transaction. Gửi lại nguyên packet/request_id trả ACK đã lưu với `duplicate:true`, kể cả sau khi chuyển lượt/vòng hoặc kết thúc; không ghi lại rating hoặc thời điểm. ACK cũ xác nhận lần xử lý cũ, không xác nhận lựa chọn của vòng hiện tại. Receipt lưu theo `(device_id, request_id)`; dùng lại request_id với nội dung khác, kể cả review khác, nhận `REQUEST_REUSED`. Request bị từ chối cho một review thuộc quyền thiết bị cũng giữ receipt, tránh việc retry tự trở thành hợp lệ sau này. Thu hồi thiết bị chặn cả retry receipt. Xóa bộ thẻ đã kết thúc cũng xóa receipt tương ứng.
+
+Vẫn chỉ giữ một request chờ ACK/device. Simulator giữ nguyên packet đang chờ qua reconnect; lựa chọn xếp hàng giữ định danh lúc bấm và được bỏ khi lượt thay đổi. Lỗi (`flashcard.ack`, `accepted:false`): `CARD_CHANGED`, `ROUND_CHANGED`, `DISPLAY_CHANGED` (chờ snapshot mới), `REVIEW_CLOSED`, `DEVICE_BUSY`, `DEVICE_NOT_ASSIGNED`, `REQUEST_REUSED`. Sai schema, bao gồm thiếu round/display_id, nhận ACK `INVALID_PAYLOAD` nếu có request_id hợp lệ; không có request_id hợp lệ nhận `error` `INVALID_PAYLOAD`. Lỗi DB vẫn trả `error` `STORAGE_ERROR`, không ACK thành công; có thể retry nguyên packet.
+
+Compatibility: giữ `v:1`, chỉ mở rộng flashcard. Snapshot bổ sung trường nên màn chiếu/teacher cũ vẫn đọc được; client cũ gửi rating thiếu định danh bị từ chối rõ ràng, cần tải lại frontend/cập nhật sender. Không fallback về vòng hiện tại. Gói quiz, ACK/retry quiz, poll và attendance giữ nguyên. Migration `008_flashcard_replay.sql` bổ sung metadata lượt và bảng receipt; backfill mã lượt cho review hiện có, không sửa rating/thống kê đã lưu. Build không áp dụng migration; `openDb` áp dụng khi ứng dụng mới được khởi động trên database đã sao lưu.
 
 Giáo viên nhận cùng loại snapshot qua `{v:1,type:"hello",review_id:"..."}` (cookie đăng nhập), có thêm nội dung thẻ, số Nhớ/Chưa nhớ của thẻ hiện tại, số thiết bị đang kết nối và thống kê vòng. Khi hết vòng, giáo viên có thể mở vòng mới chỉ gồm các thẻ có ít nhất một lượt Chưa nhớ.
 

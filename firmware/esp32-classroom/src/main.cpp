@@ -8,6 +8,7 @@
 #include <Adafruit_SSD1306.h>
 
 #include "device_config.h"
+#include "oled_power.h"
 
 using namespace websockets;
 
@@ -15,7 +16,6 @@ constexpr unsigned long CONNECT_TIMEOUT_MS = 20000;
 constexpr unsigned long RECONNECT_INTERVAL_MS = 10000;
 constexpr unsigned long WIFI_CONNECTED_NOTICE_MS = 3000;
 constexpr unsigned long BUTTON_DEBOUNCE_MS = 40;
-constexpr unsigned long OLED_IDLE_TIMEOUT_MS = 60000;
 constexpr size_t OLED_BUFFER_SIZE = 128 * 32 / 8;
 
 // Theo thu tu chan tren ESP32-C3 trong anh:
@@ -38,8 +38,7 @@ constexpr uint8_t OLED_SCL = 1;
 constexpr size_t MAX_INPUT_LENGTH = 10;
 Adafruit_SSD1306 display(128, 32, &Wire, -1);
 bool oledReady = false;
-bool oledSleeping = false;
-unsigned long lastOledActivityAt = 0;
+OledPower oledPower;
 uint8_t lastOledFrame[OLED_BUFFER_SIZE] = {};
 bool oledFrameValid = false;
 bool wifiConnecting = false;
@@ -50,6 +49,8 @@ String roomCode;
 String studentCode;
 bool enteringRoom = true;
 Preferences pairingStore;
+bool pairingStoreReady = false;
+bool bootRecoveryPending = true;
 String joinPayload;
 unsigned long lastJoinAttempt = 0;
 void connectToWebsite();
@@ -58,12 +59,14 @@ bool inputConfirmed = false;
 String renameNotice;
 unsigned long renameNoticeAt = 0;
 void renderStatus();
+void updateOledDisplay();
+void invalidateServerSnapshot();
 
 void wakeOled() {
-  lastOledActivityAt = millis();
-  if (oledReady && oledSleeping) {
+  const bool wasSleeping = oledPower.sleeping();
+  oledPower.wake(uint32_t(millis()));
+  if (oledReady && wasSleeping) {
     display.ssd1306_command(SSD1306_DISPLAYON);
-    oledSleeping = false;
   }
 }
 
@@ -89,6 +92,7 @@ void updateWiFiStatus() {
     Serial.println("Mat ket noi Wi-Fi; dang tu ket noi lai...");
   }
   if (connected != wifiWasConnected) {
+    if (!connected) invalidateServerSnapshot();
     wifiWasConnected = connected;
     wakeOled();
     renderStatus();
@@ -119,6 +123,7 @@ void setupOled() {
   }
   wakeOled();
   showInput("READY");
+  updateOledDisplay();
 }
 
 unsigned long lastReconnectAttempt = 0;
@@ -141,6 +146,9 @@ uint32_t answerSequence = 0;
 
 String pendingRequestId;
 String pendingPayload;
+String pendingRecoveryPayload;
+bool pendingAnswerValidated = false;
+constexpr size_t MAX_ANSWER_RECORD_BYTES = 1024;
 unsigned long pendingSentAt = 0;
 char queuedChoice = '\0';
 unsigned long lastHeartbeatAt = 0;
@@ -158,18 +166,26 @@ uint32_t totalQuestions = 0, secondsPerQuestion = 0, questionOrder = 0;
 uint32_t countdownAtSnapshot = 0, snapshotReceivedAt = 0;
 int64_t snapshotVersion = -1;
 String answerNotice;
-unsigned long lastDisplayAt = 0;
+uint32_t lastDisplayedSeconds = UINT32_MAX;
+bool lastWifiNoticeVisible = false, lastRenameNoticeVisible = false;
+
+OledState oledState() {
+  if (sessionState == "RUNNING" || sessionState == "PAUSED") return OledState::EXAM;
+  if (sessionState == "FINISHED")
+    return sessionId == dismissedResultSession && bindingId == dismissedResultBinding
+        ? OledState::IDLE : OledState::FINISHED;
+  if (sessionState == "CANCELLED") return OledState::FINISHED;
+  if (sessionState == "LOBBY" || webSocketClientStarted || !joinPayload.isEmpty() ||
+      !studentCode.isEmpty()) return OledState::WAITING;
+  return OledState::IDLE;
+}
 
 void updateOledPower() {
   if (!oledReady) return;
-  // Giu man hinh sang khi mat Wi-Fi, dang thi hoac cho ACK dap an.
-  if (WiFi.status() != WL_CONNECTED || sessionState == "RUNNING" ||
-      !pendingRequestId.isEmpty()) {
-    wakeOled();
-  } else if (!oledSleeping && millis() - lastOledActivityAt >= OLED_IDLE_TIMEOUT_MS) {
-    display.ssd1306_command(SSD1306_DISPLAYOFF);
-    oledSleeping = true;
-  }
+  const bool wasSleeping = oledPower.sleeping();
+  oledPower.update(oledState(), uint32_t(millis()));
+  if (wasSleeping != oledPower.sleeping())
+    display.ssd1306_command(oledPower.sleeping() ? SSD1306_DISPLAYOFF : SSD1306_DISPLAYON);
 }
 
 uint32_t remainingMs() {
@@ -186,14 +202,144 @@ bool canAnswer() {
       !sessionId.isEmpty() && !questionId.isEmpty() && !bindingId.isEmpty();
 }
 
+void invalidateServerSnapshot() {
+  snapshotReady = false;
+  pendingAnswerValidated = false;
+  queuedChoice = '\0';
+}
+
+void forgetStoredAnswer() {
+  pendingRecoveryPayload = "";
+  pendingAnswerValidated = false;
+  if (pairingStoreReady && pairingStore.isKey("answer") && !pairingStore.remove("answer"))
+    Serial.println("Khong xoa duoc pending answer da xu ly; lan boot sau se doi server xac minh lai.");
+}
+
 void clearPending() {
   pendingRequestId = "";
   pendingPayload = "";
   queuedChoice = '\0';
+  forgetStoredAnswer();
+}
+
+bool validAnswerPayload(const String& payload, JsonDocument& packet) {
+  if (payload.isEmpty() || payload.length() > MAX_ANSWER_RECORD_BYTES || deserializeJson(packet, payload)) return false;
+  if (!packet.is<JsonObject>() || packet.as<JsonObject>().size() != 8 ||
+      !packet["v"].is<int>() || packet["v"].as<int>() != 1 ||
+      !packet["type"].is<const char*>() || strcmp(packet["type"].as<const char*>(), "answer.submit") != 0 ||
+      !packet["seq"].is<uint32_t>() || packet["seq"].as<uint32_t>() == 0 ||
+      packet["seq"].as<uint32_t>() > 2147483647U) return false;
+  for (const char* field : {"request_id", "session_id", "binding_id", "question_instance_id"}) {
+    if (!packet[field].is<const char*>()) return false;
+    const size_t length = strlen(packet[field].as<const char*>());
+    if (length == 0 || length > (strcmp(field, "request_id") == 0 ? 100U : 80U)) return false;
+  }
+  if (!packet["choice"].is<const char*>()) return false;
+  const char* choice = packet["choice"].as<const char*>();
+  return strlen(choice) == 1 && choice[0] >= 'A' && choice[0] <= 'D';
+}
+
+bool savePendingAnswer() {
+  if (!pairingStoreReady) return false;
+  JsonDocument record;
+  record["v"] = 1;
+  record["device_id"] = DEVICE_ID;
+  record["payload"] = pendingPayload;
+  String serialized;
+  serializeJson(record, serialized);
+  return serialized.length() <= MAX_ANSWER_RECORD_BYTES &&
+      pairingStore.putString("answer", serialized) == serialized.length();
+}
+
+void loadRecoveryState() {
+  // NVS holds requests only. Never restore a binding, quiz state or deadline from it.
+  bootRecoveryPending = true;
+  pendingAnswerValidated = false;
+  pairingStoreReady = pairingStore.begin("room-pairing", false);
+  if (!pairingStoreReady) {
+    Serial.println("Khong mo duoc NVS de luu yeu cau ghep phong.");
+    return;
+  }
+  if (pairingStore.isKey("pending")) joinPayload = pairingStore.getString("pending", "");
+  if (!joinPayload.isEmpty()) {
+    JsonDocument packet;
+    if (!deserializeJson(packet, joinPayload)) {
+      enteringRoom = false;
+      roomCode = String(packet["room_code"] | "");
+      studentCode = String(packet["student_code"] | "");
+      inputText = studentCode;
+    }
+  }
+  if (!pairingStore.isKey("answer")) return;
+  char stored[MAX_ANSWER_RECORD_BYTES + 1] = {};
+  JsonDocument record, packet;
+  if (!pairingStore.getString("answer", stored, sizeof(stored)) || deserializeJson(record, stored) ||
+      !record.is<JsonObject>() || record.as<JsonObject>().size() != 3 ||
+      !record["v"].is<int>() || record["v"].as<int>() != 1 ||
+      !record["device_id"].is<const char*>() || String(record["device_id"].as<const char*>()) != String(DEVICE_ID) ||
+      !record["payload"].is<const char*>()) {
+    forgetStoredAnswer();
+    Serial.println("Pending answer NVS khong hop le; chi dong bo tu server.");
+    return;
+  }
+  const String payload(record["payload"].as<const char*>());
+  if (!validAnswerPayload(payload, packet)) {
+    forgetStoredAnswer();
+    Serial.println("Pending answer NVS khong hop le; chi dong bo tu server.");
+    return;
+  }
+  pendingRecoveryPayload = payload;
+}
+
+void reconcilePendingAnswer(JsonObject data) {
+  const String& payload = pendingRecoveryPayload.isEmpty() ? pendingPayload : pendingRecoveryPayload;
+  if (payload.isEmpty()) return;
+  JsonDocument packet;
+  const String mode = String(data["mode"] | "quiz");
+  const uint32_t serverSequence = data["current_answer"]["seq"] | 0U;
+  if (!validAnswerPayload(payload, packet) || mode != "quiz" ||
+      (sessionState != "RUNNING" && sessionState != "PAUSED" && sessionState != "FINISHED") ||
+      sessionId.isEmpty() || bindingId.isEmpty() || questionId.isEmpty() ||
+      String(packet["session_id"].as<const char*>()) != sessionId ||
+      String(packet["binding_id"].as<const char*>()) != bindingId ||
+      String(packet["question_instance_id"].as<const char*>()) != questionId ||
+      serverSequence > packet["seq"].as<uint32_t>() ||
+      (serverSequence == packet["seq"].as<uint32_t>() && data["current_answer"].is<JsonObject>() &&
+       String(data["current_answer"]["choice"] | "") != String(packet["choice"].as<const char*>()))) {
+    clearPending();
+    Serial.println("Vo hieu hoa pending answer khong con thuoc snapshot hien tai.");
+    return;
+  }
+  const bool restored = !pendingRecoveryPayload.isEmpty();
+  pendingRequestId = packet["request_id"].as<const char*>();
+  pendingPayload = payload;
+  pendingRecoveryPayload = "";
+  pendingAnswerValidated = true;
+  const uint32_t sequence = packet["seq"].as<uint32_t>();
+  if (sequence > answerSequence) answerSequence = sequence;
+  if (restored) {
+    pendingSentAt = millis();
+    answerNotice = "SENDING: " + String(packet["choice"].as<const char*>());
+  }
+}
+
+void retryPendingAnswer() {
+  // A paused server keeps the exact packet for resume rather than recording a rejection.
+  if (!pendingRequestId.isEmpty() && pendingAnswerValidated && WiFi.status() == WL_CONNECTED &&
+      webSocketConnected && snapshotReady && sessionState != "PAUSED" &&
+      millis() - pendingSentAt >= ACK_RETRY_MS) {
+    webSocket.send(pendingPayload);
+    pendingSentAt = millis();
+    Serial.println("Chua co ACK; dang gui lai cung mot goi...");
+  }
 }
 
 void renderStatus() {
-  if (!oledReady || oledSleeping) return;
+  oledPower.invalidate();
+}
+
+void drawOledStatus() {
+  if (!oledReady || oledPower.sleeping()) return;
   display.clearDisplay();
   display.setTextColor(SSD1306_WHITE);
   display.setTextSize(1);
@@ -255,6 +401,23 @@ void renderStatus() {
   presentOledFrame();
 }
 
+void updateOledDisplay() {
+  const uint32_t seconds = (remainingMs() + 999) / 1000;
+  const bool wifiNoticeVisible = WiFi.status() == WL_CONNECTED && wifiWasConnected &&
+      uint32_t(millis() - wifiConnectedAt) < WIFI_CONNECTED_NOTICE_MS;
+  const bool renameNoticeVisible = !renameNotice.isEmpty() &&
+      uint32_t(millis() - renameNoticeAt) < 5000;
+  if (seconds != lastDisplayedSeconds || wifiNoticeVisible != lastWifiNoticeVisible ||
+      renameNoticeVisible != lastRenameNoticeVisible)
+    oledPower.invalidate();
+  if (!oledReady || oledPower.sleeping() || !oledPower.dirty()) return;
+  drawOledStatus();
+  oledPower.rendered();
+  lastDisplayedSeconds = seconds;
+  lastWifiNoticeVisible = wifiNoticeVisible;
+  lastRenameNoticeVisible = renameNoticeVisible;
+}
+
 bool deviceConfigurationIsReady() {
   return String(DEVICE_ID) != "DIEN_DEVICE_ID_VAO_DAY" &&
          String(DEVICE_SECRET) != "DIEN_DEVICE_SECRET_VAO_DAY";
@@ -262,7 +425,7 @@ bool deviceConfigurationIsReady() {
 
 bool shouldKeepNetworkAlive() {
   return deviceConfigurationIsReady() &&
-         (!joinPayload.isEmpty() || !studentCode.isEmpty() || webSocketClientStarted);
+         (bootRecoveryPending || !joinPayload.isEmpty() || !studentCode.isEmpty() || webSocketClientStarted);
 }
 
 void sendJson(const JsonDocument& document) {
@@ -282,6 +445,11 @@ void sendButtonTest(char choice) {
 
 void sendAnswer(char choice) {
   if (!canAnswer()) return;
+  if (answerSequence >= 2147483647U) {
+    answerNotice = "ANSWER REJECTED";
+    renderStatus();
+    return;
+  }
   answerSequence++;
   answerNotice = "SENDING: " + String(choice);
   pendingRequestId = String(DEVICE_ID) + "-" + String((uint32_t)esp_random(), HEX) + "-" + String(millis()) + "-" +
@@ -299,9 +467,18 @@ void sendAnswer(char choice) {
 
   pendingPayload = "";
   serializeJson(document, pendingPayload);
+  if (!savePendingAnswer()) {
+    clearPending();
+    answerNotice = "SERVER ERROR";
+    Serial.println("Khong luu duoc pending answer vao NVS; khong gui goi chua duoc luu.");
+    renderStatus();
+    return;
+  }
+  pendingAnswerValidated = true;
   webSocket.send(pendingPayload);
   pendingSentAt = millis();
   Serial.printf("Da gui dap an %c, dang cho website xac nhan...\n", choice);
+  renderStatus();
 }
 
 void handleChoice(char choice) {
@@ -321,6 +498,7 @@ void handleChoice(char choice) {
     sendButtonTest(choice);
   } else {
     answerNotice = "ANSWERING CLOSED";
+    renderStatus();
   }
 }
 
@@ -329,6 +507,8 @@ void showRenameNotice(const char* notice) {
   renameNoticeAt = millis();
   wakeOled();
   renderStatus();
+  // Show feedback before a synchronous HTTP join can block the next loop.
+  updateOledDisplay();
 }
 
 void requestStudentAgain() {
@@ -438,7 +618,12 @@ void confirmPairingInput() {
 
 void handleKey(uint8_t button) {
   if (button == 0 || button > 16) return;
+  const bool wasSleeping = oledReady && oledPower.sleeping();
   wakeOled();
+  if (wasSleeping) {
+    renderStatus();
+    return;  // This press only wakes OLED; the next press keeps its normal action.
+  }
   const char key = KEY_MAP[button - 1];
   Serial.printf("S%u -> %s\n", button,
                 key == '\b' ? "DELETE" : key == '\n' ? "ENTER" : String(key).c_str());
@@ -520,11 +705,19 @@ void handleWebSocketMessage(const String& payload) {
     const int64_t version = data["state_version"] | int64_t(-1);
     if (snapshotReady && nextSession == sessionId && nextBinding == bindingId && version < snapshotVersion) return;
     const bool changed = nextSession != sessionId || nextBinding != bindingId || nextQuestion != questionId;
+    const bool bootSnapshot = bootRecoveryPending;
     const String nextState = String(data["state"] | "WAITING");
     const String nextQuestionStatus = String(data["question"]["status"] | "");
-    if (changed || nextState != sessionState || nextQuestionStatus != questionStatus) wakeOled();
+    const bool nextResultReady = nextState == "FINISHED" && data["result"].is<JsonObject>();
+    const bool nextResultHasScore = nextResultReady && !data["result"]["score"].isNull();
+    const bool resultChanged = nextResultReady != resultReady ||
+        (nextResultReady && ((data["result"]["correct"] | 0U) != resultCorrect ||
+          (data["result"]["total"] | 0U) != resultTotal || nextResultHasScore != resultHasScore ||
+          (data["result"]["score"] | 0.0f) != resultScore));
+    if (changed || nextState != sessionState || nextQuestionStatus != questionStatus || resultChanged) wakeOled();
     if (changed) {
-      clearPending();
+      // A boot candidate must survive until the new server identity is assigned below.
+      if (pendingRecoveryPayload.isEmpty()) clearPending();
       answerSequence = 0;
       answerNotice = "";
       inputText = "";
@@ -557,27 +750,31 @@ void handleWebSocketMessage(const String& payload) {
     }
     countdownAtSnapshot = uint32_t(remaining < 0 ? 0 : remaining > 300000 ? 300000 : remaining);
     snapshotReceivedAt = millis();
+    reconcilePendingAnswer(data);
     const uint32_t serverSequence = data["current_answer"]["seq"] | 0U;
     if (serverSequence > answerSequence) answerSequence = serverSequence;
     if (sessionState != "FINISHED" && pendingRequestId.isEmpty() && data["current_answer"].is<JsonObject>())
       answerNotice = "SAVED: " + String(data["current_answer"]["choice"] | "");
     snapshotReady = true;
+    bootRecoveryPending = false;
+    if (bootSnapshot && !bindingId.isEmpty() && !sessionId.isEmpty()) {
+      enteringRoom = false;
+      inputText = "";
+      inputConfirmed = false;
+    }
     if (!canAnswer()) queuedChoice = '\0';
     Serial.printf("%s: %lu cau, %lu s/cau, cau %lu, con %lu ms\n", sessionState.c_str(), (unsigned long)totalQuestions, (unsigned long)secondsPerQuestion, (unsigned long)questionOrder, (unsigned long)remainingMs());
     renderStatus();
   } else if (strcmp(type, "answer.ack") == 0) {
     const String requestId = String(document["request_id"] | "");
-    if (requestId == pendingRequestId) {
+    if (requestId == pendingRequestId && snapshotReady && pendingAnswerValidated) {
       const bool accepted = document["accepted"] | false;
       Serial.printf("Website da ACK dap an: %s.\n",
                     accepted ? "thanh cong" : "khong chap nhan");
       answerNotice = accepted ? "SAVED: " + String(document["choice"] | "") : "ANSWER REJECTED";
-      pendingRequestId = "";
-      pendingPayload = "";
-
-      if (queuedChoice != '\0') {
-        const char choice = queuedChoice;
-        queuedChoice = '\0';
+      const char choice = queuedChoice;
+      clearPending();
+      if (choice != '\0') {
         if (canAnswer()) sendAnswer(choice);
       }
       renderStatus();
@@ -590,6 +787,7 @@ void handleWebSocketMessage(const String& payload) {
     Serial.printf("Website bao loi: %s\n", document["code"] | "UNKNOWN");
     // Keep the original packet for retry after transient server errors.
     answerNotice = "SERVER ERROR";
+    renderStatus();
   }
 }
 
@@ -597,21 +795,22 @@ void onWebSocketEvent(WebsocketsEvent event, String data) {
   switch (event) {
     case WebsocketsEvent::ConnectionOpened:
       webSocketConnected = true;
-      snapshotReady = false;
+      invalidateServerSnapshot();
       wakeOled();
       renderStatus();
       lastHeartbeatAt = millis();
       Serial.println("Da ket noi WebSocket voi website.");
       break;
-    case WebsocketsEvent::ConnectionClosed:
+    case WebsocketsEvent::ConnectionClosed: {
+      const bool connectionChanged = webSocketConnected || snapshotReady;
       webSocketConnected = false;
-      snapshotReady = false;
-      queuedChoice = '\0';
-      wakeOled();
+      invalidateServerSnapshot();
+      if (connectionChanged) wakeOled();
       renderStatus();
       Serial.printf("Mat ket noi WebSocket%s%s; dang tu ket noi lai...\n",
                     data.isEmpty() ? "" : " (", data.isEmpty() ? "" : data.c_str());
       break;
+    }
     default:
       break;
   }
@@ -701,6 +900,8 @@ void connectToWiFi() {
     const unsigned long waitStartedAt = millis();
     while (millis() - waitStartedAt < 500) {
       updateKeypad();
+      updateOledPower();
+      updateOledDisplay();
       delay(5);
     }
     Serial.print('.');
@@ -717,20 +918,7 @@ void connectToWiFi() {
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  if (!pairingStore.begin("room-pairing", false)) {
-    Serial.println("Khong mo duoc NVS de luu yeu cau ghep phong.");
-  } else if (pairingStore.isKey("pending")) {
-    joinPayload = pairingStore.getString("pending", "");
-  }
-  if (!joinPayload.isEmpty()) {
-    JsonDocument packet;
-    if (!deserializeJson(packet, joinPayload)) {
-      enteringRoom = false;
-      roomCode = String(packet["room_code"] | "");
-      studentCode = String(packet["student_code"] | "");
-      inputText = studentCode;
-    }
-  }
+  loadRecoveryState();
   setupOled();
 
   for (uint8_t row = 0; row < 4; row++) {
@@ -781,20 +969,12 @@ void loop() {
       lastHeartbeatAt = millis();
     }
 
-    if (!pendingRequestId.isEmpty() && webSocketConnected && snapshotReady &&
-        millis() - pendingSentAt >= ACK_RETRY_MS) {
-      webSocket.send(pendingPayload);
-      pendingSentAt = millis();
-      Serial.println("Chua co ACK; dang gui lai cung mot goi...");
-    }
+    retryPendingAnswer();
   }
 
   updateKeypad();
   updateOledPower();
-  if (millis() - lastDisplayAt >= 100) {
-    lastDisplayAt = millis();
-    renderStatus();
-  }
+  updateOledDisplay();
 
   delay(5);
 }

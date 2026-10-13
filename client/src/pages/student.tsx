@@ -3,6 +3,7 @@ import type { Data } from "../api";
 import { createUuid } from "../uuid";
 import { StudentApiError, studentApi, useStudentQuiz } from "../student-client";
 import { ThemeToggle } from "../theme";
+import { studentCodeSchema, STUDENT_CODE_ERROR } from "../../../shared/student-code";
 import "./student.css";
 
 function QuizRoom({ identity, csrf, onLeave }: { identity: Data; csrf: string; onLeave: () => Promise<void> }) {
@@ -77,8 +78,9 @@ export function StudentPage() {
   useEffect(() => { document.title = "Làm bài kiểm tra · Lớp học tương tác"; void bootstrap(); }, []);
   async function join(e: FormEvent<HTMLFormElement>) {
     e.preventDefault(); if (busy || !csrf) return;
-    const code = studentCode.trim(), room = roomCode.replace(/\s/g, "");
-    if (!/^\d{1,10}$/.test(code)) { setError("MSSV cần từ 1 đến 10 chữ số."); return; }
+    const parsed = studentCodeSchema.safeParse(studentCode), room = roomCode.replace(/\s/g, "");
+    if (!parsed.success) { setError(STUDENT_CODE_ERROR); return; }
+    const code = parsed.data;
     if (!/^\d{8}$/.test(room)) { setError("Room ID cần đúng 8 chữ số."); return; }
     packet.current ||= { student_code: code, room_code: room, request_id: createUuid() };
     setBusy(true); setError("");
@@ -104,7 +106,7 @@ export function StudentPage() {
       <p className="student-eyebrow">DÀNH CHO HỌC SINH</p><h1>Vào phòng kiểm tra</h1>
       <p className="student-entry-help">Nhập MSSV và mã phòng giáo viên cung cấp.</p>
       <form onSubmit={join}>
-        <label className="student-field">MSSV<input name="student_code" inputMode="numeric" pattern="[0-9]{1,10}" maxLength={10} required autoComplete="off" placeholder="Ví dụ: 00123456" value={studentCode} disabled={loading || busy || uncertain} onChange={e => setStudentCode(e.target.value.replace(/\D/g, ""))} /></label>
+        <label className="student-field">MSSV<input name="student_code" inputMode="numeric" required autoComplete="off" placeholder="Ví dụ: 00123456" value={studentCode} disabled={loading || busy || uncertain} onChange={e => setStudentCode(e.target.value)} /></label>
         <label className="student-field">Room ID<input name="room_code" inputMode="numeric" pattern="[0-9 ]{8,12}" maxLength={12} required autoComplete="off" placeholder="8 chữ số" value={roomCode} disabled={loading || busy || uncertain} onChange={e => setRoomCode(e.target.value.replace(/[^\d ]/g, ""))} /></label>
         {error && <p role="alert" className="student-error">{error}</p>}
         {uncertain && <p className="student-help">Chưa xác định được kết quả vào phòng. Nhấn gửi lại để tiếp tục đúng yêu cầu trước.</p>}

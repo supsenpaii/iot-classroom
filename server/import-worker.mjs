@@ -17,6 +17,8 @@ const flashcardHeaderAliases = {
   front: ["front", "mặt trước", "mat truoc", "câu hỏi", "cau hoi", "thuật ngữ", "question", "term"],
   back: ["back", "mặt sau", "mat sau", "đáp án", "dap an", "định nghĩa", "answer", "definition"],
 };
+const numericStudentCodeError =
+  "MSSV trong XLSX phải là Text để giữ số 0 đầu; không tự suy đoán mã từ ô kiểu số.";
 async function inspectZip(buffer) {
   await new Promise((resolve, reject) =>
     yauzl.fromBuffer(buffer, { lazyEntries: true }, (err, zip) => {
@@ -117,12 +119,17 @@ try {
     if (sheet.rowCount > (resultImport ? 502 : 501) || sheet.columnCount > (resultImport ? 103 : 20))
       throw new Error(resultImport ? "Tối đa 500 học sinh và 100 câu" : "Tối đa 500 dòng và 20 cột");
     rows = [];
+    const studentCodeColumn = kind === "students" || resultImport
+      ? Array.from({ length: sheet.columnCount }, (_, i) => sheet.getRow(1).getCell(i + 1).text.trim()).indexOf("student_code") + 1
+      : 0;
     sheet.eachRow({ includeEmpty: true }, (r) => {
       const values = [];
       for (let c = 1; c <= sheet.columnCount; c++) {
         const cell = r.getCell(c);
         if (cell.type === ExcelJS.ValueType.Formula)
           values.push({ formula: true });
+        else if (r.number > 1 && c === studentCodeColumn && cell.type === ExcelJS.ValueType.Number)
+          values.push({ numericStudentCode: true });
         else if (
           cell.value &&
           typeof cell.value === "object" &&
@@ -164,7 +171,7 @@ try {
       head.forEach((h, i) => {
         const value = r[i] ?? "";
         if (typeof value === "object") {
-          errors.push({ row: index + 2, column: h, message: "Ô chứa công thức; hãy chuyển sang văn bản" });
+          errors.push({ row: index + 2, column: h, message: value.numericStudentCode ? numericStudentCodeError : "Ô chứa công thức; hãy chuyển sang văn bản" });
           out[h] = "";
         } else out[h] = String(value).trim();
       });
@@ -190,7 +197,7 @@ try {
           errors.push({
             row: index + 2,
             column: h,
-            message: "Ô chứa công thức; hãy chuyển sang văn bản",
+            message: value.numericStudentCode ? numericStudentCodeError : "Ô chứa công thức; hãy chuyển sang văn bản",
           });
           out[h] = "";
         } else out[h] = String(value).trim();

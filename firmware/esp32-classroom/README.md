@@ -28,11 +28,32 @@ Chưa kiểm thử OLED, bàn phím và kết nối trên phần cứng thực t
 ## Tiết kiệm pin
 
 - Bật Wi-Fi modem sleep (`WiFi.setSleep(true)`) để giảm tiêu thụ điện giữa các lần truyền dữ liệu.
-- OLED tự tắt sau 60 giây không thao tác ở màn chờ. Nhấn phím hoặc đổi trạng thái phiên học sẽ bật lại màn hình; phím vẫn được xử lý bình thường.
-- OLED luôn sáng khi đang làm bài, mất Wi-Fi hoặc chờ xác nhận đáp án. Chỉ truyền lại khung hình khi nội dung thay đổi.
+- OLED tự tắt sau 60 giây ở màn nhập ban đầu, 20 giây ở màn chờ, 30 giây ở màn kết thúc/kết quả. Thời gian tính từ lúc vào trạng thái hoặc lần tương tác gần nhất. Snapshot giống nhau không kéo dài thời gian sáng của màn kết quả; kết quả mới/cập nhật được hiển thị lại đủ 30 giây.
+- Phím đầu tiên khi OLED tắt chỉ đánh thức màn hình: không nhập/xóa ký tự, gửi đáp án, thử nút, retry join hoặc bỏ kết quả. Lần nhấn tiếp theo giữ chức năng hiện có; ENTER ở màn kết quả đang sáng vẫn mở nhập ROOM ID. Tắt OLED không xóa trạng thái phiên, kết quả, binding hoặc packet đang chờ ACK.
+- OLED luôn sáng trong RUNNING và PAUSED, kể cả mất kết nối. Giáo viên bắt đầu bài sẽ tự đánh thức OLED. Ngoài lúc thi, mất Wi-Fi không giữ màn hình sáng vô hạn; thay đổi kết nối thực sự đánh thức màn hình, còn sự kiện đóng socket lặp lại không kéo dài thời gian chờ.
+- Dùng dirty flag cho sự kiện thay đổi và chỉ dựng lại màn hình khi cần. Đếm ngược cập nhật khi số giây hiển thị đổi; thông báo Wi-Fi 3 giây và thông báo nhập liệu 5 giây vẫn hết hạn đúng thời điểm. Chỉ truyền khung hình qua I²C khi buffer thay đổi.
 - Duy trì WebSocket và heartbeat 4 giây để nhận câu hỏi và đồng bộ trạng thái. Chưa bật light sleep/deep sleep cho CPU.
 
 Chưa đo mức tiêu thụ thực tế hoặc kiểm thử độ trễ WebSocket với modem sleep trên phần cứng. Tiết kiệm điện không thay thế nguồn cấp ổn định khi Wi-Fi phát sóng.
+
+Không thay chữ, ngôn ngữ, font, kích thước OLED hoặc vị trí các dòng. Tên Wi-Fi dài
+vẫn xuống dòng trong thông báo Connected 3 giây như trước; các dòng khác giữ nguyên
+quy tắc không xuống dòng và giới hạn vùng vẽ của thư viện, không thêm thao tác cắt chuỗi.
+
+Kiểm thử tối ưu OLED trên máy phát triển:
+
+```bash
+pio run -d firmware/esp32-classroom
+node scripts/test-oled-display.mjs
+```
+
+Script cần C++ compiler (`g++`, hoặc biến `CXX`) và ArduinoJson đã tải bởi PlatformIO.
+Nó biên dịch các hàm firmware thực tế với I/O giả lập, kiểm tra 32 kịch bản về ngủ/
+đánh thức, kết quả, chuyển phiên, ACK/queue, redraw, timeout và rollover `millis()`.
+Đối chiếu baseline bảo vệ nguyên bộ lệnh vẽ/chữ/font/layout và những hàm mạng/
+đếm ngược không thuộc thay đổi phục hồi. ACK/retry và lưu pending answer được kiểm tra
+riêng bằng `scripts/test-firmware-recovery.mjs`. Các kiểm thử không nạp board, mở Serial hoặc sử dụng credentials/database thật.
+Vẫn cần kiểm tra OLED, phím và dòng điện trên ESP32 thật trước khi kết luận mức tiết kiệm.
 
 ## Nhập ROOM ID rồi MSSV
 
@@ -60,7 +81,42 @@ Trong RUNNING/PAUSED chỉ xử lý A/B/C/D; ENTER ở màn kết quả mở l�
 
 Cùng ESP32 có thể join phiên mới với MSSV khác sau khi phiên trước kết thúc/hủy, dùng ID/secret cũ và request ID mới. Trong phiên hiện tại, học sinh không tự chiếm binding khác; giáo viên sửa ghép trong LOBBY/PAUSED. Khi binding thay đổi, snapshot có binding ID mới và firmware xóa pending answer cũ, lấy lại seq từ current_answer. Không thay GPIO, OLED hoặc packet v1 trong bản cập nhật backend pairing này.
 
-NVS chỉ lưu yêu cầu join đang chờ, không lưu trạng thái join đã thành công. Reconnect lúc đang chạy được hỗ trợ; tự khôi phục sau reboot thành công vẫn cần kiểm thử/cải thiện riêng. Cần thử trên ESP32 thật: dùng hai MSSV ở hai phiên, đổi binding khi tạm dừng, retry sau mất phản hồi, mất Wi-Fi và reboot. Mapping điểm danh không tự đổi theo MSSV vừa dùng trong quiz.
+## Phục hồi sau reboot — Phase 1
+
+Firmware tự kết nối WebSocket bằng ID/secret sau khi Wi-Fi sẵn sàng, kể cả khi RAM
+không còn ROOM ID/MSSV. Snapshot từ server xác nhận binding, phiên, câu hỏi, deadline,
+sequence và kết quả; không tạo binding mới hay tự gửi lại HTTP join. Nếu binding còn
+hợp lệ, không cần nhập lại mã phòng/MSSV. Thiết bị chưa được ghép vẫn dùng quy trình
+nhập ROOM ID/MSSV hiện có. Mapping điểm danh không tự đổi theo MSSV vừa dùng trong quiz.
+
+NVS không lưu binding hoặc deadline để làm căn cứ cấp quyền. Namespace `room-pairing`
+giữ nguyên khóa `pending` của yêu cầu join; khóa mới `answer` chỉ chứa packet đáp án
+nguyên bản và device ID để kiểm tra nguồn. Packet được lưu thành công trước lần gửi
+đầu tiên. Retry giữ nguyên request ID, sequence và toàn bộ payload; không ghi NVS mỗi
+lần retry. Khi reboot hoặc mất mạng, phải nhận snapshot mới và đối chiếu đúng session,
+binding, câu hỏi, sequence trước khi retry. Packet sai danh tính/câu hỏi hoặc bị đáp án
+mới hơn thay thế sẽ bị vô hiệu hóa. PAUSED giữ packet chờ resume; FINISHED chỉ cho
+server xác nhận packet cũ, không tạo đáp án mới. Backend tiếp tục quyết định deadline
+và chống duplicate.
+
+ACK tương ứng kết thúc pending và xóa riêng khóa `answer`, không xóa namespace/NVS
+hay credentials. Nếu không lưu được packet, không gửi đáp án chưa được lưu và dùng
+thông báo OLED có sẵn `SERVER ERROR`. Packet chưa được lưu bởi phiên bản firmware cũ
+không thể lấy lại sau reboot; đáp án đã được server nhận vẫn khôi phục qua snapshot.
+
+Kiểm thử trên máy phát triển, sau khi backend đã build:
+
+```bash
+node scripts/test-firmware-recovery.mjs
+node scripts/test-oled-display.mjs
+pio run -d firmware/esp32-classroom
+```
+
+Test phục hồi gồm 44 kịch bản chạy các hàm firmware thực tế với I/O giả lập và 12
+kịch bản WebSocket xác thực thật trên SQLite `:memory:`. Không đọc `.env`, không nạp
+board, không mở Serial và không tác động database thật. Cần kiểm thử reboot/mất điện,
+NVS, bàn phím/OLED và latency trên ESP32 thật. Xem [báo cáo Phase 1](REBOOT_RECOVERY.md).
+Phase này chưa triển khai power management mới, button wakeup, adaptive heartbeat hoặc OTA.
 
 Cập nhật và khởi động lại backend, sau đó nạp firmware:
 

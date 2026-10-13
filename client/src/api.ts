@@ -111,6 +111,8 @@ export const errorLabel: Record<string, string> = {
   STORAGE_ERROR: "Chưa lưu được đáp án; sẽ thử lại",
   REVIEW_CLOSED: "Buổi ôn tập đã kết thúc",
   CARD_CHANGED: "Giáo viên đã chuyển sang thẻ khác",
+  ROUND_CHANGED: "Vòng ôn tập đã thay đổi; chờ trạng thái mới",
+  DISPLAY_CHANGED: "Lượt hiển thị thẻ đã thay đổi; chờ trạng thái mới",
   DEVICE_BUSY: "Thiết bị đang dùng cho bài kiểm tra",
   POLL_CLOSED: "Khảo sát đã đóng",
   INVALID_CHOICE: "Lựa chọn không có trong khảo sát",

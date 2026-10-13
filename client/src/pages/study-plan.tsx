@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
+import { copyText } from "../clipboard";
 import { api, fmt, type Data } from "../api";
 import { useApp } from "../components";
 import { mastery } from "./results-grid";
+import { createStudyRequests } from "./study-plan-requests";
 import type { Choice, QuestionOptionKey, StudyGuide } from "../../../shared/protocol";
 
 type ReviewDeck = { id: string; share_token: string; cards: number };
@@ -14,12 +16,21 @@ const rich = (text: string) =>
 
 // Review plan built from the session's own results; AI wording is an optional extra when a key is configured.
 export function StudyPlan({ d, id }: { d: Data; id: string }) {
+  return <StudyPlanContent key={id} d={d} id={id} />;
+}
+function StudyPlanContent({ d, id }: { d: Data; id: string }) {
   const { run, user } = useApp(),
     [who, setWho] = useState("class"),
     [deck, setDeck] = useState<ReviewDeck | null>(null),
     [aiGuide, setAiGuide] = useState<StudyGuide | null>(null),
-    [busy, setBusy] = useState(""),
+    [busy, setBusy] = useState({ deck: false, ai: false }),
     [copied, setCopied] = useState(false);
+  const requests = useRef(createStudyRequests(id, "class"));
+  useLayoutEffect(() => {
+    const current = requests.current;
+    current.mount();
+    return () => current.unmount();
+  }, []);
   const scored: Data[] = d.questions.filter((q: Data) => q.status === "CLOSED" && !q.voided);
   const learners: Data[] = d.students
     .filter((s: Data) => !s.absent && s.details.some((a: Data) => a.scored && a.choice !== a.correct_answer))
@@ -51,9 +62,12 @@ export function StudyPlan({ d, id }: { d: Data; id: string }) {
   const reviewCount = who === "class" ? reteach.length : missed.length;
   const aiNote = (no: number) => aiGuide?.explanations.find((e) => e.no === no)?.explanation;
   const choose = (value: string) => {
+    requests.current.select(id, value);
     setWho(value);
     setDeck(null);
     setAiGuide(null);
+    setBusy({ deck: false, ai: false });
+    setCopied(false);
   };
   const link = deck ? `${location.origin}/study/${deck.share_token}` : "";
   return (
@@ -165,27 +179,37 @@ export function StudyPlan({ d, id }: { d: Data; id: string }) {
       <div className="sp-actions">
         <button
           className="primary"
-          disabled={!!busy || !reviewCount || !!deck}
+          disabled={busy.deck || !reviewCount || !!deck}
           onClick={() => {
-            setBusy("deck");
+            const request = requests.current.begin("deck");
+            setBusy(old => ({ ...old, deck: true }));
             void run(async () => {
-              setDeck(await api<ReviewDeck>(`/sessions/${id}/review-deck`, "POST", { student_id: who === "class" ? null : who }));
-            }, "Đã tạo bộ flashcard ôn tập.").finally(() => setBusy(""));
+              const deck = await api<ReviewDeck>(`/sessions/${request.sessionId}/review-deck`, "POST", {
+                student_id: request.studentId === "class" ? null : request.studentId,
+              });
+              if (request.isCurrent()) setDeck(deck);
+            }, "Đã tạo bộ flashcard ôn tập.", request).finally(() => {
+              if (request.isCurrent()) setBusy(old => ({ ...old, deck: false }));
+            });
           }}
         >
-          {busy === "deck" ? "Đang tạo…" : `Tạo bộ flashcard ôn tập (${reviewCount} thẻ)`}
+          {busy.deck ? "Đang tạo…" : `Tạo bộ flashcard ôn tập (${reviewCount} thẻ)`}
         </button>
         {user.ai && who !== "class" && (
           <button
-            disabled={!!busy || !!aiGuide}
+            disabled={busy.ai || !!aiGuide}
             onClick={() => {
-              setBusy("ai");
+              const request = requests.current.begin("ai");
+              setBusy(old => ({ ...old, ai: true }));
               void run(async () => {
-                setAiGuide(await api<StudyGuide>(`/sessions/${id}/study-guide`, "POST", { student_id: who }));
-              }).finally(() => setBusy(""));
+                const guide = await api<StudyGuide>(`/sessions/${request.sessionId}/study-guide`, "POST", { student_id: request.studentId });
+                if (request.isCurrent()) setAiGuide(guide);
+              }, "", request).finally(() => {
+                if (request.isCurrent()) setBusy(old => ({ ...old, ai: false }));
+              });
             }}
           >
-            {busy === "ai" ? "AI đang viết…" : "AI giải chi tiết + câu luyện thêm"}
+            {busy.ai ? "AI đang viết…" : "AI giải chi tiết + câu luyện thêm"}
           </button>
         )}
       </div>
@@ -195,15 +219,18 @@ export function StudyPlan({ d, id }: { d: Data; id: string }) {
           <a href={`/flashcards/${deck.id}`}>Mở bộ thẻ</a>
           <code>{link}</code>
           <button
-            onClick={() =>
-              void navigator.clipboard
-                ?.writeText(link)
-                .then(() => {
+            onClick={() => {
+              const request = requests.current.begin("copy");
+              void run(async () => {
+                await copyText(link);
+                if (request.isCurrent()) {
                   setCopied(true);
-                  setTimeout(() => setCopied(false), 1500);
-                })
-                .catch(() => {})
-            }
+                  setTimeout(() => {
+                    if (request.isCurrent()) setCopied(false);
+                  }, 1500);
+                }
+              }, "", request);
+            }}
           >
             {copied ? "Đã chép" : "Chép link tự học"}
           </button>

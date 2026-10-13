@@ -6,7 +6,8 @@ không cần tài khoản giáo viên và không phụ thuộc `ENABLE_SIMULATOR
 ## Cách dùng
 
 1. Giáo viên thêm MSSV vào lớp trước khi tạo buổi kiểm tra. MSSV trên trang học sinh là
-   chuỗi 1–10 chữ số; giữ số 0 ở đầu.
+   chuỗi 1–10 chữ số ASCII 0–9; trim hai đầu và giữ số 0 ở đầu. Nội dung sai được
+   giữ nguyên để sửa, không tự xóa chữ hoặc cắt ngắn mã. Xem [quy tắc MSSV](STUDENT_CODES.md).
 2. Tạo buổi kiểm tra, chọn lớp và bộ đề. Trong phòng chờ, nhấn **Mở nhận thiết bị** để
    tạo Room ID gồm 8 chữ số, có hiệu lực 5 phút.
 3. Gửi học sinh đường dẫn **`http://IP_MAY_BACKEND:3000/student`** và Room ID.

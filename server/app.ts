@@ -39,6 +39,8 @@ import { attachRealtime } from "./realtime.js";
 import { createStudyGuide, type GuideInput } from "./study-guide.js";
 import { createStudentPortal } from "./student.js";
 import { httpErrorHandler } from "./http-errors.js";
+import { studentCodeSchema } from "../shared/student-code.js";
+import { assertValidStudentCodes } from "./student-codes.js";
 export type AppConfig = {
   origin: string;
   secret: string;
@@ -971,7 +973,7 @@ export function createApplication(db: DB, config: AppConfig) {
         students: z
           .array(
             z.object({
-              student_code: z.string().trim().min(1).max(50),
+              student_code: studentCodeSchema,
               full_name: z.string().trim().min(1).max(150),
               answers: z.array(z.enum(["A", "B", "C", "D"]).nullable()).max(100),
             }).strict(),
@@ -1018,6 +1020,7 @@ export function createApplication(db: DB, config: AppConfig) {
         classId = cls.id;
         className = cls.name;
         roster = all(db, "SELECT * FROM students WHERE class_id=?", classId);
+        assertValidStudentCodes(roster);
         const rosterCodes = new Set<string>();
         for (const student of roster) {
           const code = String(student.student_code).toLocaleLowerCase();

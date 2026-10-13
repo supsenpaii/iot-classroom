@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { copyText } from "../clipboard";
 import { api, fields, type Data } from "../api";
 import {
   Empty,
@@ -205,15 +206,11 @@ function Deck({ id }: { id: string }) {
               <div className="fc-share">
                 <input readOnly value={link} aria-label="Link tự học" onFocus={(e) => e.target.select()} />
                 <button
-                  onClick={() => {
-                    void navigator.clipboard
-                      ?.writeText(link)
-                      .then(() => {
-                        setCopied(true);
-                        setTimeout(() => setCopied(false), 1500);
-                      })
-                      .catch(() => {});
-                  }}
+                  onClick={() => void run(async () => {
+                    await copyText(link);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1500);
+                  })}
                 >
                   {copied ? "Đã chép" : "Sao chép"}
                 </button>

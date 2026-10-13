@@ -1,4 +1,5 @@
 import { createUuid } from "../uuid";
+import { copyText } from "../clipboard";
 import { useEffect, useState } from "react";
 import { api, type Data } from "../api";
 import { useApp } from "../components";
@@ -38,7 +39,7 @@ export function RoomPairing({ session: s, offset, connected, reload }: { session
         <p className="muted pairing-help">Thiết bị gửi MSSV được ghép đúng học sinh trong phòng. Thiết bị không gửi MSSV chờ giáo viên chọn học sinh trong quản lý thiết bị; không ghép theo thứ tự kết nối.</p>
         <div className="actions">
           {editable && !open && <button className="primary" disabled={busy || !connected} onClick={() => command("open")}>Mở nhận thiết bị</button>}
-          {open && <button className="primary" onClick={() => void run(() => navigator.clipboard.writeText(p.room_code), "Đã sao chép ROOM ID.")}>Sao chép mã</button>}
+          {open && <button className="primary" onClick={() => void run(() => copyText(p.room_code), "Đã sao chép ROOM ID.")}>Sao chép mã</button>}
           {editable && open && <button disabled={busy || !connected} onClick={() => command("close")}>Đóng nhận</button>}
         </div>
         {editable && open && <button className="text-button" disabled={busy || !connected} onClick={() => command("open")}>Tạo mã mới</button>}

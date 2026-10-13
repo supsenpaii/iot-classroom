@@ -1,6 +1,7 @@
 import { Router, type Request, type RequestHandler } from "express";
 import session from "express-session";
 import { z } from "zod";
+import { studentCodeSchema } from "../shared/student-code.js";
 import { SqliteStore, token, hash } from "./auth.js";
 import { one, AppError, type DB, type Row } from "./db.js";
 import type { AppConfig } from "./app.js";
@@ -66,7 +67,7 @@ export function studentSnapshot(db: DB, quiz: Quiz, identity: StudentIdentity) {
 }
 
 const inputSchema = z.object({
-  student_code: z.string().trim().regex(/^\d{1,10}$/),
+  student_code: studentCodeSchema,
   room_code: z.string().transform(s => s.replace(/\s/g, "")).pipe(z.string().regex(/^\d{8}$/)),
   request_id: z.string().uuid(),
 }).strict();

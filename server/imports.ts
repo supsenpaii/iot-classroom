@@ -2,9 +2,10 @@ import { Worker } from "node:worker_threads";
 import ExcelJS from "exceljs";
 import { z } from "zod";
 import { questionSchema, flashcardSchema } from "../shared/protocol.js";
+import { studentCodeSchema } from "../shared/student-code.js";
 import { AppError, type Row } from "./db.js";
 export const studentSchema = z.object({
-  student_code: z.string().trim().min(1).max(50),
+  student_code: studentCodeSchema,
   full_name: z.string().trim().min(1).max(150),
 });
 export async function preview(bytes: Buffer, name: string, kind = "questions") {
@@ -166,8 +167,8 @@ export async function template(
       ],
       rows = [
         ["ANSWER_KEY", "", "", ...Array.from({ length: questionCount }, (_, i) => ["A", "B", "C", "D"][i % 4])],
-        ["STUDENT", "HS001", "Nguyễn Minh Anh", ...Array.from({ length: questionCount }, (_, i) => ["A", "D", ""][i % 3])],
-        ["STUDENT", "HS002", "Trần Minh Bình", ...Array.from({ length: questionCount }, (_, i) => ["C", "B", "C"][i % 3])],
+        ["STUDENT", "001", "Nguyễn Minh Anh", ...Array.from({ length: questionCount }, (_, i) => ["A", "D", ""][i % 3])],
+        ["STUDENT", "002", "Trần Minh Bình", ...Array.from({ length: questionCount }, (_, i) => ["C", "B", "C"][i % 3])],
       ];
     if (format === "csv")
       return Buffer.from(
@@ -202,7 +203,7 @@ export async function template(
         ];
   const sample =
     kind === "students"
-      ? ["HS001", "Nguyễn Minh Anh"]
+      ? ["001", "Nguyễn Minh Anh"]
       : kind === "flashcards"
         ? [
             "GPIO9 trên ESP32-C3 dùng để làm gì?",

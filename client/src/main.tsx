@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
 // Weight stylesheets include unicode-range so Vietnamese and Latin use the same family.
 import "@fontsource/plus-jakarta-sans/400.css";
@@ -7,6 +7,7 @@ import "@fontsource/plus-jakarta-sans/600.css";
 import "@fontsource/plus-jakarta-sans/700.css";
 import { api, fields, setCsrf, signedOut, type Data } from "./api";
 import { Context, Head, Field, Icon, Status } from "./components";
+import type { RequestScope } from "./pages/study-plan-requests";
 // Preserve stylesheet order so asynchronously loaded pages keep the theme overrides.
 import "./pages/class-management.css";
 import "./pages/student.css";
@@ -45,6 +46,7 @@ function App() {
     [message, setMessage] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(0);
+  const noticeOwners = useRef<{ error?: RequestScope; message?: RequestScope }>({});
   const path = window.location.pathname;
   const studentPage = path === "/student" || path === "/student/";
   useEffect(() => {
@@ -72,15 +74,34 @@ function App() {
     document.addEventListener("visibilitychange", verify);
     return () => document.removeEventListener("visibilitychange", verify);
   }, [user, path]);
-  async function run(fn: () => Promise<unknown>, success = "") {
+  async function run(fn: () => Promise<unknown>, success = "", scope?: RequestScope) {
+    if (scope && !scope.isCurrent()) return;
     setBusy((n) => n + 1);
+    noticeOwners.current = {};
     setError("");
     setMessage("");
+    if (scope) void scope.cancelled.then(() => {
+      if (noticeOwners.current.error === scope) {
+        delete noticeOwners.current.error;
+        setError("");
+      }
+      if (noticeOwners.current.message === scope) {
+        delete noticeOwners.current.message;
+        setMessage("");
+      }
+    });
     try {
-      await fn();
-      setMessage(success);
+      const task = fn();
+      await (scope ? Promise.race([task, scope.cancelled]) : task);
+      if (!scope || scope.isCurrent()) {
+        noticeOwners.current.message = scope;
+        setMessage(success);
+      }
     } catch (e) {
-      setError((e as Error).message);
+      if (!scope || scope.isCurrent()) {
+        noticeOwners.current.error = scope;
+        setError((e as Error).message);
+      }
     } finally {
       setBusy((n) => n - 1);
     }

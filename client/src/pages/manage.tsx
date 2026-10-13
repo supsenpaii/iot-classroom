@@ -11,6 +11,7 @@ import {
 } from "../components";
 import { socketUrl } from "../socket";
 import { questionSchema, flashcardSchema } from "../../../shared/protocol";
+import { studentCodeSchema, STUDENT_CODE_ERROR } from "../../../shared/student-code";
 import "./class-management.css";
 import { ConfigFields, readConfig } from "../quiz-config";
 export { ConfigFields, readConfig } from "../quiz-config";
@@ -141,10 +142,13 @@ export function Importer({
     );
   const localErrors =
     preview?.rows.flatMap((r: Data, i: number) => {
-      if (kind === "students")
-        return !r.student_code.trim() || !r.full_name.trim()
-          ? [`Dòng ${i + 2}: cần mã và họ tên`]
-          : [];
+      if (kind === "students") {
+        const errors = [];
+        if (!studentCodeSchema.safeParse(r.student_code).success)
+          errors.push(`Dòng ${i + 2}: ${STUDENT_CODE_ERROR}`);
+        if (!r.full_name.trim()) errors.push(`Dòng ${i + 2}: cần họ tên`);
+        return errors;
+      }
       const parsed = (
         kind === "flashcards" ? flashcardSchema : questionSchema
       ).safeParse(r);
@@ -184,7 +188,7 @@ export function Importer({
                 ? "thẻ (cột front = mặt trước, back = mặt sau)"
                 : "danh sách học sinh"}
           </h3>
-          <p className="muted">XLSX hoặc CSV · Tối đa 5 MB, 500 dòng</p>
+          <p className="muted">XLSX hoặc CSV · Tối đa 5 MB, 500 dòng{kind === "students" && " · MSSV: 1–10 chữ số; cột Excel phải là Text để giữ số 0 đầu."}</p>
           {kind === "flashcards" && (
             <div className="fc-format">
               <table>
@@ -345,7 +349,10 @@ export function Importer({
               onClick={() => {
                 setBusy(true);
                 void run(async () => {
-                  await onCommit(preview.rows);
+                  const rows = kind === "students"
+                    ? preview.rows.map((row: Data) => ({ ...row, student_code: studentCodeSchema.parse(row.student_code) }))
+                    : preview.rows;
+                  await onCommit(rows);
                   setPreview(null);
                 }, "Đã lưu toàn bộ dữ liệu.").finally(() => setBusy(false));
               }}
@@ -607,6 +614,9 @@ export function Classes({ id }: { id?: string }) {
                   e.preventDefault();
                   const body = fields(e.currentTarget);
                   void run(async () => {
+                    const parsed = studentCodeSchema.safeParse(body.student_code);
+                    if (!parsed.success) throw Error(STUDENT_CODE_ERROR);
+                    body.student_code = parsed.data;
                     if (editing)
                       await api(
                         `/classes/${id}/students/${editing.id}`,
@@ -632,7 +642,7 @@ export function Classes({ id }: { id?: string }) {
                     name="student_code"
                     defaultValue={editing?.student_code}
                     required
-                    maxLength={50}
+                    inputMode="numeric"
                   />
                 </Field>
                 <Field label="Họ tên">

@@ -8,6 +8,8 @@ import {
 } from "../shared/protocol.js";
 import { hash } from "./auth.js";
 import { standings } from "./leaderboard.js";
+import { assertIdle } from "./live.js";
+import { assertValidStudentCodes } from "./student-codes.js";
 export class Quiz {
   constructor(
     public db: DB,
@@ -46,6 +48,8 @@ export class Quiz {
     this.validateCount(input.bank_id, config.count);
     const id = randomUUID();
     this.db.transaction(() => {
+      const students = all(this.db, "SELECT * FROM students WHERE class_id=?", cls.id);
+      assertValidStudentCodes(students);
       this.db
         .prepare(
           "INSERT INTO quiz_sessions(id,owner_teacher_id,class_id,bank_id,class_name,name,room_code,config,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
@@ -61,11 +65,7 @@ export class Quiz {
           JSON.stringify(config),
           this.now(),
         );
-      for (const st of all(
-        this.db,
-        "SELECT * FROM students WHERE class_id=?",
-        cls.id,
-      )) {
+      for (const st of students) {
         const sessionStudent = randomUUID();
         this.db
           .prepare(
@@ -331,6 +331,7 @@ export class Quiz {
             )
           )
             throw new AppError("ROOM_BUSY", "Đang có một phòng hoạt động", 409);
+          assertIdle(this.db, owner, id);
           if (
             !one(
               this.db,
@@ -405,6 +406,7 @@ export class Quiz {
           break;
         case "resume":
           requireState("PAUSED");
+          assertIdle(this.db, owner, id);
           if (q?.status === "OPEN")
             this.db
               .prepare(

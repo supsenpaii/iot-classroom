@@ -1,5 +1,6 @@
 import { randomInt, randomUUID } from "node:crypto";
 import { z } from "zod";
+import { studentCodeSchema } from "../shared/student-code.js";
 import { hash } from "./auth.js";
 import { one, owned, AppError, type DB } from "./db.js";
 import { Quiz } from "./quiz.js";
@@ -16,7 +17,7 @@ export const joinSchema = z.object({
   device_name: z.string().trim().min(1).max(80),
   device_secret: z.string().regex(/^[a-f0-9]{64}$/),
   device_id: z.string().uuid().optional(),
-  student_code: z.string().regex(/^\d{1,10}$/).optional(),
+  student_code: studentCodeSchema.optional(),
 });
 
 export function pairingSnapshot(db: DB, session: string, now = Date.now()) {

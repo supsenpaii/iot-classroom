@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, stateLabel, errorLabel, type Data } from "../api";
 import { Head, Status, useApp, useResource } from "../components";
 import { socketUrl } from "../socket";
+import type { FlashcardRatePacket } from "../../../shared/protocol";
 const ratingLabel: Record<string, string> = { KNOWN: "Nhớ", AGAIN: "Chưa nhớ" };
 function SimDevice({ device }: { device: Data }) {
   const [state, setState] = useState<Data>({ state: "WAITING" }),
@@ -13,6 +14,7 @@ function SimDevice({ device }: { device: Data }) {
     current = useRef<Data>({}),
     pending = useRef<Data | null>(null),
     queued = useRef<string | null>(null),
+    queuedRating = useRef<FlashcardRatePacket | null>(null),
     last = useRef<Data | null>(null),
     seq = useRef(0),
     drop = useRef(false),
@@ -28,6 +30,11 @@ function SimDevice({ device }: { device: Data }) {
     last.current = packet;
     setAck(`Đang gửi ${label}…`);
     transmit();
+  }
+  function sameDisplay(packet: FlashcardRatePacket, s: Data) {
+    return s.mode === "flashcard" && s.state === "RUNNING" &&
+      packet.review_id === s.id && packet.card_id === s.card?.id &&
+      packet.round === s.round && packet.display_id === s.display_id;
   }
   function choose(choice: string) {
     const s = current.current;
@@ -55,29 +62,35 @@ function SimDevice({ device }: { device: Data }) {
       return;
     }
     if (s.mode === "flashcard") {
-      // Same mapping as the firmware: A = remembered, B = not yet.
+      // A = remembered, B = not yet.
       const rating = choice === "A" ? "KNOWN" : choice === "B" ? "AGAIN" : null;
       if (!rating) {
         setAck("Flashcard: A = Nhớ, B = Chưa nhớ");
         return;
       }
-      if (pending.current) {
-        queued.current = choice;
-        setAck("Đang chờ ACK · giữ lựa chọn mới nhất");
+      if (!s.display_id || !Number.isInteger(s.round)) {
+        setAck("Chưa đồng bộ lượt ôn tập. Đang lấy lại trạng thái…");
+        socket.current?.send(JSON.stringify({ v: 1, type: "snapshot.request" }));
         return;
       }
-      const packet = {
+      const packet: FlashcardRatePacket = {
         v: 1,
         type: "flashcard.rate",
         request_id: createUuid(),
         review_id: s.id,
         card_id: s.card.id,
+        round: s.round,
+        display_id: s.display_id,
         rating,
       };
-      pending.current = packet;
-      last.current = packet;
-      setAck(`Đang gửi ${ratingLabel[rating]}…`);
-      transmit();
+      if (pending.current) {
+        if (pending.current.type === "flashcard.rate") {
+          queuedRating.current = packet;
+          setAck("Đang chờ ACK · giữ lựa chọn mới nhất");
+        } else setAck("Đang chờ ACK của hoạt động trước");
+        return;
+      }
+      send(packet, ratingLabel[rating]);
       return;
     }
     if (s.state === "LOBBY" || s.state === "PAUSED") {
@@ -150,8 +163,31 @@ function SimDevice({ device }: { device: Data }) {
                 seq.current,
                 msg.data.current_answer?.seq || 0,
               );
+            if (queuedRating.current && !sameDisplay(queuedRating.current, msg.data))
+              queuedRating.current = null;
             if (pending.current) transmit();
-          } else if (["flashcard.ack", "poll.ack", "attendance.ack"].includes(msg.type)) {
+          } else if (msg.type === "flashcard.ack") {
+            if (pending.current && pending.current.request_id !== msg.request_id) return;
+            if (drop.current) {
+              drop.current = false;
+              setAck("Đã bỏ ACK để thử gửi lại…");
+              return;
+            }
+            setAck(msg.accepted
+              ? `Đã ACK ${ratingLabel[msg.rating]}${msg.duplicate ? " · gói gửi lại" : ""}`
+              : `Từ chối: ${errorLabel[msg.code] || msg.code}`);
+            if (pending.current?.request_id === msg.request_id) {
+              pending.current = null;
+              if (retryTimer.current) clearTimeout(retryTimer.current);
+              const next = queuedRating.current;
+              queuedRating.current = null;
+              const choice = queued.current;
+              queued.current = null;
+              if (next && sameDisplay(next, current.current))
+                send(next, ratingLabel[next.rating]);
+              else if (choice && current.current.mode !== "flashcard") choose(choice);
+            }
+          } else if (["poll.ack", "attendance.ack"].includes(msg.type)) {
             setAck(
               msg.accepted
                 ? msg.type === "attendance.ack"

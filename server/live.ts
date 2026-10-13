@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { type DB, type Row, all, one, owned, must, AppError } from "./db.js";
+import { assertValidStudentCodes } from "./student-codes.js";
 import {
   pollSchema,
   pollVoteSchema,
@@ -15,14 +16,16 @@ export function busyInQuiz(db: DB, device: string) {
     device,
   );
 }
-// Devices follow one live activity at a time, so a teacher can run only one flashcard review, poll or check-in.
-export function assertIdle(db: DB, owner: string) {
+// A teacher can run one activity; a quiz may exclude itself when starting/resuming.
+export function assertIdle(db: DB, owner: string, currentQuizId?: string) {
+  if (one(
+    db,
+    "SELECT 1 FROM quiz_sessions WHERE owner_teacher_id=? AND state IN ('RUNNING','PAUSED') AND id<>?",
+    owner,
+    currentQuizId ?? "",
+  ))
+    throw new AppError("QUIZ_RUNNING", "Đang có buổi kiểm tra chạy. Kết thúc bài kiểm tra trước.", 409);
   const checks: [string, string, string][] = [
-    [
-      "SELECT 1 FROM quiz_sessions WHERE owner_teacher_id=? AND state IN ('RUNNING','PAUSED')",
-      "QUIZ_RUNNING",
-      "Đang có buổi kiểm tra chạy. Kết thúc bài kiểm tra trước.",
-    ],
     [
       "SELECT 1 FROM flashcard_reviews WHERE owner_teacher_id=? AND state='RUNNING'",
       "REVIEW_RUNNING",
@@ -53,14 +56,16 @@ export class Polls {
   ) {}
   create(owner: string, input: unknown) {
     const p = pollSchema.parse(input);
-    assertIdle(this.db, owner);
-    const id = randomUUID();
-    this.db
-      .prepare(
-        "INSERT INTO polls(id,owner_teacher_id,question,options,hide_results,created_at) VALUES (?,?,?,?,?,?)",
-      )
-      .run(id, owner, p.question, JSON.stringify(p.options), +p.hide_results, this.now());
-    return id;
+    return this.db.transaction(() => {
+      assertIdle(this.db, owner);
+      const id = randomUUID();
+      this.db
+        .prepare(
+          "INSERT INTO polls(id,owner_teacher_id,question,options,hide_results,created_at) VALUES (?,?,?,?,?,?)",
+        )
+        .run(id, owner, p.question, JSON.stringify(p.options), +p.hide_results, this.now());
+      return id;
+    })();
   }
   list(owner: string) {
     return all(
@@ -205,9 +210,10 @@ export class Attendance {
     );
     if (!students.length)
       throw new AppError("NO_STUDENTS", "Lớp chưa có học sinh để điểm danh");
-    assertIdle(this.db, owner);
     const id = randomUUID();
     this.db.transaction(() => {
+      assertIdle(this.db, owner);
+      assertValidStudentCodes(students);
       this.db
         .prepare(
           "INSERT INTO attendance_sessions(id,owner_teacher_id,class_id,class_name,created_at) VALUES (?,?,?,?,?)",

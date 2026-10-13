@@ -2,6 +2,7 @@ import { randomInt, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { type DB, type Row, all, one, owned, must, AppError } from "./db.js";
 import { flashcardRateSchema } from "../shared/protocol.js";
+import { hash } from "./auth.js";
 import { assertIdle, busyInQuiz } from "./live.js";
 type Card = { id: string; front: string; back: string };
 type Counts = { KNOWN: number; AGAIN: number };
@@ -123,22 +124,25 @@ export class Flashcards {
     const cards = this.cards(deck.id);
     if (!cards.length)
       throw new AppError("EMPTY_DECK", "Bộ thẻ chưa có thẻ nào để ôn tập");
-    assertIdle(this.db, owner);
-    const id = randomUUID();
-    this.db
-      .prepare(
-        "INSERT INTO flashcard_reviews(id,owner_teacher_id,deck_id,deck_name,cards,queue,created_at) VALUES (?,?,?,?,?,?,?)",
-      )
-      .run(
-        id,
-        owner,
-        deck.id,
-        deck.name,
-        JSON.stringify(cards),
-        JSON.stringify((shuffle ? shuffled(cards) : cards).map((c) => c.id)),
-        this.now(),
-      );
-    return id;
+    return this.db.transaction(() => {
+      assertIdle(this.db, owner);
+      const id = randomUUID();
+      this.db
+        .prepare(
+          "INSERT INTO flashcard_reviews(id,owner_teacher_id,deck_id,deck_name,cards,queue,created_at,display_id) VALUES (?,?,?,?,?,?,?,?)",
+        )
+        .run(
+          id,
+          owner,
+          deck.id,
+          deck.name,
+          JSON.stringify(cards),
+          JSON.stringify((shuffle ? shuffled(cards) : cards).map((c) => c.id)),
+          this.now(),
+          randomUUID(),
+        );
+      return id;
+    })();
   }
   get(id: string) {
     return must(one(this.db, "SELECT * FROM flashcard_reviews WHERE id=?", id));
@@ -187,9 +191,13 @@ export class Flashcards {
       }
       this.db
         .prepare(
-          "UPDATE flashcard_reviews SET queue=?,round=?,current_index=?,side=?,state=?,finished_at=?,state_version=state_version+1 WHERE id=?",
+          "UPDATE flashcard_reviews SET queue=?,round=?,current_index=?,side=?,state=?,finished_at=?,display_id=?,state_version=state_version+1 WHERE id=?",
         )
-        .run(r.queue, round, index, side, state, finished, id);
+        .run(
+          r.queue, round, index, side, state, finished,
+          ["next", "prev", "repeat"].includes(action) ? randomUUID() : r.display_id,
+          id,
+        );
     })();
   }
   private busy(device: string) {
@@ -232,6 +240,7 @@ export class Flashcards {
       state_version: r.state_version,
       server_time: this.now(),
       round: r.round,
+      display_id: r.display_id,
       index: r.current_index,
       total: queue.length,
       side: r.side,
@@ -291,6 +300,8 @@ export class Flashcards {
       state: "RUNNING",
       state_version: r.state_version,
       server_time: this.now(),
+      round: r.round,
+      display_id: r.display_id,
       card: {
         id: cardId,
         index: r.current_index + 1,
@@ -300,15 +311,29 @@ export class Flashcards {
       current_rating: own?.rating ?? null,
     };
   }
-  // Last rating wins; resending the same packet is naturally idempotent, so no receipt table is needed.
+  // New choices replace a rating; retries return their durable receipt without writing again.
   rate(device: string, input: unknown) {
-    const p = flashcardRateSchema.parse(input);
+    const parsed = flashcardRateSchema.safeParse(input);
+    if (!parsed.success) {
+      const request = z.object({ request_id: z.string().min(1).max(100) }).safeParse(input);
+      if (!request.success) throw parsed.error;
+      return {
+        v: 1, type: "flashcard.ack", request_id: request.data.request_id,
+        accepted: false, code: "INVALID_PAYLOAD", duplicate: false,
+      };
+    }
+    const p = parsed.data;
     const reject = (code: string) => ({
       v: 1,
       type: "flashcard.ack",
       request_id: p.request_id,
+      review_id: p.review_id,
+      card_id: p.card_id,
+      round: p.round,
+      display_id: p.display_id,
       accepted: false,
       code,
+      duplicate: false,
     });
     return this.db.transaction((): Row => {
       const d = one(
@@ -317,29 +342,46 @@ export class Flashcards {
         device,
       );
       if (!d) return reject("DEVICE_NOT_ASSIGNED");
-      if (this.busy(device)) return reject("DEVICE_BUSY");
       const r = one(
         this.db,
         "SELECT * FROM flashcard_reviews WHERE id=? AND owner_teacher_id=?",
         p.review_id,
         d.owner_teacher_id,
       );
-      if (!r || r.state !== "RUNNING") return reject("REVIEW_CLOSED");
-      if (JSON.parse(r.queue)[r.current_index] !== p.card_id)
-        return reject("CARD_CHANGED");
-      this.db
-        .prepare(
-          "INSERT INTO flashcard_ratings VALUES (?,?,?,?,?,?) ON CONFLICT(review_id,round,card_id,device_id) DO UPDATE SET rating=excluded.rating,updated_at=excluded.updated_at",
-        )
-        .run(r.id, r.round, p.card_id, device, p.rating, this.now());
-      return {
-        v: 1,
-        type: "flashcard.ack",
-        request_id: p.request_id,
-        accepted: true,
-        card_id: p.card_id,
-        rating: p.rating,
-      };
+      if (!r) return reject("REVIEW_CLOSED");
+      const digest = hash(JSON.stringify(p));
+      const old = one(
+        this.db,
+        "SELECT payload_hash,ack FROM flashcard_receipts WHERE device_id=? AND request_id=?",
+        device, p.request_id,
+      );
+      if (old) {
+        if (old.payload_hash !== digest) return reject("REQUEST_REUSED");
+        return { ...JSON.parse(old.ack), duplicate: true };
+      }
+      let result: Row;
+      if (this.busy(device)) result = reject("DEVICE_BUSY");
+      else if (r.state !== "RUNNING") result = reject("REVIEW_CLOSED");
+      else if (JSON.parse(r.queue)[r.current_index] !== p.card_id)
+        result = reject("CARD_CHANGED");
+      else if (r.round !== p.round) result = reject("ROUND_CHANGED");
+      else if (r.display_id !== p.display_id) result = reject("DISPLAY_CHANGED");
+      else {
+        this.db
+          .prepare(
+            "INSERT INTO flashcard_ratings VALUES (?,?,?,?,?,?) ON CONFLICT(review_id,round,card_id,device_id) DO UPDATE SET rating=excluded.rating,updated_at=excluded.updated_at",
+          )
+          .run(r.id, p.round, p.card_id, device, p.rating, this.now());
+        result = {
+          v: 1, type: "flashcard.ack", request_id: p.request_id,
+          review_id: p.review_id, card_id: p.card_id, round: p.round,
+          display_id: p.display_id, accepted: true, rating: p.rating, duplicate: false,
+        };
+      }
+      this.db.prepare(
+        "INSERT INTO flashcard_receipts(device_id,request_id,review_id,payload_hash,ack,created_at) VALUES (?,?,?,?,?,?)",
+      ).run(device, p.request_id, r.id, digest, JSON.stringify(result), this.now());
+      return result;
     })();
   }
 }
