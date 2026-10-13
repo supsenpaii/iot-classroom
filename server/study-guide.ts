@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AppError } from "./db.js";
+import type { Choice, StudyGuide } from "../shared/protocol.js";
 
 const REQUEST_TIMEOUT_MS = 90000;
 const letter = z.string().trim().toUpperCase().pipe(z.enum(["A", "B", "C", "D"]));
@@ -37,7 +38,7 @@ export type GuideInput = {
     no: number;
     topic: string;
     question: string;
-    options: Record<"A" | "B" | "C" | "D", string>;
+    options: Record<Choice, string>;
     chosen: string | null;
     chosen_text: string | null;
     correct: string;
@@ -95,7 +96,7 @@ async function requestStudyGuide(
   input: GuideInput,
   apiKeys: string[],
   models: string[],
-) {
+): Promise<StudyGuide> {
   lastModel = "?";
   const prompt = [
     "Bạn là giáo viên bộ môn. Viết hoàn toàn bằng tiếng Việt có dấu, giọng trung tính, không xưng hô (không dùng 'em', 'bạn'). Thuật ngữ kỹ thuật (HTTP, RSSI, GPIO, SQL...) giữ nguyên; tuyệt đối không chèn chữ hoặc từ tiếng Trung, Hàn, Nhật, Pháp.",
@@ -302,7 +303,7 @@ export async function createStudyGuide(
   input: GuideInput,
   apiKeys: string[],
   models: string[] = [],
-) {
+): Promise<StudyGuide> {
   if (!models.length) models = ["openrouter/free"];
   const started = Date.now();
   for (let attempt = 1; ; attempt++) {

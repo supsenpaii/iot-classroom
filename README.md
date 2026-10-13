@@ -36,7 +36,7 @@ Xem [hướng dẫn làm bài trên web](docs/STUDENT_WEB.md).
 
 1. Vào `/register` để tạo tài khoản giáo viên, hoặc `/login` nếu đã có tài khoản. Mỗi giáo viên chỉ thấy dữ liệu của mình.
 2. Trong **Lớp học**, tạo lớp và thêm học sinh. Trong **Ngân hàng câu hỏi**, tải mẫu XLSX/CSV, nhập câu hỏi, xem trước rồi lưu bộ đề.
-3. Trong phòng kiểm tra, nhấn **Mở nhận thiết bị** để lấy **ROOM ID** 8 chữ số, hiệu lực 5 phút. Mặc định tự ghép thiết bị vào học sinh chưa có thiết bị theo thứ tự mã; tên hiện ngay trong **Học sinh đã kết nối**. Kiểm tra tên, sửa ghép trong **Quản lý thiết bị** nếu cần, hoặc bỏ chọn tự ghép trước khi mở nhận để ghép thủ công. Firmware cũ vẫn dùng cấu hình Device ID/secret.
+3. Trong phòng kiểm tra, nhấn **Mở nhận thiết bị** để lấy **ROOM ID** 8 chữ số, hiệu lực 5 phút. ESP32/web gửi MSSV để ghép đúng học sinh; tên quản lý thiết bị độc lập với MSSV. Simulator/client không gửi MSSV chờ giáo viên chọn học sinh trong **Quản lý thiết bị**. Không ghép theo thứ tự kết nối. ESP32 giữ Device ID/secret hiện có và có thể dùng cho MSSV khác ở phiên sau. Xem [quy tắc device pairing](docs/DEVICE_PAIRING.md).
 4. Tạo buổi kiểm tra, chọn lớp/bộ đề, số câu và thời gian. Ghép mỗi học sinh với một thiết bị; kiểm tra nút bấm trước khi bắt đầu. Nếu chưa có ESP32, bản development có thể bật `ENABLE_SIMULATOR=true` và dùng trang **Giả lập**.
 5. Mở màn hình trình chiếu cho cả lớp. Giáo viên điều khiển buổi kiểm tra ở bảng riêng; học sinh bấm A/B/C/D trên thiết bị. Web hiển thị trạng thái kết nối, đã/chưa nộp, thời gian và kết quả sau khi đóng câu.
 6. Vào **Báo cáo** để xem biểu đồ, ma trận kết quả và xuất Excel/PDF. Có thể nhập kết quả cũ bằng XLSX/CSV ngay tại trang này.

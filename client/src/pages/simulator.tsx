@@ -307,7 +307,7 @@ export function Simulator() {
       />
       <section className="card room-pairing">
         <h2>Tự kết nối bằng ROOM ID</h2>
-        <p className="muted">Mở nhận thiết bị ở phòng kiểm tra, nhập mã rồi kết nối. Không cần nhập secret hay giáo viên duyệt.</p>
+        <p className="muted">Mở nhận thiết bị ở phòng kiểm tra, nhập mã rồi kết nối. Thiết bị giả lập vào phòng chưa ghép; giáo viên chọn MSSV cho từng thiết bị trong Quản lý thiết bị &amp; sửa ghép học sinh trước khi bắt đầu.</p>
         <form className="row" onSubmit={(e) => {
           e.preventDefault();
           if (joining) return;
@@ -330,7 +330,7 @@ export function Simulator() {
               }
               joinBatch.current = null;
             } finally { r.reload(); }
-          }, "Thiết bị đã tự vào phòng. Quay lại phòng để chọn học sinh và bấm thử.").finally(() => setJoining(false));
+          }, "Thiết bị đã vào phòng và chờ ghép. Mở Quản lý thiết bị trong phòng, chọn MSSV cho từng thiết bị rồi bấm thử.").finally(() => setJoining(false));
         }}>
           <label className="field">ROOM ID<input inputMode="numeric" autoComplete="off" required value={roomCode} placeholder="4827 1936" maxLength={12} disabled={joining} onChange={(e) => { setRoomCode(e.target.value); joinBatch.current = null; }} /></label>
           <label className="field">Số thiết bị<input type="number" min={1} max={50} required value={count} disabled={joining} onChange={(e) => { setCount(Number(e.target.value)); joinBatch.current = null; }} /></label>

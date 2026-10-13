@@ -1,4 +1,11 @@
 export type Data = Record<string, any>; // JSON API documents; inputs are validated by shared Zod schemas on the server.
+export type ApiError = Error & { code: string | undefined; details: unknown };
+type ApiErrorResponse = {
+  code?: string;
+  message?: string;
+  requestId?: string;
+  fieldErrors?: unknown;
+};
 let csrf = "";
 const authChannel = new BroadcastChannel("classroom-auth");
 authChannel.onmessage = (event) => {
@@ -34,22 +41,23 @@ export async function api<T = any>(
   }).catch(() => {
     throw new Error("Mất kết nối máy chủ. Kiểm tra mạng rồi thử lại.");
   });
-  const data = await res.json().catch(() => null);
+  const data: unknown = await res.json().catch(() => null);
   if (!data) throw new Error("Không đọc được phản hồi máy chủ. Thử lại sau.");
   if (!res.ok) {
     if (res.status === 401 && !["/auth/login", "/auth/me", "/presentation/exchange"].includes(path))
       signedOut();
+    const failure = data as ApiErrorResponse;
     const error = new Error(
-      (data.message || "Không kết nối được máy chủ") +
-        (res.status >= 500 && data.requestId
-          ? ` · Mã tra cứu: ${data.requestId}`
+      (failure.message || "Không kết nối được máy chủ") +
+        (res.status >= 500 && failure.requestId
+          ? ` · Mã tra cứu: ${failure.requestId}`
           : ""),
-    ) as Error & { code: string; details: unknown };
-    error.code = data.code;
-    error.details = data.fieldErrors;
+    ) as ApiError;
+    error.code = failure.code;
+    error.details = failure.fieldErrors;
     throw error;
   }
-  return data;
+  return data as T;
 }
 export const fields = (form: HTMLFormElement) =>
   Object.fromEntries(new FormData(form));
@@ -85,6 +93,7 @@ export const eventLabel: Record<string, string> = {
   "device.disconnected": "Thiết bị mất kết nối",
   "server.recovered": "Khôi phục máy chủ",
   "binding.changed": "Thay đổi ghép thiết bị",
+  "binding.label.snapshot": "Lưu nhãn thiết bị của phiên",
   "answer.saved": "Đã lưu đáp án",
   "answer.rejected": "Đáp án không hợp lệ",
   "reveal-results": "Công bố kết quả lên màn chiếu",

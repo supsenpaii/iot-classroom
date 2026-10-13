@@ -389,6 +389,7 @@ export function attachRealtime(
           const bindings = all(db, "SELECT b.session_id,b.session_student_id,s.state FROM session_devices b JOIN quiz_sessions s ON s.id=b.session_id WHERE b.device_id=? AND b.active=1 AND s.state IN ('LOBBY','RUNNING','PAUSED')", p.device);
           if (!code && [...bindings, ...rooms].some(b => b.state === "RUNNING")) code = "DEVICE_BUSY";
           if (!code) db.transaction(() => {
+            quiz.preserveDeviceLabels(p.device!);
             // A new student entry starts a fresh room join, even for the same code.
             for (const b of bindings) quiz.bind(b.session_id, b.session_student_id, null, device.owner_teacher_id);
             for (const room of rooms) {

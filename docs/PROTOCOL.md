@@ -6,13 +6,19 @@ WebSocket chuẩn tại `/ws`. Production dùng WSS cùng origin. JSON UTF-8, t�
 
 ### Ghép nối tự động bằng ROOM ID
 
-Backend và firmware ESP32 hỗ trợ nhập MSSV rồi ROOM ID (firmware dùng credentials đã cấu hình). Không yêu cầu giáo viên duyệt. ROOM ID là **chuỗi 8 chữ số** (giữ số 0 đầu), dùng chung cho nhiều thiết bị, hiệu lực 5 phút theo server. Chỉ nhận trong LOBBY/PAUSED khi giáo viên mở nhận. Bắt đầu/resume/kết thúc/hủy hoặc restart backend đóng nhận mới; thiết bị đã đăng ký vẫn xác thực/reconnect bằng credentials riêng.
+Firmware ESP32 nhập ROOM ID rồi MSSV, dùng credentials đã cấu hình. Join có MSSV hợp lệ không yêu cầu giáo viên duyệt. ROOM ID là **chuỗi 8 chữ số** (giữ số 0 đầu), dùng chung cho nhiều thiết bị, hiệu lực 5 phút theo server. Chỉ nhận trong LOBBY/PAUSED khi giáo viên mở nhận. Bắt đầu/resume/kết thúc/hủy hoặc restart backend đóng nhận mới; thiết bị đã đăng ký vẫn xác thực/reconnect bằng credentials riêng.
 
 `room_code` 6 chữ số trong snapshot v1 cũ chỉ là mã tham chiếu buổi, không được dùng để join. ROOM ID mới chỉ trả qua API/snapshot có quyền giáo viên, trong `pairing.room_code`; không gửi mã này cho projection/device.
 
-Web mới mặc định chọn **Tự ghép học sinh khi thiết bị vào** khi mở nhận. Lệnh open gửi `auto_assign:true`; backend ghép thiết bị mới vào học sinh không vắng/chưa có binding đầu tiên theo thứ tự mã học sinh, trong cùng transaction join. Retry không ghép lại. Khi không còn học sinh trống, thiết bị vẫn vào với `UNASSIGNED`. Có thể bỏ chọn trước khi mở nhận để ghép thủ công; API cũ không có trường này vẫn giữ chế độ thủ công. Việc ghép theo thứ tự không xác minh danh tính người cầm thiết bị: giáo viên kiểm tra tên và sửa ghép nếu cần. Không trả tên/mã học sinh cho thiết bị.
+`device_id`/secret xác thực thiết bị; `device.label` là nhãn quản lý, độc lập với MSSV. Backend không đổi nhãn thiết bị đã đăng ký khi join. Thiết bị mới dùng `device_name` làm nhãn (thêm hậu tố nếu trùng nhãn quản lý). Không suy học sinh từ label hoặc thứ tự kết nối. Join không có `student_code` nhận `UNASSIGNED`, chờ giáo viên chọn học sinh. Trường `auto_assign` và snapshot tương ứng vẫn được chấp nhận/lưu để tương thích cấu trúc API cũ, nhưng không còn kích hoạt ghép theo label hoặc thứ tự. Web không còn lựa chọn ghép theo thứ tự. Không trả tên/mã học sinh cho thiết bị.
 
-Có thể gửi thêm `student_code` (chuỗi 1–10 chữ số) trong join. Backend ghép đúng MSSV trong danh sách buổi thi, không phụ thuộc `auto_assign`; không tự đổi sang học sinh khác. MSSV không có hoặc vắng trả `STUDENT_UNAVAILABLE`; học sinh đã có thiết bị khác hoặc thiết bị đã ghép học sinh khác trả `STUDENT_ALREADY_BOUND`. Lỗi rollback toàn bộ join. MSSV là thông tin tự khai, không phải bằng chứng xác thực danh tính; giáo viên vẫn kiểm tra người cầm thiết bị. Client cũ không gửi trường này giữ hành vi cũ.
+Có thể gửi thêm `student_code` (chuỗi 1–10 chữ số) trong join. Backend ghép đúng MSSV trong snapshot học sinh của buổi thi, không phụ thuộc `auto_assign`; không tự đổi sang học sinh khác. MSSV không có hoặc vắng trả `STUDENT_UNAVAILABLE`; học sinh đã có thiết bị khác hoặc thiết bị đã ghép học sinh khác trả `STUDENT_ALREADY_BOUND`. Lỗi rollback toàn bộ join. MSSV là thông tin tự khai, không phải bằng chứng xác thực danh tính; giáo viên vẫn kiểm tra người cầm thiết bị. Client cũ không gửi MSSV cần được giáo viên ghép thủ công.
+
+Giáo viên có thể ghép nhãn thiết bị bất kỳ với học sinh hợp lệ trong LOBBY/PAUSED qua các endpoint binding hiện có. Endpoint `/api/sessions/:id/room-devices/:device/student` sửa ghép với `expected_version`; gỡ binding cũ và tạo binding mới trong cùng transaction, lỗi giữ nguyên binding cũ. Không chiếm học sinh đã ghép hoặc thiết bị thuộc phòng khác chưa kết thúc. Sau FINISHED/CANCELLED, cùng ID/secret được join phiên mới với MSSV khác và request ID mới, không xóa dữ liệu phiên cũ.
+
+Rebind tạo `binding_id` mới. Packet answer dùng binding cũ bị từ chối khi phiên còn hoạt động; sau kết thúc/hủy, receipt cũ có thể được trả lại với `duplicate:true`, nhưng không ghi đáp án cho binding hoặc phiên mới. Retry join cũ không thay assignment hiện tại. Học sinh browser vẫn bị ràng buộc vào binding riêng và không được theo binding của học sinh mới.
+
+Nhãn của binding mới được ghi trong event `binding.changed` bằng `binding_id`/`device_label`; báo cáo ưu tiên nhãn này. Trước legacy rename, các binding cũ chưa có snapshot được lưu bằng audit event `binding.label.snapshot` trong cùng transaction, không sửa điểm/đáp án hoặc xóa event cũ. Không migration/backfill database thật. Nếu label đã bị đổi trước bản cập nhật và không có snapshot, không thể suy ra tên nguyên thủy; bản cập nhật bảo tồn nhãn đang có trước lần rename tiếp theo. Quiz join/rebind không cập nhật `student_devices`; giáo viên kiểm tra mapping điểm danh riêng khi dùng lại thiết bị.
 
 Thiết bị cấu hình trước URL server và Wi-Fi. Tạo secret 32 byte bằng nguồn ngẫu nhiên mật mã, encode **64 ký tự hex thường**, lưu trong NVS trước khi gửi. Tạo/lưu request ID cùng gói join để retry sau mất nguồn/phản hồi. Không suy ra secret từ ROOM ID, MAC hoặc thời gian. Không đổi credentials trước khi biết kết quả join.
 
@@ -205,10 +211,10 @@ Cấu hình buổi `leaderboard` (mặc định bật). Câu đúng được 500
 ## Đổi tên từ bàn phím ESP32
 
 Socket đã xác thực gửi `{ "v":1, "type":"device.rename", "request_id":"rename-1", "label":"0012345678" }`.
-Server chỉ đổi nhãn của chính thiết bị trên socket, giữ nguyên ID, secret và ghép học sinh.
-Nhãn là MSSV 1–10 chữ số, giữ số 0 đầu; không trùng thiết bị đang dùng của cùng giáo viên.
-Phản hồi `device.rename.ack` có `request_id`, `accepted`, `label`; khi từ chối có `code` là `INVALID_LABEL` hoặc `DUPLICATE_LABEL`.
-Gửi lại cùng nhãn là an toàn. Đổi tên không tự gán thiết bị cho học sinh có MSSV đó.
+Đây là handler legacy để tương thích client cũ; firmware hiện nhập MSSV bằng HTTP join và không cần rename. Server chỉ đổi nhãn của chính thiết bị trên socket, giữ nguyên ID/secret. Handler legacy vẫn yêu cầu nhãn số 1–10 chữ số tồn tại trong lớp chưa lưu trữ của giáo viên, không trùng thiết bị chưa thu hồi. Hạn chế này không áp dụng cho nhãn quản lý tạo bằng API thiết bị hoặc điều kiện manual binding.
+Trong RUNNING, rename trả `DEVICE_BUSY`. Khi chấp nhận trong LOBBY/PAUSED, handler bỏ binding và membership để yêu cầu join mới, kể cả gửi lại cùng nhãn. Nhãn báo cáo cũ được bảo tồn bằng snapshot trước khi đổi.
+Phản hồi `device.rename.ack` có `request_id`, `accepted`, `label`; mã từ chối gồm `INVALID_LABEL`, `STUDENT_UNAVAILABLE`, `DUPLICATE_LABEL`, `DEVICE_BUSY`.
+Đổi tên không tự gán thiết bị cho học sinh có MSSV đó. Không dùng rename để chuyển học sinh; giáo viên dùng endpoint sửa ghép.
 
 ## Tiến độ và kết quả trên ESP32
 

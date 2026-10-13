@@ -168,7 +168,9 @@ try {
   // New room: 50 devices enter concurrently through one NAT, then connect through real WebSockets.
   const loadId = app.quiz.create(a.data.id, { class_id: a.data.id, bank_id: a.data.id, name: "50 devices", config: cfg });
   const loadRoom = await pairing("open", loadId, auth, { command_id: randomUUID(), expected_version: (await snapshot(loadId, auth)).state_version, auto_assign: true });
-  const packets = Array.from({ length: 50 }, (_, i) => packet(loadRoom.data.room_code, `LOAD-${i}`));
+  const packets = Array.from({ length: 50 }, (_, i) => ({
+    ...packet(loadRoom.data.room_code, `LOAD-${i}`), student_code: String(i).padStart(2, "0"),
+  }));
   const joined50 = await Promise.all(packets.map(nativeJoin));
   for (const r of joined50) { assert.equal(r.status, 201, JSON.stringify(r.data)); assert.equal(r.data.status, "ASSIGNED"); }
   assert.equal((await nativeJoin(packet(loadRoom.data.room_code))).data.code, "ROOM_FULL");

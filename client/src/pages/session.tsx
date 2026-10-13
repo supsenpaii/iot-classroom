@@ -13,7 +13,7 @@ import {
   useResource,
 } from "../components";
 import { useClock, useSessionSocket } from "../socket";
-import { ConfigFields, readConfig } from "./manage";
+import { ConfigFields, readConfig } from "../quiz-config";
 import { RoomPairing } from "./room-pairing";
 export function SessionPage({ id }: { id: string }) {
   const { run, user } = useApp(),
@@ -311,33 +311,15 @@ export function SessionPage({ id }: { id: string }) {
           {s.state === "LOBBY" && (
             <div className="row pairing-action">
               <button
-                onClick={() =>
-                  void run(async () => {
-                    const fresh: Data[] = await api("/devices");
-                    const free = fresh.filter(
-                      (d) => !d.revoked && !d.assigned_session && (!s.room_devices?.length || s.room_devices.some((m: Data) => m.id === d.id)),
-                    );
-                    const unbound = s.students.filter(
-                      (st: Data) => !st.absent && !st.device_id,
-                    );
-                    if (!unbound.length)
-                      throw Error("Các học sinh dự thi đều đã ghép thiết bị");
-                    if (free.length < unbound.length)
-                      throw Error(
-                        `Cần thêm ${unbound.length - free.length} thiết bị chưa ghép`,
-                      );
-                    await api(`/sessions/${id}/bindings`, "PUT", {
-                      rows: unbound.map((st: Data, i: number) => ({
-                        student_id: st.id,
-                        device_id: free[i].id,
-                      })),
-                    });
-                    devices.reload();
-                    initial.reload();
-                  }, "Đã ghép thiết bị theo thứ tự mã học sinh và nhãn thiết bị.")
-                }
+                onClick={() => {
+                  const management = document.querySelector<HTMLDetailsElement>(".pairing-management");
+                  if (management) {
+                    management.open = true;
+                    management.scrollIntoView({ behavior: "smooth" });
+                  }
+                }}
               >
-                Ghép tự động học sinh chưa có thiết bị
+                Mở quản lý ghép thiết bị thủ công
               </button>
             </div>
           )}
@@ -397,7 +379,9 @@ export function SessionPage({ id }: { id: string }) {
                           >
                             <option value="">Chưa ghép</option>
                             {Array.from(new Map([...(devices.data ?? []), ...(s.room_devices ?? [])].map((d: Data) => [d.id, d])).values())
-                              ?.filter((d) => !d.revoked && d.label === st.student_code)
+                              ?.filter((d) => !d.revoked &&
+                                (!d.assigned_session || d.id === st.device_id) &&
+                                !s.students.some((other: Data) => other.id !== st.id && other.device_id === d.id))
                               .map((d) => (
                                 <option key={d.id} value={d.id}>
                                   {d.label} · {d.id.slice(-6)}

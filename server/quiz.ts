@@ -106,8 +106,6 @@ export class Quiz {
         throw new AppError("ABSENT", "Học sinh được đánh dấu vắng");
       if (device) {
         const d = owned(this.db, "devices", device, owner);
-        if (d.label !== st.student_code)
-          throw new AppError("STUDENT_CODE_MISMATCH", "Mã thiết bị phải trùng MSSV của học sinh", 409);
         if (d.revoked)
           throw new AppError("DEVICE_REVOKED", "Thiết bị đã thu hồi");
         const occupied = one(
@@ -132,10 +130,11 @@ export class Quiz {
           "UPDATE session_devices SET active=0 WHERE session_student_id=?",
         )
         .run(student);
+      const bindingId = device ? randomUUID() : null;
       if (device)
         this.db
           .prepare("INSERT INTO session_devices VALUES (?,?,?,?,1,?)")
-          .run(randomUUID(), id, student, device, this.now());
+          .run(bindingId, id, student, device, this.now());
       if (device)
         this.db.prepare("INSERT OR IGNORE INTO room_devices(session_id,device_id,joined_at) VALUES (?,?,?)").run(id, device, this.now());
       this.db
@@ -143,8 +142,19 @@ export class Quiz {
           "UPDATE quiz_sessions SET state_version=state_version+1 WHERE id=?",
         )
         .run(id);
-      this.event(id, "binding.changed", { student, device }, owner);
+      this.event(id, "binding.changed", {
+        student, device, binding_id: bindingId,
+        device_label: device ? one(this.db, "SELECT label FROM devices WHERE id=?", device)!.label : null,
+      }, owner);
     })();
+  }
+  // Freeze labels of legacy bindings before the legacy rename handler mutates a device.
+  // New bindings already carry their label in binding.changed; no schema migration is needed.
+  preserveDeviceLabels(device: string) {
+    for (const b of all(this.db, "SELECT b.*,d.label FROM session_devices b JOIN devices d ON d.id=b.device_id WHERE b.device_id=?", device)) {
+      const saved = one(this.db, "SELECT 1 FROM session_events WHERE session_id=? AND type IN ('binding.changed','binding.label.snapshot') AND json_extract(detail,'$.binding_id')=? AND json_type(detail,'$.device_label')='text'", b.session_id, b.id);
+      if (!saved) this.event(b.session_id, "binding.label.snapshot", { binding_id: b.id, device_label: b.label });
+    }
   }
   open(id: string, order: number) {
     const s = this.get(id),
@@ -749,6 +759,9 @@ export class Quiz {
         id,
       ),
       eventRecords: Row[] = events.map((e) => ({ ...e, data: JSON.parse(e.detail) })),
+      bindingLabels = new Map(eventRecords
+        .filter((e) => ["binding.changed", "binding.label.snapshot"].includes(e.type) && e.data.binding_id && typeof e.data.device_label === "string")
+        .map((e) => [e.data.binding_id, e.data.device_label])),
       openingEvents = new Map(eventRecords.filter((e) => e.type === "question.opened").map((e) => [e.data.question_id, e])),
       closingEvents = new Map(eventRecords.filter((e) => e.type === "question.closed").map((e) => [e.data.question_id, e])),
       incidentEvents = eventRecords
@@ -803,7 +816,7 @@ export class Quiz {
           response_ms: s.source === "IMPORT" ? null : a?.response_ms ?? null,
           received_at: a?.received_at ?? null,
           binding_id: a?.binding_id ?? null,
-          device_label: bindings.find((b) => b.id === a?.binding_id)?.label ?? null,
+          device_label: bindingLabels.get(a?.binding_id) ?? bindings.find((b) => b.id === a?.binding_id)?.label ?? null,
           status: q.status,
           voided: !!q.voided,
           opened_at: q.opened_at,

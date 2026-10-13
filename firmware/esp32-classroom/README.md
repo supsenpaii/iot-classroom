@@ -46,7 +46,7 @@ Cần cấu hình Wi-Fi, WS_HOST và WS_PORT trỏ đến backend; chưa tự c�
 5. Dùng A/B/C/D trả lời; màn hình kết thúc hiển thị kết quả từ backend.
 
 DELETE xóa một số; khi ô MSSV trống, DELETE quay lại sửa ROOM ID.
-MSSV được dùng để ghép đúng học sinh kể cả khi tắt tự ghép theo thứ tự.
+MSSV được dùng để ghép đúng học sinh trong snapshot phiên. Backend không dùng tên thiết bị làm MSSV và không ghép theo thứ tự kết nối. ID/secret và nhãn quản lý của thiết bị đã đăng ký được giữ nguyên khi join.
 Bước nhập MSSV không còn gửi lệnh đổi tên thiết bị riêng.
 `STUDENT NOT IN ROOM`: MSSV không có trong danh sách buổi thi hoặc đã đánh dấu vắng.
 `STUDENT IN USE`: học sinh/thiết bị đã ghép khác; giáo viên cần sửa ghép.
@@ -57,6 +57,10 @@ Yêu cầu được lưu trong NVS trước khi gửi; khởi động lại vẫ
 Trong thời gian chưa rõ kết quả, không sửa nội dung yêu cầu để tránh ghép trùng.
 Kết nối WebSocket lấy lại snapshot sau khi join thành công.
 Trong RUNNING/PAUSED chỉ xử lý A/B/C/D; ENTER ở màn kết quả mở lại ô nhập ROOM ID.
+
+Cùng ESP32 có thể join phiên mới với MSSV khác sau khi phiên trước kết thúc/hủy, dùng ID/secret cũ và request ID mới. Trong phiên hiện tại, học sinh không tự chiếm binding khác; giáo viên sửa ghép trong LOBBY/PAUSED. Khi binding thay đổi, snapshot có binding ID mới và firmware xóa pending answer cũ, lấy lại seq từ current_answer. Không thay GPIO, OLED hoặc packet v1 trong bản cập nhật backend pairing này.
+
+NVS chỉ lưu yêu cầu join đang chờ, không lưu trạng thái join đã thành công. Reconnect lúc đang chạy được hỗ trợ; tự khôi phục sau reboot thành công vẫn cần kiểm thử/cải thiện riêng. Cần thử trên ESP32 thật: dùng hai MSSV ở hai phiên, đổi binding khi tạm dừng, retry sau mất phản hồi, mất Wi-Fi và reboot. Mapping điểm danh không tự đổi theo MSSV vừa dùng trong quiz.
 
 Cập nhật và khởi động lại backend, sau đó nạp firmware:
 

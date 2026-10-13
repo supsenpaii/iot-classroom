@@ -1,6 +1,8 @@
 import { z } from "zod";
 z.config(z.locales.vi());
 export const choice = z.enum(["A", "B", "C", "D"]);
+export type Choice = z.infer<typeof choice>;
+export type QuestionOptionKey = `option_${Lowercase<Choice>}`;
 export const questionSchema = z.object({
   question: z.string().trim().min(1).max(2000),
   option_a: z.string().trim().min(1).max(500),
@@ -13,6 +15,12 @@ export const questionSchema = z.object({
   difficulty: z.enum(["easy", "medium", "hard"]).default("medium"),
 });
 export type Question = z.infer<typeof questionSchema>;
+export type StudyGuide = {
+  explanations: Array<{ no: number; explanation: string }>;
+  practice: Array<
+    Pick<Question, "topic" | "question" | QuestionOptionKey | "correct_answer" | "explanation">
+  >;
+};
 export const configSchema = z.object({
   count: z.number().int().min(1).max(100),
   seconds: z.number().int().min(5).max(300),

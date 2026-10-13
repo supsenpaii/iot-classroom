@@ -2,22 +2,11 @@ import { useState } from "react";
 import { api, fmt, type Data } from "../api";
 import { useApp } from "../components";
 import { mastery } from "./results-grid";
+import type { Choice, QuestionOptionKey, StudyGuide } from "../../../shared/protocol";
 
-type StudyGuide = {
-  explanations: Array<{ no: number; explanation: string }>;
-  practice: Array<{
-    topic: string;
-    question: string;
-    option_a: string;
-    option_b: string;
-    option_c: string;
-    option_d: string;
-    correct_answer: string;
-    explanation: string;
-  }>;
-};
-const LETTERS = ["A", "B", "C", "D"];
-const optionText = (q: Data, c: string) => q.data[`option_${c.toLowerCase()}`];
+type ReviewDeck = { id: string; share_token: string; cards: number };
+const LETTERS: Choice[] = ["A", "B", "C", "D"];
+const optionText = (q: Data, c: Choice) => q.data[`option_${c.toLowerCase()}` as QuestionOptionKey];
 const topicOf = (q: Data) => (q.data.topic || "").trim() || "Chưa phân loại";
 // Models often mark key terms with **bold**; render that instead of showing the asterisks.
 const rich = (text: string) =>
@@ -27,7 +16,7 @@ const rich = (text: string) =>
 export function StudyPlan({ d, id }: { d: Data; id: string }) {
   const { run, user } = useApp(),
     [who, setWho] = useState("class"),
-    [deck, setDeck] = useState<Data | null>(null),
+    [deck, setDeck] = useState<ReviewDeck | null>(null),
     [aiGuide, setAiGuide] = useState<StudyGuide | null>(null),
     [busy, setBusy] = useState(""),
     [copied, setCopied] = useState(false);
@@ -180,7 +169,7 @@ export function StudyPlan({ d, id }: { d: Data; id: string }) {
           onClick={() => {
             setBusy("deck");
             void run(async () => {
-              setDeck(await api(`/sessions/${id}/review-deck`, "POST", { student_id: who === "class" ? null : who }));
+              setDeck(await api<ReviewDeck>(`/sessions/${id}/review-deck`, "POST", { student_id: who === "class" ? null : who }));
             }, "Đã tạo bộ flashcard ôn tập.").finally(() => setBusy(""));
           }}
         >
@@ -235,7 +224,7 @@ export function StudyPlan({ d, id }: { d: Data; id: string }) {
                   {LETTERS.map((c) => (
                     <span key={c} className={c === p.correct_answer ? "sp-right" : "sp-option"}>
                       <b>{c}</b>
-                      {rich(p[`option_${c.toLowerCase()}` as "option_a"])}
+                      {rich(p[`option_${c.toLowerCase()}` as QuestionOptionKey])}
                     </span>
                   ))}
                 </div>

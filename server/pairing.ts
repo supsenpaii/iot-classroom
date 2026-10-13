@@ -109,16 +109,9 @@ export class Pairing {
         if ((occupied && occupied.device_id !== d?.id) || (bound && bound.session_student_id !== requestedStudent.id))
           throw new AppError("STUDENT_ALREADY_BOUND", "Học sinh hoặc thiết bị đã được ghép; nhờ giáo viên sửa ghép", 409);
       }
-      if (d && input.student_code) {
-        let label = input.student_code;
-        if (!options.browser && one(this.db, "SELECT 1 FROM devices WHERE owner_teacher_id=? AND id<>? AND revoked=0 AND lower(label)=lower(?)", room.owner_teacher_id, d.id, label))
-          throw new AppError("DUPLICATE_LABEL", "MSSV đang được dùng bởi thiết bị khác", 409);
-        this.db.prepare("UPDATE devices SET label=? WHERE id=?").run(label, d.id);
-        d.label = label;
-      }
       if (!d) {
         const id = randomUUID();
-        let label = input.student_code ?? input.device_name;
+        let label = input.device_name;
         // Web clients may share a historical label; the active student binding above is unique.
         if (!options.browser && one(this.db, "SELECT 1 FROM devices WHERE owner_teacher_id=? AND revoked=0 AND lower(label)=lower(?)", room.owner_teacher_id, label))
           label = `${label} · ${id}`;
@@ -129,10 +122,9 @@ export class Pairing {
       this.db.prepare("INSERT INTO room_join_receipts VALUES (?,?,?,?,?)").run(input.request_id, digest, d.id, room.session_id, this.now());
       if (requestedStudent && !bound) {
         new Quiz(this.db, this.now).bind(room.session_id, requestedStudent.id, d.id, room.owner_teacher_id);
-      } else if (room.auto_assign && !bound) {
-        const student = one(this.db, "SELECT s.id FROM session_students s WHERE s.session_id=? AND s.student_code=? AND s.absent=0 AND NOT EXISTS(SELECT 1 FROM session_devices b WHERE b.session_student_id=s.id AND b.active=1) LIMIT 1", room.session_id, d.label);
-        if (student) new Quiz(this.db, this.now).bind(room.session_id, student.id, d.id, room.owner_teacher_id);
       }
+      // Legacy auto_assign is accepted, but a label never identifies a student.
+      // Joins without student_code wait for an explicit teacher binding.
       this.bump(room.session_id);
       return { device_id: d.id, session_id: room.session_id, label: d.label, duplicate: false };
     })();

@@ -41,13 +41,15 @@ Có thể tự tạo lớp/thêm học sinh, nhập XLSX/CSV ở ngân hàng câ
 ## Kết nối bằng ROOM ID
 
 1. Vào phòng kiểm tra ở trạng thái chờ, nhấn **Mở nhận thiết bị**.
-2. Giữ lựa chọn tự ghép nếu muốn thiết bị được gán ngay vào học sinh chưa có thiết bị. Thứ tự theo mã học sinh, không suy ra danh tính người cầm thiết bị.
+2. ESP32/web gửi MSSV để ghép đúng học sinh trong danh sách phiên. Tên thiết bị độc lập với MSSV; không ghép theo thứ tự kết nối.
 3. Lấy ROOM ID gồm **8 chữ số**, hiệu lực **5 phút**. Thiết bị vẫn cần URL server và mạng Internet/LAN tới server; ROOM ID không chứa cấu hình Wi-Fi.
-4. Trên simulator hoặc firmware tương thích, nhập URL web và ROOM ID. Đúng mã thì vào ngay, không cần giáo viên duyệt hoặc nhập secret dài.
-5. Tên xuất hiện trong **Học sinh đã kết nối**; kiểm tra người cầm thiết bị, mở **Quản lý thiết bị** để chỉnh lại ghép nếu cần. Nếu tắt tự ghép hoặc hết học sinh trống, phải ghép thủ công trước khi kiểm tra.
+4. ESP32 dùng URL/ID/secret đã cấu hình, nhập ROOM ID rồi MSSV. Simulator nhập ROOM ID và số thiết bị để vào phòng chưa ghép.
+5. Với simulator hoặc client không gửi MSSV, mở **Quản lý thiết bị & sửa ghép học sinh**, chọn MSSV cho từng thiết bị và kiểm tra người cầm thiết bị trước khi bắt đầu. Giáo viên có thể sửa ghép trong phòng chờ hoặc khi tạm dừng.
 6. Bấm A/B/C/D khi chờ để thử nút; thao tác thử không được tính điểm. **Đóng nhận** khi đủ thiết bị, mở màn trình chiếu rồi **Bắt đầu**.
 
 Một thiết bị gắn một học sinh trong buổi. Một backend hỗ trợ một phòng đang hoạt động và tối đa 50 thiết bị. Tạo mã mới làm mã cũ hết hiệu lực. Bắt đầu/tiếp tục/kết thúc hoặc restart server đóng nhận mới; thiết bị đã đăng ký nối lại bằng thông tin đã lưu.
+
+Sau khi phiên trước kết thúc/hủy, ESP32 dùng lại ID/secret hiện có để join phiên mới với MSSV khác và request ID mới. Không đổi nhãn quản lý hoặc reset dữ liệu. Thiết bị thuộc phòng khác chưa kết thúc phải được gỡ khỏi phòng đó trước. Mapping thiết bị mặc định dùng cho điểm danh được giữ riêng; giáo viên kiểm tra/cập nhật mapping nếu đổi người dùng thiết bị cho điểm danh. Chi tiết và kiểm thử hồi quy: [Device pairing](docs/DEVICE_PAIRING.md).
 
 ## Khi đang kiểm tra và xem kết quả
 

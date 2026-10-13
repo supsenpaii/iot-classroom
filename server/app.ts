@@ -1,13 +1,9 @@
-import express, {
-  type Request,
-  type Response,
-  type NextFunction,
-} from "express";
+import express, { type Request } from "express";
 import session from "express-session";
 import { createServer } from "node:http";
 import { randomInt, randomUUID } from "node:crypto";
 import { resolve } from "node:path";
-import { z, ZodError } from "zod";
+import { z } from "zod";
 import { type DB, type Row, all, one, owned, must, AppError } from "./db.js";
 import {
   SqliteStore,
@@ -42,6 +38,7 @@ import {
 import { attachRealtime } from "./realtime.js";
 import { createStudyGuide, type GuideInput } from "./study-guide.js";
 import { createStudentPortal } from "./student.js";
+import { httpErrorHandler } from "./http-errors.js";
 export type AppConfig = {
   origin: string;
   secret: string;
@@ -1418,53 +1415,7 @@ ${q.data.explanation}` : ""),
   app.get("/{*path}", (_req, res) =>
     res.sendFile(resolve("dist/client/index.html")),
   );
-  app.use(
-    (error: unknown, _req: Request, res: Response, _next: NextFunction) => {
-      const e = error as Row;
-      const validation = error instanceof ZodError;
-      const constraint =
-        typeof e.code === "string" && e.code.startsWith("SQLITE_CONSTRAINT");
-      const status = validation ? 422 : constraint ? 409 : e.status || 500;
-      const code =
-        status === 413
-          ? "UPLOAD_TOO_LARGE"
-          : e.type === "entity.parse.failed"
-            ? "INVALID_JSON"
-            : validation
-              ? "INVALID_PAYLOAD"
-              : constraint
-                ? "CONFLICT"
-                : e.code || "INTERNAL_ERROR";
-      if (status >= 500)
-        console.error(
-          JSON.stringify({ requestId: res.getHeader("X-Request-Id"), code }),
-        );
-      if (status === 429) res.setHeader("Retry-After", "60");
-      res.status(status).json({
-        code,
-        message:
-          status === 413
-            ? "Dữ liệu tải lên vượt dung lượng cho phép"
-            : e.type === "entity.parse.failed"
-              ? "Nội dung JSON không hợp lệ"
-              : e.code === "AI_NOT_CONFIGURED"
-                ? e.message
-                : typeof e.code === "string" &&
-                    (e.code.startsWith("GEMINI_") ||
-                      e.code.startsWith("OPENROUTER_"))
-                  ? e.message
-              : validation
-                ? "Dữ liệu chưa hợp lệ"
-                : constraint
-                  ? "Dữ liệu trùng hoặc đang được sử dụng"
-                  : status >= 500
-                    ? "Không thể hoàn tất thao tác; thử lại với mã tra cứu"
-                    : e.message,
-        fieldErrors: validation ? error.issues : e.details,
-        requestId: res.getHeader("X-Request-Id"),
-      });
-    },
-  );
+  app.use(httpErrorHandler);
   const cleanup = setInterval(() => {
     const now = Date.now();
     db.prepare("DELETE FROM auth_sessions WHERE expires<?").run(now);
