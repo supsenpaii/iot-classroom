@@ -169,7 +169,7 @@ Bằng Chromium headless và API/WebSocket thật, trên server dựng tạm:
 ### BUG-013 · Thấp · Tài liệu · `HUONG_DAN_CHAY_DEMO.md` lỗi thời
 - Kết quả thực tế: ghi "chưa có firmware ESP32 thật trong repo" (hiện có `firmware/esp32-classroom`), "mật khẩu ≥ 12 ký tự" (máy chủ không ép, xem BUG-001), và chưa nhắc `/student`, `/device`.
 - Cách sửa đề xuất: cập nhật hướng dẫn. Ước lượng: **S**.
-- Trạng thái: Mới
+- Trạng thái: Đã sửa 2026-10-14: hướng dẫn cập nhật, thêm `docs/KIEM_TRA_BUOI_THAT.md`
 
 ---
 

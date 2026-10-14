@@ -9,8 +9,10 @@ Tổng hợp từ `README.md`, `esp32-simulator/README.md`, `package.json`, `.en
 | Web + backend (Express, SQLite, WebSocket) | Giáo viên điều khiển, màn chiếu, báo cáo | `3000` |
 | ESP32 simulator độc lập (`esp32-simulator/`) | Giả lập thiết bị học sinh bấm A/B/C/D | `3210` |
 | Trang `/simulator` (tích hợp trong web) | Cách giả lập thứ hai, cần `ENABLE_SIMULATOR=true` | `3000` |
+| Trang `/device` | Thiết bị ESP32 ảo cho học sinh không có phần cứng (chỉ quiz) | `3000` |
+| Trang `/student` | Học sinh vào phòng làm bài bằng MSSV + ROOM ID | `3000` |
 
-Chưa có firmware ESP32 thật trong repo — demo dùng simulator.
+Firmware ESP32 thật nằm ở `firmware/esp32-classroom/`. Không có phần cứng thì demo bằng simulator hoặc bằng trang `/device` (thiết bị ảo) và `/student` (làm bài trên điện thoại/máy tính).
 
 ## 2. Yêu cầu
 
@@ -56,7 +58,7 @@ npm run db:migrate
 npm start               # http://localhost:3000
 ```
 
-Mở **http://localhost:3000/register** → tạo tài khoản giáo viên (email + mật khẩu ≥ 12 ký tự). Hoặc dùng terminal: `npm run teacher:create`.
+Mở **http://localhost:3000/register** → tạo tài khoản giáo viên (email + mật khẩu **≥ 12 ký tự**, máy chủ từ chối ngắn hơn). Hoặc dùng terminal: `npm run teacher:create`.
 
 ## 5. Tạo dữ liệu demo nhanh (tùy chọn)
 
@@ -91,9 +93,15 @@ Tạo sẵn: lớp 10 học sinh (`DEMO01…DEMO10`), bộ đề Toán 10 câu, 
 6. Trên simulator bấm A/B/C/D (hoặc phím `A–D`/`1–4`) trả lời; đèn xác nhận bật sau khi server ACK.
 7. Kết thúc bài → **Báo cáo**: biểu đồ, ma trận học sinh × câu, xuất Excel/PDF.
 
+Học sinh không có thiết bị: mở `http://<địa-chỉ-máy>:3000/device` (giống ESP32) hoặc `/student` (giao diện đầy đủ), nhập ROOM ID rồi MSSV.
+
 Thử sự cố trong simulator: **Ngắt mạng / Nối lại**, **Khởi động lại**, **Mất ACK một lần**, **Gửi lại gói cuối**.
 
 Tính năng phụ có thể demo thêm: Flashcard (A = Nhớ, B = Chưa nhớ), Khảo sát nhanh, Điểm danh, Thi đua (top 5 + bục vinh danh).
+
+## 6b. Gợi ý ôn tập bằng AI (tùy chọn)
+
+Thêm `GEMINI_API_KEY=` vào `.env` (tạo key tại aistudio.google.com/apikey), khởi động lại. Ở **Báo cáo → Gợi ý ôn tập**, chọn một học sinh có câu sai rồi bấm **AI giải chi tiết + câu luyện thêm**. Lời giải được lưu, bấm **Tạo lại** để làm mới, và **Tạo link luyện thêm cho học sinh** để giao câu luyện thêm qua link tự học. Chi tiết: `docs/RUNBOOK.md`.
 
 ## 7. Kiểm thử tự động
 
@@ -101,6 +109,9 @@ Tính năng phụ có thể demo thêm: Flashcard (A = Nhớ, B = Chưa nhớ), 
 npm run test:auth              # đăng ký/đăng nhập/phân quyền
 npm run test:pairing           # ROOM ID, ACK, reconnect, Excel, 50 thiết bị (DB tạm)
 npm run test:device-simulator  # tích hợp simulator độc lập với backend thật
+npm run test:student-web       # cổng học sinh /student
+npm run test:i18n              # bản dịch VI/EN
+npm run test:study-store       # lời giải AI lưu, tạo lại, hạn mức
 ```
 
 ## 8. Lỗi thường gặp
@@ -121,4 +132,5 @@ npm run test:device-simulator  # tích hợp simulator độc lập với backen
 - Không bật `ENABLE_SIMULATOR` trên production; không commit `.env`, DB hay secret thiết bị.
 - Tối đa 1 phòng đang chạy và 50 thiết bị.
 - Đây là mô phỏng giao thức, chưa kiểm chứng với ESP32 thật (GPIO, Wi-Fi, pin).
-- Muốn demo từ máy khác/Internet: xem `docs/TAILSCALE_MAY_KHAC.md` (Tailscale Funnel) hoặc `deploy/` (Docker + Caddy HTTPS).
+- Muốn demo từ máy khác/Internet: xem `docs/TAILSCALE_MAY_KHAC.md` (Tailscale Funnel) hoặc `deploy/` (Docker + Caddy HTTPS). Khi chạy sau Funnel/Caddy **bắt buộc đặt `TRUST_PROXY=1`**, nếu không cả lớp bị tính là một địa chỉ IP và có thể bị chặn lúc vào phòng; máy chủ sẽ in cảnh báo nếu phát hiện thiếu.
+- Kiểm tra một buổi thật trước khi dạy: `docs/KIEM_TRA_BUOI_THAT.md`.

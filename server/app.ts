@@ -68,6 +68,16 @@ export function createApplication(db: DB, config: AppConfig) {
   pairing.recover();
   app.disable("x-powered-by");
   if (config.trustProxy) app.set("trust proxy", config.trustProxy);
+  // Behind Tailscale Funnel/Caddy without TRUST_PROXY every student shares the proxy's IP, so the
+  // per-IP join limit would count the whole class as one client. Say so once instead of failing quietly.
+  let warnedProxy = false;
+  app.use((req, _res, next) => {
+    if (!warnedProxy && !config.trustProxy && req.get("x-forwarded-for")) {
+      warnedProxy = true;
+      console.warn("Cảnh báo: có header X-Forwarded-For nhưng TRUST_PROXY=0. Nếu chạy sau Tailscale Funnel/Caddy hãy đặt TRUST_PROXY=1 trong .env, nếu không cả lớp bị tính là một IP khi vào phòng.");
+    }
+    next();
+  });
   const auth = session({
     name: "classroom.sid",
     secret: config.secret,
