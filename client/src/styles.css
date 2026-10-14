@@ -1835,7 +1835,7 @@ td { border-bottom-color: var(--border); }
 .presentation .brand { color: var(--green); }
 .presentation header > span, .projection-status, .presentation footer { color: var(--muted); }
 .presentation button { background: #fff; color: var(--green); border-color: var(--control-border); }
-.presentation .eyebrow { display: inline-block; margin: 0; padding: 6px 18px; border: 1px solid var(--border); border-radius: 99px; background: #fff; color: var(--green); font-weight: 700; letter-spacing: 1.5px; }
+.presentation .eyebrow { display: inline-block; margin: 0; padding: 6px 18px; border: 1px solid var(--border); border-radius: 99px; background: var(--bg-surface); color: var(--green); font-weight: 700; letter-spacing: 1.5px; }
 .projection-controls { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 0 0 20px; }
 .presentation .projection-controls button.primary { background: var(--jade); border-color: var(--jade); color: #fff; font-size: 20px; min-height: 58px; padding: 12px 30px; }
 .presentation .projection-controls button.primary:hover { background: #1f6cc0; }
@@ -2231,7 +2231,7 @@ button.primary.fc-sun:hover { background: #ffd766; border-color: #ffd766; color:
 .qd-option .choice-shape { width: 22px; height: 22px; fill: var(--choice); }
 .qd-option strong { font-family: var(--display); font-size: 22px; text-align: right; font-variant-numeric: tabular-nums; }
 .qd-option strong small { display: block; color: var(--muted); font-size: 11px; font-weight: 600; }
-.qd-explain { margin: 0; padding: 10px 14px; border-left: 4px solid var(--lime); border-radius: 0 8px 8px 0; background: #fff; }
+.qd-explain { margin: 0; padding: 10px 14px; border-left: 4px solid var(--lime); border-radius: 0 8px 8px 0; background: var(--bg-surface); }
 .question-drill > .muted { margin: 0; font-size: 13px; }
 @media (max-width: 900px) {
   .results-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -2252,8 +2252,8 @@ button.primary.fc-sun:hover { background: #ffd766; border-color: #ffd766; color:
 /* Question bank (ZEP-style): cover cards, hero, question cards, action sidebar, printable worksheet. */
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { display: inline-flex; align-items: center; padding: 3px 10px; border: 1px solid #c9d6ea; border-radius: 8px; background: #fff; color: var(--green); font-size: 12px; font-weight: 600; }
-.chip.is-soft { border-color: transparent; background: #edf2fa; color: var(--muted); }
+.chip { display: inline-flex; align-items: center; padding: 3px 10px; border: 1px solid var(--border-default); border-radius: 8px; background: var(--bg-surface); color: var(--green); font-size: 12px; font-weight: 600; }
+.chip.is-soft { border-color: transparent; background: var(--bg-surface-secondary); color: var(--muted); }
 .level { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; }
 .level.easy { background: #dcf5ea; color: #0b7a5c; }
 .level.medium { background: #fff4cf; color: #8a5a00; }
