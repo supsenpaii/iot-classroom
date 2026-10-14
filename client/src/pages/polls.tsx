@@ -11,24 +11,25 @@ import {
   useResource,
 } from "../components";
 import { useActivitySocket } from "../socket";
+import { t, locale } from "../i18n";
 
 const TEMPLATES = [
   {
-    label: "Hiểu bài chưa?",
-    question: "Em hiểu phần vừa học đến đâu?",
-    options: ["Hiểu rõ, tự làm được", "Hiểu sơ, cần thêm ví dụ", "Chưa hiểu lắm", "Cần giảng lại"],
+    label: t("Hiểu bài chưa?"),
+    question: t("Em hiểu phần vừa học đến đâu?"),
+    options: [t("Hiểu rõ, tự làm được"), t("Hiểu sơ, cần thêm ví dụ"), t("Chưa hiểu lắm"), t("Cần giảng lại")],
   },
   {
-    label: "Tốc độ giảng",
-    question: "Tốc độ giảng bài hôm nay thế nào?",
-    options: ["Quá nhanh", "Vừa phải", "Hơi chậm"],
+    label: t("Tốc độ giảng"),
+    question: t("Tốc độ giảng bài hôm nay thế nào?"),
+    options: [t("Quá nhanh"), t("Vừa phải"), t("Hơi chậm")],
   },
   {
-    label: "Phiếu cuối giờ",
-    question: "Buổi học hôm nay em thấy thế nào?",
-    options: ["Rất thích, dễ hiểu", "Ổn", "Hơi khó theo", "Cần ôn lại cả bài"],
+    label: t("Phiếu cuối giờ"),
+    question: t("Buổi học hôm nay em thấy thế nào?"),
+    options: [t("Rất thích, dễ hiểu"), t("Ổn"), t("Hơi khó theo"), t("Cần ôn lại cả bài")],
   },
-  { label: "Đúng / Sai", question: "", options: ["Đúng", "Sai"] },
+  { label: t("Đúng / Sai"), question: "", options: [t("Đúng"), t("Sai")] },
 ];
 const KEYS = ["A", "B", "C", "D"];
 
@@ -46,9 +47,9 @@ function PollHome() {
   return (
     <>
       <Head
-        eyebrow="KHẢO SÁT NHANH"
-        title="Hỏi cả lớp trong mười giây."
-        description="Học sinh bấm A–D trên thiết bị, ẩn danh. Kết quả hiện ngay trên màn chiếu."
+        eyebrow={t("KHẢO SÁT NHANH")}
+        title={t("Hỏi cả lớp trong mười giây.")}
+        description={t("Học sinh bấm A–D trên thiết bị, ẩn danh. Kết quả hiện ngay trên màn chiếu.")}
       />
       <div className="two-col">
         <form
@@ -65,8 +66,8 @@ function PollHome() {
             });
           }}
         >
-          <h2>Tạo khảo sát</h2>
-          <div className="poll-templates" role="group" aria-label="Mẫu có sẵn">
+          <h2>{t("Tạo khảo sát")}</h2>
+          <div className="poll-templates" role="group" aria-label={t("Mẫu có sẵn")}>
             {TEMPLATES.map((t) => (
               <button
                 type="button"
@@ -80,13 +81,13 @@ function PollHome() {
               </button>
             ))}
           </div>
-          <Field label="Câu hỏi">
+          <Field label={t("Câu hỏi")}>
             <textarea
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               required
               maxLength={300}
-              placeholder="Ví dụ: Em muốn ôn lại phần nào?"
+              placeholder={t("Ví dụ: Em muốn ôn lại phần nào?")}
             />
           </Field>
           <div className="poll-inputs">
@@ -94,11 +95,11 @@ function PollHome() {
               <label key={k} className={`poll-input choice-${k.toLowerCase()}`}>
                 <b>{k}</b>
                 <input
-                  aria-label={`Lựa chọn ${k}`}
+                  aria-label={t("Lựa chọn {k}", { k })}
                   value={options[i]}
                   maxLength={120}
                   required={i < 2}
-                  placeholder={i < 2 ? "Bắt buộc" : "Không bắt buộc"}
+                  placeholder={i < 2 ? t("Bắt buộc") : t("Không bắt buộc")}
                   onChange={(e) =>
                     setOptions((o) => o.map((v, j) => (j === i ? e.target.value : v)))
                   }
@@ -108,14 +109,16 @@ function PollHome() {
           </div>
           <label className="check">
             <input type="checkbox" checked={hide} onChange={(e) => setHide(e.target.checked)} />
-            Ẩn kết quả đến khi giáo viên bấm hiện (tránh học sinh chọn theo số đông)
+            
+            {t("Ẩn kết quả đến khi giáo viên bấm hiện (tránh học sinh chọn theo số đông)")}
           </label>
           <button className="primary" disabled={!question.trim() || filled.length < 2}>
-            Bắt đầu khảo sát →
+            
+            {t("Bắt đầu khảo sát →")}
           </button>
         </form>
         <section className="card">
-          <h2>Các khảo sát gần đây</h2>
+          <h2>{t("Các khảo sát gần đây")}</h2>
           <Status error={list.error} loading={!list.data} />
           {list.data?.map((p) => (
             <a className="list-item" key={p.id} href={`/polls/${p.id}`}>
@@ -123,15 +126,15 @@ function PollHome() {
               <div>
                 <strong>{p.question}</strong>
                 <small>
-                  {new Date(p.created_at).toLocaleString("vi-VN")} · {p.votes} ý kiến
+                  {new Date(p.created_at).toLocaleString(locale())} · {p.votes}  {t("ý kiến")}
                 </small>
               </div>
-              <span className="badge">{p.state === "RUNNING" ? "Đang mở" : "Đã đóng"}</span>
+              <span className="badge">{p.state === "RUNNING" ? t("Đang mở") : t("Đã đóng")}</span>
               <span>→</span>
             </a>
           ))}
           {list.data?.length === 0 && (
-            <Empty>Chưa có khảo sát. Chọn một mẫu bên cạnh để bắt đầu.</Empty>
+            <Empty>{t("Chưa có khảo sát. Chọn một mẫu bên cạnh để bắt đầu.")}</Empty>
           )}
         </section>
       </div>
@@ -155,8 +158,8 @@ function PollLive({ id }: { id: string }) {
   if (!data)
     return (
       <Status
-        loading={!status.startsWith("Không")}
-        error={status.startsWith("Không") ? status : undefined}
+        loading={!status.startsWith(t("Không"))}
+        error={status.startsWith(t("Không")) ? status : undefined}
       />
     );
   const open = data.state === "RUNNING",
@@ -167,7 +170,8 @@ function PollLive({ id }: { id: string }) {
       <header className="fc-review-head">
         <div>
           <p className="eyebrow">
-            KHẢO SÁT NHANH · ẨN DANH · {open ? "ĐANG NHẬN Ý KIẾN" : "ĐÃ ĐÓNG"} · {status.toUpperCase()}
+            
+            {t("KHẢO SÁT NHANH · ẨN DANH ·")} {open ? t("ĐANG NHẬN Ý KIẾN") : t("ĐÃ ĐÓNG")} · {status.toUpperCase()}
           </p>
           <h1>{data.question}</h1>
         </div>
@@ -178,27 +182,31 @@ function PollLive({ id }: { id: string }) {
               else void stage.current?.requestFullscreen().catch(() => {});
             }}
           >
-            Toàn màn hình
+            
+            {t("Toàn màn hình")}
           </button>
           {hidden && (
             <button className="primary" disabled={busy} onClick={() => command("reveal")}>
-              Hiện kết quả
+              
+              {t("Hiện kết quả")}
             </button>
           )}
           {open ? (
             <button className="danger" disabled={busy} onClick={() => command("close")}>
-              Đóng khảo sát
+              
+              {t("Đóng khảo sát")}
             </button>
           ) : (
             <a className="button primary" href="/polls">
-              Khảo sát mới
+              
+              {t("Khảo sát mới")}
             </a>
           )}
         </div>
       </header>
       <p className="poll-meta">
-        <strong>{data.total_votes}</strong> ý kiến · {data.devices_online} thiết bị đang kết nối
-        {open && ` · Bấm ${data.options.map((o: Data) => o.key).join(", ")} trên thiết bị`}
+        <strong>{data.total_votes}</strong>  {t("ý kiến ·")} {data.devices_online}  {t("thiết bị đang kết nối")}
+        {open && t(" · Bấm {v} trên thiết bị", { v: data.options.map((o: Data) => o.key).join(", ") })}
       </p>
       <div className="poll-options">
         {data.options.map((o: Data) => {
@@ -215,7 +223,7 @@ function PollLive({ id }: { id: string }) {
               <ChoiceShape choice={o.key} />
               <strong className="poll-count">
                 {hidden ? "?" : `${pct}%`}
-                <small>{hidden ? "đang ẩn" : `${o.count} ý kiến`}</small>
+                <small>{hidden ? t("đang ẩn") : t("{count} ý kiến", { count: o.count })}</small>
               </strong>
             </div>
           );
@@ -223,7 +231,8 @@ function PollLive({ id }: { id: string }) {
       </div>
       {hidden && (
         <p className="muted poll-hint">
-          Kết quả đang ẩn để học sinh chọn theo ý mình. Bấm "Hiện kết quả" khi muốn cả lớp xem.
+          
+          {t("Kết quả đang ẩn để học sinh chọn theo ý mình. Bấm \"Hiện kết quả\" khi muốn cả lớp xem.")}
         </p>
       )}
     </div>

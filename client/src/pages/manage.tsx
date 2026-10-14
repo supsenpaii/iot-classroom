@@ -14,6 +14,7 @@ import { questionSchema, flashcardSchema } from "../../../shared/protocol";
 import { studentCodeSchema, STUDENT_CODE_ERROR } from "../../../shared/student-code";
 import "./class-management.css";
 import { ConfigFields, readConfig } from "../quiz-config";
+import { t, locale } from "../i18n";
 export { ConfigFields, readConfig } from "../quiz-config";
 export function Dashboard() {
   const sessions = useResource<Data[]>("/sessions"),
@@ -22,30 +23,32 @@ export function Dashboard() {
   return (
     <>
       <Head
-        eyebrow="KHÔNG GIAN DẠY HỌC"
-        title="Một giờ học. Nhiều kết nối."
-        description="Chuẩn bị bài, lắng nghe lớp học và theo dõi từng câu trả lời."
+        eyebrow={t("KHÔNG GIAN DẠY HỌC")}
+        title={t("Một giờ học. Nhiều kết nối.")}
+        description={t("Chuẩn bị bài, lắng nghe lớp học và theo dõi từng câu trả lời.")}
       >
         <a className="button primary" href="/sessions/new">
-          + Tạo buổi kiểm tra
+          
+          {t("+ Tạo buổi kiểm tra")}
         </a>
       </Head>
       <div className="hero welcome">
         <div>
-          <p className="eyebrow">HỌC CÙNG NHAU · TIẾN XA HƠN</p>
-          <h2>Sẵn sàng cho giờ học.</h2>
-          <p>Bắt đầu từ lớp học và bộ câu hỏi của thầy cô.</p>
+          <p className="eyebrow">{t("HỌC CÙNG NHAU · TIẾN XA HƠN")}</p>
+          <h2>{t("Sẵn sàng cho giờ học.")}</h2>
+          <p>{t("Bắt đầu từ lớp học và bộ câu hỏi của thầy cô.")}</p>
           <a className="button primary" href="/classes">
-            Quản lý lớp học →
+            
+            {t("Quản lý lớp học →")}
           </a>
         </div>
         <Icon name="book" />
       </div>
       <div className="stat-grid">
         {[
-          [classes, "Lớp học"],
-          [banks, "Bộ câu hỏi"],
-          [sessions, "Buổi kiểm tra"],
+          [classes, t("Lớp học")],
+          [banks, t("Bộ câu hỏi")],
+          [sessions, t("Buổi kiểm tra")],
         ].map(([r, label]) => (
           <div className="card stat" key={String(label)}>
             <span>{String(label)}</span>
@@ -54,10 +57,10 @@ export function Dashboard() {
         ))}
       </div>
       <section className="card dashboard-recent">
-        <h2>Buổi kiểm tra gần đây</h2>
+        <h2>{t("Buổi kiểm tra gần đây")}</h2>
         <Status error={sessions.error} loading={!sessions.data} />
         {sessions.data?.length === 0 && (
-          <Empty>Chưa có buổi kiểm tra. Tạo lớp và bộ đề để bắt đầu.</Empty>
+          <Empty>{t("Chưa có buổi kiểm tra. Tạo lớp và bộ đề để bắt đầu.")}</Empty>
         )}
         <div className="list">
           {sessions.data?.slice(0, 10).map((s) => (
@@ -74,7 +77,7 @@ export function Dashboard() {
                 <strong>{s.name}</strong>
                 <small>
                   {s.class_name} ·{" "}
-                  {new Date(s.created_at).toLocaleDateString("vi-VN")}
+                  {new Date(s.created_at).toLocaleDateString(locale())}
                 </small>
               </div>
               <span className="badge">{stateLabel[s.state]}</span>
@@ -109,7 +112,7 @@ export function Importer({
     }
     setBusy(true);
     void run(async () => {
-      if (file.size > 5242880) throw Error("File vượt quá 5 MB");
+      if (file.size > 5242880) throw Error(t("File vượt quá 5 MB"));
       setPreview(await api(`/imports/${kind}/preview`, "POST", file));
     }).finally(() => setBusy(false));
   }
@@ -145,8 +148,8 @@ export function Importer({
       if (kind === "students") {
         const errors = [];
         if (!studentCodeSchema.safeParse(r.student_code).success)
-          errors.push(`Dòng ${i + 2}: ${STUDENT_CODE_ERROR}`);
-        if (!r.full_name.trim()) errors.push(`Dòng ${i + 2}: cần họ tên`);
+          errors.push(t("Dòng {v}: {STUDENT_CODE_ERROR}", { v: i + 2, STUDENT_CODE_ERROR: t(STUDENT_CODE_ERROR) }));
+        if (!r.full_name.trim()) errors.push(t("Dòng {v}: cần họ tên", { v: i + 2 }));
         return errors;
       }
       const parsed = (
@@ -155,7 +158,7 @@ export function Importer({
       return parsed.success
         ? []
         : parsed.error.issues.map(
-            (e) => `Dòng ${i + 2} · ${e.path.join(".")}: ${e.message}`,
+            (e) => t("Dòng {v} · {v2}: {message}", { v: i + 2, v2: e.path.join("."), message: e.message }),
           );
     }) ?? [];
   function downloadErrors() {
@@ -181,14 +184,15 @@ export function Importer({
       <div className="row spread">
         <div>
           <h3>
-            Nhập{" "}
+            
+            {t("Nhập")}{" "}
             {kind === "questions"
-              ? "câu hỏi"
+              ? t("câu hỏi")
               : kind === "flashcards"
-                ? "thẻ (cột front = mặt trước, back = mặt sau)"
-                : "danh sách học sinh"}
+                ? t("thẻ (cột front = mặt trước, back = mặt sau)")
+                : t("danh sách học sinh")}
           </h3>
-          <p className="muted">XLSX hoặc CSV · Tối đa 5 MB, 500 dòng{kind === "students" && " · MSSV: 1–10 chữ số; cột Excel phải là Text để giữ số 0 đầu."}</p>
+          <p className="muted">{t("XLSX hoặc CSV · Tối đa 5 MB, 500 dòng")}{kind === "students" && t(" · MSSV: 1–10 chữ số; cột Excel phải là Text để giữ số 0 đầu.")}</p>
           {kind === "flashcards" && (
             <div className="fc-format">
               <table>
@@ -207,22 +211,22 @@ export function Importer({
                   </tr>
                   <tr>
                     <th>2</th>
-                    <td>GPIO9 trên ESP32-C3 dùng để làm gì?</td>
-                    <td>Chân strapping, kéo xuống GND để nạp firmware</td>
+                    <td>{t("GPIO9 trên ESP32-C3 dùng để làm gì?")}</td>
+                    <td>{t("Chân strapping, kéo xuống GND để nạp firmware")}</td>
                   </tr>
                 </tbody>
               </table>
               <ul>
-                <li>Dòng 1 là tiêu đề: <b>front</b> và <b>back</b> (hoặc "Mặt trước" và "Mặt sau"). Mỗi dòng sau là một thẻ.</li>
-                <li>Excel: lấy sheet đầu tiên. Xuống dòng trong ô (Alt+Enter) được giữ nguyên.</li>
-                <li>CSV: lưu dạng "CSV UTF-8", dấu phân cách <b>,</b> hoặc <b>;</b> đều được.</li>
+                <li>{t("Dòng 1 là tiêu đề:")} <b>front</b>  {t("và")} <b>back</b>  {t("(hoặc \"Mặt trước\" và \"Mặt sau\"). Mỗi dòng sau là một thẻ.")}</li>
+                <li>{t("Excel: lấy sheet đầu tiên. Xuống dòng trong ô (Alt+Enter) được giữ nguyên.")}</li>
+                <li>{t("CSV: lưu dạng \"CSV UTF-8\", dấu phân cách")} <b>,</b>  {t("hoặc")} <b>;</b>  {t("đều được.")}</li>
               </ul>
             </div>
           )}
         </div>
         <div className="actions">
-          <a href={`/api/templates/${kind}.xlsx`}>Mẫu Excel ↓</a>
-          <a href={`/api/templates/${kind}.csv`}>Mẫu CSV ↓</a>
+          <a href={`/api/templates/${kind}.xlsx`}>{t("Mẫu Excel ↓")}</a>
+          <a href={`/api/templates/${kind}.csv`}>{t("Mẫu CSV ↓")}</a>
         </div>
       </div>
       {customUpload ? (
@@ -255,7 +259,7 @@ export function Importer({
               className="class-upload-input"
               type="file"
               accept=".xlsx,.csv"
-              aria-label="Chọn file Excel hoặc CSV để xem trước danh sách học sinh"
+              aria-label={t("Chọn file Excel hoặc CSV để xem trước danh sách học sinh")}
               disabled={busy}
               onChange={(e) => {
                 inspectFile(e.target.files?.[0]);
@@ -266,9 +270,9 @@ export function Importer({
               <Icon name="upload" />
             </span>
             <strong>
-              {dragging ? "Thả file để xem trước" : "Kéo thả file hoặc nhấn để chọn"}
+              {dragging ? t("Thả file để xem trước") : t("Kéo thả file hoặc nhấn để chọn")}
             </strong>
-            <span>Hỗ trợ XLSX, CSV · Tối đa 5MB</span>
+            <span>{t("Hỗ trợ XLSX, CSV · Tối đa 5MB")}</span>
           </label>
           {fileName && (
             <div className="class-upload-file" role="status">
@@ -278,7 +282,7 @@ export function Importer({
           )}
         </div>
       ) : (
-        <Field label="Chọn file để xem trước">
+        <Field label={t("Chọn file để xem trước")}>
           <input
             type="file"
             accept=".xlsx,.csv"
@@ -287,35 +291,38 @@ export function Importer({
           />
         </Field>
       )}
-      {busy && <p role="status">Đang đọc file…</p>}
+      {busy && <p role="status">{t("Đang đọc file…")}</p>}
       {preview && (
         <>
           <div className="row spread">
-            <h3>Duyệt {preview.rows.length} dòng trước khi lưu</h3>
-            <button onClick={downloadErrors}>Tải nội dung và lỗi</button>
+            <h3>{t("Duyệt")} {preview.rows.length}  {t("dòng trước khi lưu")}</h3>
+            <button onClick={downloadErrors}>{t("Tải nội dung và lỗi")}</button>
           </div>
           {preview.errors.length > 0 && (
             <div className="alert">
               <strong>
-                File có lỗi. Sửa trực tiếp bên dưới trước khi lưu.
+                
+                {t("File có lỗi. Sửa trực tiếp bên dưới trước khi lưu.")}
               </strong>
               {preview.errors.map((e: Data, i: number) => (
                 <div key={i}>
-                  Dòng {e.row} · {e.column}: {e.message}
+                  
+                  {t("Dòng")} {e.row} · {e.column}: {e.message}
                 </div>
               ))}
             </div>
           )}
           {preview.warnings.map((e: Data, i: number) => (
             <p className="warning" key={i}>
-              Dòng {e.row}: {e.message}
+              
+              {t("Dòng")} {e.row}: {e.message}
             </p>
           ))}
           <div className="table-scroll preview-table">
             <table>
               <thead>
                 <tr>
-                  <th>Dòng</th>
+                  <th>{t("Dòng")}</th>
                   {columns.map((c) => (
                     <th key={c}>{c}</th>
                   ))}
@@ -328,7 +335,7 @@ export function Importer({
                     {columns.map((c) => (
                       <td key={c}>
                         <input
-                          aria-label={`Dòng ${i + 2} ${c}`}
+                          aria-label={t("Dòng {v} {c}", { v: i + 2, c })}
                           value={r[c] ?? ""}
                           onChange={(e) => edit(i, c, e.target.value)}
                         />
@@ -354,12 +361,13 @@ export function Importer({
                     : preview.rows;
                   await onCommit(rows);
                   setPreview(null);
-                }, "Đã lưu toàn bộ dữ liệu.").finally(() => setBusy(false));
+                }, t("Đã lưu toàn bộ dữ liệu.")).finally(() => setBusy(false));
               }}
             >
-              Xác nhận và lưu {preview.rows.length} dòng
+              
+              {t("Xác nhận và lưu")} {preview.rows.length}  {t("dòng")}
             </button>
-            <button onClick={() => setPreview(null)}>Bỏ bản xem trước</button>
+            <button onClick={() => setPreview(null)}>{t("Bỏ bản xem trước")}</button>
           </div>
         </>
       )}
@@ -394,12 +402,12 @@ export function Classes({ id }: { id?: string }) {
   return (
     <>
       <Head
-        eyebrow="LỚP HỌC"
-        title={id ? d.name : "Kết nối bắt đầu từ lớp học."}
+        eyebrow={t("LỚP HỌC")}
+        title={id ? d.name : t("Kết nối bắt đầu từ lớp học.")}
         description={
           id
-            ? `${d.students.length} học sinh · Mã học sinh là duy nhất trong lớp`
-            : "Quản lý danh sách để chuẩn bị cho mỗi buổi kiểm tra."
+            ? t("{length} học sinh · Mã học sinh là duy nhất trong lớp", { length: d.students.length })
+            : t("Quản lý danh sách để chuẩn bị cho mỗi buổi kiểm tra.")
         }
       >
         {id && (
@@ -412,10 +420,11 @@ export function Classes({ id }: { id?: string }) {
                 })
               }
             >
-              <Icon name="users" /> Điểm danh
+              <Icon name="users" />  {t("Điểm danh")}
             </button>
             <a className="button primary" href={`/sessions/new?class=${id}`}>
-              Tạo buổi kiểm tra →
+              
+              {t("Tạo buổi kiểm tra →")}
             </a>
           </>
         )}
@@ -424,9 +433,9 @@ export function Classes({ id }: { id?: string }) {
       {!id ? (
         <div className="two-col">
           <section className="card">
-            <h2>Các lớp của thầy cô</h2>
+            <h2>{t("Các lớp của thầy cô")}</h2>
             {!d.length && (
-              <Empty>Chưa có lớp. Tạo lớp đầu tiên ở bên cạnh.</Empty>
+              <Empty>{t("Chưa có lớp. Tạo lớp đầu tiên ở bên cạnh.")}</Empty>
             )}
             <div className="list">
               {(d as unknown as Data[]).map((c) => (
@@ -437,8 +446,8 @@ export function Classes({ id }: { id?: string }) {
                   <div>
                     <strong>{c.name}</strong>
                     <small>
-                      {c.student_count} học sinh
-                      {c.archived ? " · Đã lưu trữ" : ""}
+                      {c.student_count}  {t("học sinh")}
+                      {c.archived ? t(" · Đã lưu trữ") : ""}
                     </small>
                   </div>
                   <span>→</span>
@@ -457,16 +466,16 @@ export function Classes({ id }: { id?: string }) {
               });
             }}
           >
-            <h2>Tạo lớp mới</h2>
-            <Field label="Tên lớp">
+            <h2>{t("Tạo lớp mới")}</h2>
+            <Field label={t("Tên lớp")}>
               <input
                 name="name"
-                placeholder="Ví dụ: Lớp 8A"
+                placeholder={t("Ví dụ: Lớp 8A")}
                 maxLength={150}
                 required
               />
             </Field>
-            <button className="primary">Tạo lớp</button>
+            <button className="primary">{t("Tạo lớp")}</button>
           </form>
         </div>
       ) : (
@@ -478,17 +487,17 @@ export function Classes({ id }: { id?: string }) {
             >
               <div className="class-roster-header">
                 <h2 id="class-roster-heading">
-                  <Icon name="users" /> Danh sách học sinh
+                  <Icon name="users" />  {t("Danh sách học sinh")}
                 </h2>
-                <span className="badge">{d.students.length} học sinh</span>
+                <span className="badge">{d.students.length}  {t("học sinh")}</span>
               </div>
               <label className="class-roster-search">
-                <span>Tìm học sinh</span>
+                <span>{t("Tìm học sinh")}</span>
                 <span className="class-search-input">
                   <Icon name="search" />
                   <input
                     type="search"
-                    placeholder="Tìm theo mã hoặc họ tên…"
+                    placeholder={t("Tìm theo mã hoặc họ tên…")}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                   />
@@ -502,15 +511,15 @@ export function Classes({ id }: { id?: string }) {
                     </span>
                     <h3>
                       {d.students.length
-                        ? "Không tìm thấy học sinh phù hợp"
-                        : "Chưa có học sinh nào"}
+                        ? t("Không tìm thấy học sinh phù hợp")
+                        : t("Chưa có học sinh nào")}
                     </h3>
                     <p>{d.students.length
-                      ? "Thử tìm bằng mã học sinh hoặc họ tên khác."
-                      : "Thêm học sinh mới hoặc nhập danh sách từ Excel/CSV để bắt đầu quản lý lớp."}</p>
+                      ? t("Thử tìm bằng mã học sinh hoặc họ tên khác.")
+                      : t("Thêm học sinh mới hoặc nhập danh sách từ Excel/CSV để bắt đầu quản lý lớp.")}</p>
                     {!d.students.length && (
                       <button type="button" className="primary" onClick={focusStudentForm}>
-                        <Icon name="plus" /> Thêm học sinh
+                        <Icon name="plus" />  {t("Thêm học sinh")}
                       </button>
                     )}
                   </div>
@@ -519,15 +528,15 @@ export function Classes({ id }: { id?: string }) {
                     className="table-scroll class-roster-table"
                     tabIndex={0}
                     role="region"
-                    aria-label="Bảng danh sách học sinh"
+                    aria-label={t("Bảng danh sách học sinh")}
                   >
                     <table>
                       <thead>
                         <tr>
-                          <th>Mã học sinh</th>
-                          <th>Họ tên</th>
-                          <th>Thiết bị mặc định</th>
-                          <th>Thao tác</th>
+                          <th>{t("Mã học sinh")}</th>
+                          <th>{t("Họ tên")}</th>
+                          <th>{t("Thiết bị mặc định")}</th>
+                          <th>{t("Thao tác")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -537,7 +546,7 @@ export function Classes({ id }: { id?: string }) {
                             <td>{s.full_name}</td>
                             <td>
                               <select
-                                aria-label={`Thiết bị mặc định của ${s.full_name}`}
+                                aria-label={t("Thiết bị mặc định của {full_name}", { full_name: s.full_name })}
                                 value={s.device_id ?? ""}
                                 onChange={(e) =>
                                   void run(async () => {
@@ -550,10 +559,10 @@ export function Classes({ id }: { id?: string }) {
                                   })
                                 }
                               >
-                                <option value="">— Chưa gán —</option>
+                                <option value="">{t("— Chưa gán —")}</option>
                                 {s.device_id && s.device_revoked ? (
                                   <option value={s.device_id}>
-                                    {s.device_label} (đã thu hồi)
+                                    {s.device_label}  {t("(đã thu hồi)")}
                                   </option>
                                 ) : null}
                                 {devices.data
@@ -570,14 +579,15 @@ export function Classes({ id }: { id?: string }) {
                                 className="text-button"
                                 onClick={() => setEditing(s)}
                               >
-                                Sửa
+                                
+                                {t("Sửa")}
                               </button>
                               <button
                                 className="text-button danger"
                                 onClick={() => {
                                   if (
                                     confirm(
-                                      `Xóa ${s.full_name} khỏi danh sách lớp? Kết quả cũ vẫn được giữ.`,
+                                      t("Xóa {full_name} khỏi danh sách lớp? Kết quả cũ vẫn được giữ.", { full_name: s.full_name }),
                                     )
                                   )
                                     void run(async () => {
@@ -589,7 +599,8 @@ export function Classes({ id }: { id?: string }) {
                                     });
                                 }}
                               >
-                                Xóa
+                                
+                                {t("Xóa")}
                               </button>
                             </td>
                           </tr>
@@ -601,8 +612,8 @@ export function Classes({ id }: { id?: string }) {
               </div>
               {d.students.length > 0 && (
                 <p className="muted class-device-hint">
-                  Thiết bị mặc định dùng cho điểm danh. Ghép thiết bị trong buổi
-                  kiểm tra không thay đổi mapping điểm danh này.
+                  
+                  {t("Thiết bị mặc định dùng cho điểm danh. Ghép thiết bị trong buổi kiểm tra không thay đổi mapping điểm danh này.")}
                 </p>
               )}
             </section>
@@ -615,7 +626,7 @@ export function Classes({ id }: { id?: string }) {
                   const body = fields(e.currentTarget);
                   void run(async () => {
                     const parsed = studentCodeSchema.safeParse(body.student_code);
-                    if (!parsed.success) throw Error(STUDENT_CODE_ERROR);
+                    if (!parsed.success) throw Error(t(STUDENT_CODE_ERROR));
                     body.student_code = parsed.data;
                     if (editing)
                       await api(
@@ -629,14 +640,14 @@ export function Classes({ id }: { id?: string }) {
                       });
                     setEditing(null);
                     resource.reload();
-                  }, "Đã lưu học sinh.");
+                  }, t("Đã lưu học sinh."));
                 }}
               >
                 <h2>
                   <Icon name={editing ? "users" : "plus"} />
-                  {editing ? "Sửa học sinh" : "Thêm học sinh"}
+                  {editing ? t("Sửa học sinh") : t("Thêm học sinh")}
                 </h2>
-                <Field label="Mã học sinh">
+                <Field label={t("Mã học sinh")}>
                   <input
                     ref={studentCodeInput}
                     name="student_code"
@@ -645,7 +656,7 @@ export function Classes({ id }: { id?: string }) {
                     inputMode="numeric"
                   />
                 </Field>
-                <Field label="Họ tên">
+                <Field label={t("Họ tên")}>
                   <input
                     name="full_name"
                     defaultValue={editing?.full_name}
@@ -654,11 +665,12 @@ export function Classes({ id }: { id?: string }) {
                   />
                 </Field>
                 <button className="primary">
-                  <Icon name={editing ? "check" : "plus"} /> Lưu học sinh
+                  <Icon name={editing ? "check" : "plus"} />  {t("Lưu học sinh")}
                 </button>
                 {editing && (
                   <button type="button" onClick={() => setEditing(null)}>
-                    Hủy sửa
+                    
+                    {t("Hủy sửa")}
                   </button>
                 )}
               </form>
@@ -673,13 +685,13 @@ export function Classes({ id }: { id?: string }) {
                       archived: body.archived === "on",
                     });
                     resource.reload();
-                  }, "Đã lưu lớp.");
+                  }, t("Đã lưu lớp."));
                 }}
               >
                 <h2>
-                  <Icon name="settings" /> Cài đặt lớp
+                  <Icon name="settings" />  {t("Cài đặt lớp")}
                 </h2>
-                <Field label="Tên lớp">
+                <Field label={t("Tên lớp")}>
                   <input name="name" defaultValue={d.name} required />
                 </Field>
                 <label className="check">
@@ -688,17 +700,18 @@ export function Classes({ id }: { id?: string }) {
                     name="archived"
                     defaultChecked={!!d.archived}
                   />{" "}
-                  Lưu trữ lớp
+                  
+                  {t("Lưu trữ lớp")}
                 </label>
                 <div className="class-settings-actions">
-                  <button className="primary">Lưu cài đặt</button>
+                  <button className="primary">{t("Lưu cài đặt")}</button>
                   <button
                     type="button"
                     className="danger"
                     disabled={deleting}
                     onClick={() => {
                       if (!window.confirm(
-                        `Xóa lớp “${d.name}” và ${d.students.length} học sinh? Các gán thiết bị sẽ được gỡ. Thao tác này không thể hoàn tác. Lớp có lịch sử kiểm tra hoặc điểm danh chỉ có thể lưu trữ.`,
+                        t("Xóa lớp “{name}” và {length} học sinh? Các gán thiết bị sẽ được gỡ. Thao tác này không thể hoàn tác. Lớp có lịch sử kiểm tra hoặc điểm danh chỉ có thể lưu trữ.", { name: d.name, length: d.students.length }),
                       )) return;
                       setDeleting(true);
                       void run(async () => {
@@ -707,7 +720,7 @@ export function Classes({ id }: { id?: string }) {
                       }).finally(() => setDeleting(false));
                     }}
                   >
-                    {deleting ? "Đang xóa lớp…" : "Xóa lớp"}
+                    {deleting ? t("Đang xóa lớp…") : t("Xóa lớp")}
                   </button>
                 </div>
               </form>
@@ -724,14 +737,14 @@ export function Classes({ id }: { id?: string }) {
             />
           </section>
           <section className="card">
-            <h2>Lịch sử buổi kiểm tra</h2>
+            <h2>{t("Lịch sử buổi kiểm tra")}</h2>
             {d.sessions.map((s: Data) => (
               <a className="list-item" key={s.id} href={`/sessions/${s.id}`}>
                 <strong>{s.name}</strong>
                 <span>{stateLabel[s.state]}</span>
               </a>
             ))}
-            {!d.sessions.length && <Empty>Lớp chưa có buổi kiểm tra.</Empty>}
+            {!d.sessions.length && <Empty>{t("Lớp chưa có buổi kiểm tra.")}</Empty>}
           </section>
         </div>
       )}
@@ -765,23 +778,24 @@ export function Devices() {
   return (
     <>
       <Head
-        eyebrow="THIẾT BỊ"
-        title="Mỗi học sinh, một kết nối."
-        description="Đăng ký, cấp lại thông tin và theo dõi thiết bị thuộc tài khoản."
+        eyebrow={t("THIẾT BỊ")}
+        title={t("Mỗi học sinh, một kết nối.")}
+        description={t("Đăng ký, cấp lại thông tin và theo dõi thiết bị thuộc tài khoản.")}
       >
         {user.simulator && (
           <a className="button" href="/simulator">
-            Mở giả lập ↗
+            
+            {t("Mở giả lập ↗")}
           </a>
         )}
       </Head>
       <div className="two-col">
         <section className="card">
-          <h2>Thiết bị đã đăng ký</h2>
-          <div className="device-tabs" role="group" aria-label="Lọc thiết bị">
+          <h2>{t("Thiết bị đã đăng ký")}</h2>
+          <div className="device-tabs" role="group" aria-label={t("Lọc thiết bị")}>
             {(["active", "offline", "revoked"] as const).map((key) => (
               <button key={key} className={filter === key ? "selected" : ""} aria-pressed={filter === key} onClick={() => setFilter(key)}>
-                {{active:"Đang dùng",offline:"Chưa kết nối",revoked:"Đã thu hồi"}[key]}
+                {{active:t("Đang dùng"),offline:t("Chưa kết nối"),revoked:t("Đã thu hồi")}[key]}
               </button>
             ))}
           </div>
@@ -793,14 +807,14 @@ export function Devices() {
                 <div>
                   <strong>{d.label}</strong>
                   <small>
-                    {d.assigned_session ? "Đã ghép vào phòng · " : ""}
+                    {d.assigned_session ? t("Đã ghép vào phòng · ") : ""}
                     {d.revoked
-                      ? "Đã thu hồi"
+                      ? t("Đã thu hồi")
                       : d.online
-                        ? "Đang kết nối"
-                        : "Chưa kết nối"}
+                        ? t("Đang kết nối")
+                        : t("Chưa kết nối")}
                     {d.last_seen
-                      ? ` · ${new Date(d.last_seen).toLocaleString("vi-VN")}`
+                      ? ` · ${new Date(d.last_seen).toLocaleString(locale())}`
                       : ""}
                   </small>
                 </div>
@@ -819,7 +833,7 @@ export function Devices() {
                     onClick={() => {
                       if (
                         confirm(
-                          "Cấp secret mới sẽ ngắt kết nối hiện tại. Tiếp tục?",
+                          t("Cấp secret mới sẽ ngắt kết nối hiện tại. Tiếp tục?"),
                         )
                       )
                         void run(async () => {
@@ -836,12 +850,12 @@ export function Devices() {
                         });
                     }}
                   >
-                    {d.revoked ? "Kích hoạt lại" : "Cấp lại"}
+                    {d.revoked ? t("Kích hoạt lại") : t("Cấp lại")}
                   </button>
                   <button
                     disabled={!!d.revoked}
                     onClick={() => {
-                      if (confirm(`Thu hồi thiết bị ${d.label}?`))
+                      if (confirm(t("Thu hồi thiết bị {label}?", { label: d.label })))
                         void run(async () => {
                           await api(`/devices/${d.id}/revoke`, "POST");
                           setCredentials((current) => {
@@ -853,10 +867,11 @@ export function Devices() {
                         });
                     }}
                   >
-                    Thu hồi
+                    
+                    {t("Thu hồi")}
                   </button>
                   {!d.used && <button onClick={() => {
-                    if (confirm(`Xóa vĩnh viễn thiết bị ${d.label}?`)) void run(async () => {
+                    if (confirm(t("Xóa vĩnh viễn thiết bị {label}?", { label: d.label }))) void run(async () => {
                       await api(`/devices/${d.id}`, "DELETE");
                       if (selectedDevice === d.id) setSelectedDevice("");
                       setCredentials((current) => {
@@ -865,22 +880,22 @@ export function Devices() {
                         return next;
                       });
                       r.reload();
-                    }, "Đã xóa thiết bị chưa từng dùng.");
-                  }}>Xóa</button>}
+                    }, t("Đã xóa thiết bị chưa từng dùng."));
+                  }}>{t("Xóa")}</button>}
                 </div>
               </div>
               {selectedDevice === d.id && (
                 <section
                   className="device-connection"
                   id={`device-connection-${d.id}`}
-                  aria-label={`Thông tin kết nối ${d.label}`}
+                  aria-label={t("Thông tin kết nối {label}", { label: d.label })}
                 >
                   <div className="row spread">
                     <div>
-                      <h3>Thông tin kết nối · {d.label}</h3>
-                      <small>ESP32 dùng các giá trị này để mở WebSocket.</small>
+                      <h3>{t("Thông tin kết nối ·")} {d.label}</h3>
+                      <small>{t("ESP32 dùng các giá trị này để mở WebSocket.")}</small>
                     </div>
-                    <button onClick={() => setSelectedDevice("")}>Đóng</button>
+                    <button onClick={() => setSelectedDevice("")}>{t("Đóng")}</button>
                   </div>
                   <div className="connection-values">
                     <Field label="WebSocket URL">
@@ -890,13 +905,13 @@ export function Devices() {
                       <input readOnly value={d.id} />
                     </Field>
                     {credentials[d.id] ? (
-                      <Field label="Secret — chỉ hiển thị trong lần này">
+                      <Field label={t("Secret — chỉ hiển thị trong lần này")}>
                         <input readOnly value={credentials[d.id]} />
                       </Field>
                     ) : (
                       <p className="device-secret-note">
-                        Secret cũ không thể xem lại vì máy chủ chỉ lưu bản băm.
-                        Bấm <b>Cấp lại</b> nếu cần tạo secret mới.
+                        
+                        {t("Secret cũ không thể xem lại vì máy chủ chỉ lưu bản băm. Bấm")} <b>{t("Cấp lại")}</b>  {t("nếu cần tạo secret mới.")}
                       </p>
                     )}
                   </div>
@@ -909,9 +924,9 @@ export function Devices() {
             </article>
           ))}
           {visible?.length === 0 && (
-            <Empty>{filter === "revoked" ? "Chưa có thiết bị đã thu hồi." : "Không có thiết bị trong bộ lọc này. Đăng ký hoặc chọn bộ lọc khác."}</Empty>
+            <Empty>{filter === "revoked" ? t("Chưa có thiết bị đã thu hồi.") : t("Không có thiết bị trong bộ lọc này. Đăng ký hoặc chọn bộ lọc khác.")}</Empty>
           )}
-          <button onClick={r.reload}>Cập nhật trạng thái</button>
+          <button onClick={r.reload}>{t("Cập nhật trạng thái")}</button>
         </section>
         <form
           className="card form"
@@ -928,14 +943,14 @@ export function Devices() {
               setSelectedDevice(credential.id);
               form.reset();
               r.reload();
-            }, "Đã đăng ký thiết bị.");
+            }, t("Đã đăng ký thiết bị."));
           }}
         >
-          <h2>Đăng ký thiết bị</h2>
-          <Field label="Nhãn thiết bị">
+          <h2>{t("Đăng ký thiết bị")}</h2>
+          <Field label={t("Nhãn thiết bị")}>
             <input name="label" placeholder="ESP-01" required maxLength={150} />
           </Field>
-          <button className="primary">Đăng ký</button>
+          <button className="primary">{t("Đăng ký")}</button>
         </form>
       </div>
     </>
@@ -961,25 +976,25 @@ export function Setup() {
   return (
     <>
       <Head
-        eyebrow="BUỔI KIỂM TRA MỚI"
-        title="Chuẩn bị một giờ học mới."
-        description="Chọn lớp, bộ đề và cách tổ chức bài kiểm tra."
+        eyebrow={t("BUỔI KIỂM TRA MỚI")}
+        title={t("Chuẩn bị một giờ học mới.")}
+        description={t("Chọn lớp, bộ đề và cách tổ chức bài kiểm tra.")}
       />
       <Status error={classes.error || banks.error} />
-      <ol className="setup-steps" aria-label="Các bước chuẩn bị bài">
-        <li className="selected">1. Lớp và bộ đề</li><li className="selected">2. Cấu hình</li><li>3. Ghép thiết bị</li><li>4. Sẵn sàng</li>
+      <ol className="setup-steps" aria-label={t("Các bước chuẩn bị bài")}>
+        <li className="selected">{t("1. Lớp và bộ đề")}</li><li className="selected">{t("2. Cấu hình")}</li><li>{t("3. Ghép thiết bị")}</li><li>{t("4. Sẵn sàng")}</li>
       </ol>
       <form className="card form setup" onSubmit={submit}>
-        <Field label="Tên buổi kiểm tra">
+        <Field label={t("Tên buổi kiểm tra")}>
           <input
             name="name"
-            placeholder="Ôn tập chương I"
+            placeholder={t("Ôn tập chương I")}
             required
             maxLength={150}
           />
         </Field>
         <div className="form-grid">
-          <Field label="Lớp học">
+          <Field label={t("Lớp học")}>
             <select
               name="class_id"
               key={classes.data ? "loaded" : "loading"}
@@ -988,27 +1003,27 @@ export function Setup() {
               }
               required
             >
-              <option value="">Chọn lớp</option>
+              <option value="">{t("Chọn lớp")}</option>
               {classes.data
                 ?.filter((c) => !c.archived)
                 .map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name} · {c.student_count} học sinh
+                    {c.name} · {c.student_count}  {t("học sinh")}
                   </option>
                 ))}
             </select>
           </Field>
-          <Field label="Bộ đề">
+          <Field label={t("Bộ đề")}>
             <select
               name="bank_id"
               key={banks.data ? "loaded" : "loading"}
               defaultValue={new URLSearchParams(location.search).get("bank") || ""}
               required
             >
-              <option value="">Chọn bộ đề</option>
+              <option value="">{t("Chọn bộ đề")}</option>
               {banks.data?.map((b) => (
                 <option key={b.id} value={b.id}>
-                  {b.name} · {b.question_count} câu
+                  {b.name} · {b.question_count}  {t("câu")}
                 </option>
               ))}
             </select>
@@ -1016,18 +1031,20 @@ export function Setup() {
         </div>
         <ConfigFields />
         <div className="actions">
-          <button className="primary">Tạo phòng chờ →</button>
-          <a href="/dashboard">Quay lại</a>
+          <button className="primary">{t("Tạo phòng chờ →")}</button>
+          <a href="/dashboard">{t("Quay lại")}</a>
         </div>
       </form>
       {classes.data?.length === 0 && (
         <p className="alert">
-          Cần <a href="/classes">tạo lớp và học sinh</a> trước.
+          
+          {t("Cần")} <a href="/classes">{t("tạo lớp và học sinh")}</a>  {t("trước.")}
         </p>
       )}
       {banks.data?.length === 0 && (
         <p className="alert">
-          Cần <a href="/question-banks">tạo bộ đề và nhập câu hỏi</a> trước.
+          
+          {t("Cần")} <a href="/question-banks">{t("tạo bộ đề và nhập câu hỏi")}</a>  {t("trước.")}
         </p>
       )}
     </>

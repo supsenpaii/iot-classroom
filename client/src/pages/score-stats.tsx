@@ -1,30 +1,31 @@
 import { useEffect, useState } from "react";
 import { fmt, type Data } from "../api";
+import { t, locale } from "../i18n";
 
 // Score summary, distribution, grade bands and per-question analysis for one session.
 const num = (v: number | null | undefined, digits = 1) =>
   v == null || Number.isNaN(v)
     ? "—"
-    : v.toLocaleString("vi-VN", { minimumFractionDigits: 0, maximumFractionDigits: digits });
+    : v.toLocaleString(locale(), { minimumFractionDigits: 0, maximumFractionDigits: digits });
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 // Vietnamese grading bands on the /10 scale.
 const BANDS = [
-  { key: "gioi", label: "Giỏi", rule: "≥ 8", min: 8 },
-  { key: "kha", label: "Khá", rule: "6,5 – 8", min: 6.5 },
-  { key: "tb", label: "Trung bình", rule: "5 – 6,5", min: 5 },
-  { key: "yeu", label: "Yếu", rule: "3,5 – 5", min: 3.5 },
-  { key: "kem", label: "Kém", rule: "< 3,5", min: -Infinity },
+  { key: "gioi", label: t("Giỏi"), rule: "≥ 8", min: 8 },
+  { key: "kha", label: t("Khá"), rule: t("6,5 – 8"), min: 6.5 },
+  { key: "tb", label: t("Trung bình"), rule: t("5 – 6,5"), min: 5 },
+  { key: "yeu", label: t("Yếu"), rule: t("3,5 – 5"), min: 3.5 },
+  { key: "kem", label: t("Kém"), rule: t("< 3,5"), min: -Infinity },
 ];
 const bandOf = (score: number) => BANDS.find((b) => score >= b.min)!;
-const difficulty = (p: number) => (p >= 0.7 ? ["Dễ", "easy"] : p >= 0.3 ? ["Vừa", "medium"] : ["Khó", "hard"]);
+const difficulty = (p: number) => (p >= 0.7 ? [t("Dễ"), "easy"] : p >= 0.3 ? [t("Vừa"), "medium"] : [t("Khó"), "hard"]);
 const discrimination = (d: number) =>
   d >= 0.3
-    ? ["Phân loại tốt", "good"]
+    ? [t("Phân loại tốt"), "good"]
     : d >= 0.2
-      ? ["Tạm được", "warn"]
+      ? [t("Tạm được"), "warn"]
       : d >= 0
-        ? ["Chưa phân loại", "bad"]
-        : ["Nghi sai đáp án", "bad"];
+        ? [t("Chưa phân loại"), "bad"]
+        : [t("Nghi sai đáp án"), "bad"];
 
 export function ScoreStats({ d }: { d: Data }) {
   const [hoverBin, setHoverBin] = useState<number | null>(null),
@@ -47,9 +48,9 @@ export function ScoreStats({ d }: { d: Data }) {
   if (!scores.length)
     return (
       <section className="card score-stats" id="report-statistics">
-        <h2>Thống kê điểm</h2>
-        <p className="muted">Chưa có điểm.</p>
-        <div id="report-questions"><h3>Phân tích câu hỏi</h3><p className="muted">Chưa có câu được chấm điểm để phân tích.</p></div>
+        <h2>{t("Thống kê điểm")}</h2>
+        <p className="muted">{t("Chưa có điểm.")}</p>
+        <div id="report-questions"><h3>{t("Phân tích câu hỏi")}</h3><p className="muted">{t("Chưa có câu được chấm điểm để phân tích.")}</p></div>
       </section>
     );
   const m = mean(scores)!,
@@ -85,11 +86,11 @@ export function ScoreStats({ d }: { d: Data }) {
       flags.push({
         tone: "bad",
         text: top && top !== q.data.correct_answer
-          ? `Nhóm điểm cao chủ yếu chọn ${top}, kiểm tra lại đáp án ${q.data.correct_answer}`
-          : "Nhóm điểm thấp làm đúng nhiều hơn nhóm điểm cao, kiểm tra lại đề",
+          ? t("Nhóm điểm cao chủ yếu chọn {top}, kiểm tra lại đáp án {correct_answer}", { top, correct_answer: q.data.correct_answer })
+          : t("Nhóm điểm thấp làm đúng nhiều hơn nhóm điểm cao, kiểm tra lại đề"),
       });
-    } else if (D < 0.2) flags.push({ tone: "warn", text: "Câu chưa phân loại được học sinh giỏi và yếu" });
-    if (p < 0.4 && D >= 0) flags.push({ tone: "warn", text: "Hơn một nửa lớp làm sai, nên giảng lại" });
+    } else if (D < 0.2) flags.push({ tone: "warn", text: t("Câu chưa phân loại được học sinh giỏi và yếu") });
+    if (p < 0.4 && D >= 0) flags.push({ tone: "warn", text: t("Hơn một nửa lớp làm sai, nên giảng lại") });
     const severity = flags.some((f) => f.tone === "bad") ? 3 : flags.length ? 2 : 0;
     return { q, p, D, flags, severity };
   });
@@ -137,26 +138,26 @@ export function ScoreStats({ d }: { d: Data }) {
     return `M${bx},${by + h}V${by + r}Q${bx},${by} ${bx + r},${by}H${bx + w - r}Q${bx + w},${by} ${bx + w},${by + r}V${by + h}Z`;
   };
   return (
-    <section className="card score-stats" id="report-statistics" aria-label="Thống kê điểm">
+    <section className="card score-stats" id="report-statistics" aria-label={t("Thống kê điểm")}>
       <div className="ss-head">
-        <h2>Thống kê điểm</h2>
-        <span className="ss-sub">{scores.length} học sinh · đạt từ {num(passMark)}</span>
+        <h2>{t("Thống kê điểm")}</h2>
+        <span className="ss-sub">{scores.length}  {t("học sinh · đạt từ")} {num(passMark)}</span>
       </div>
       <div className="ss-strip">
-        <div><span>Điểm trung bình</span><strong>{num(m)}</strong></div>
-        <div><span>Cao nhất</span><strong>{num(scores.at(-1))}</strong></div>
-        <div><span>Thấp nhất</span><strong>{num(scores[0])}</strong></div>
-        <div><span>Đạt</span><strong>{passed}<small> / {scores.length}</small></strong></div>
-        <div><span>Chưa đạt</span><strong>{scores.length - passed}</strong></div>
+        <div><span>{t("Điểm trung bình")}</span><strong>{num(m)}</strong></div>
+        <div><span>{t("Cao nhất")}</span><strong>{num(scores.at(-1))}</strong></div>
+        <div><span>{t("Thấp nhất")}</span><strong>{num(scores[0])}</strong></div>
+        <div><span>{t("Đạt")}</span><strong>{passed}<small> / {scores.length}</small></strong></div>
+        <div><span>{t("Chưa đạt")}</span><strong>{scores.length - passed}</strong></div>
       </div>
       <div className="ss-grid">
         <figure className="ss-figure">
           <figcaption>
-            <strong>Phổ điểm</strong>
-            <span className="ss-key"><i className="pass" />Đạt</span>
-            <span className="ss-key"><i className="fail" />Chưa đạt</span>
+            <strong>{t("Phổ điểm")}</strong>
+            <span className="ss-key"><i className="pass" />{t("Đạt")}</span>
+            <span className="ss-key"><i className="fail" />{t("Chưa đạt")}</span>
           </figcaption>
-          <svg viewBox={`0 0 ${W} ${H}`} className="ss-hist" role="img" aria-label={`Phổ điểm: ${bins.map((b) => `${b.from}–${b.to}: ${b.students.length}`).join(", ")}`}>
+          <svg viewBox={`0 0 ${W} ${H}`} className="ss-hist" role="img" aria-label={t("Phổ điểm: {v}", { v: bins.map((b) => `${b.from}–${b.to}: ${b.students.length}`).join(", ") })}>
             {bins.map((b, i) => {
               const n = b.students.length,
                 bx = L + i * slot + (slot - barW) / 2,
@@ -171,7 +172,7 @@ export function ScoreStats({ d }: { d: Data }) {
                   onMouseLeave={() => setHoverBin(null)}
                   onFocus={() => setHoverBin(i)}
                   onBlur={() => setHoverBin(null)}
-                  aria-label={`${b.from} đến ${b.to} điểm: ${n} học sinh`}
+                  aria-label={t("{from} đến {to} điểm: {n} học sinh", { from: b.from, to: b.to, n })}
                 >
                   <rect x={L + i * slot} y={T} width={slot} height={y(0) - T} fill="transparent" />
                   {n > 0 && <path d={barPath(bx, by, barW, h)} className={b.from + 0.5 >= passMark ? "bar-pass" : "bar-fail"} />}
@@ -188,17 +189,17 @@ export function ScoreStats({ d }: { d: Data }) {
             <line x1={x(m)} x2={x(m)} y1={T - 4} y2={y(0)} className="ss-mean-line" />
             <g transform={`translate(${Math.min(W - R - 34, Math.max(L + 34, x(m)))}, ${T - 16})`}>
               <rect x={-34} y={-12} width={68} height={24} rx={12} className="ss-mean-pill" />
-              <text x={0} y={4} textAnchor="middle" className="ss-mean-text">TB {num(m)}</text>
+              <text x={0} y={4} textAnchor="middle" className="ss-mean-text">{t("TB")} {num(m)}</text>
             </g>
           </svg>
           <p className="ss-caption" aria-live="polite">
             {hovered
-              ? `${hovered.from}–${hovered.to === 10 ? "10" : `dưới ${hovered.to}`} điểm · ${hovered.students.length} học sinh${hovered.students.length ? `: ${hovered.students.map((s: Data) => s.full_name.split(" ").at(-1)).join(", ")}` : ""}`
+              ? t("{from}–{v} điểm · {length} học sinh{v2}", { from: hovered.from, v: hovered.to === 10 ? "10" : t("dưới {to}", { to: hovered.to }), length: hovered.students.length, v2: hovered.students.length ? `: ${hovered.students.map((s: Data) => s.full_name.split(" ").at(-1)).join(", ")}` : "" })
               : " "}
           </p>
         </figure>
           <figure className="ss-figure">
-            <figcaption><strong>Xếp loại học lực</strong></figcaption>
+            <figcaption><strong>{t("Xếp loại học lực")}</strong></figcaption>
             <ul className="ss-band-rows">
               {bandCounts.map((b) => (
                 <li key={b.key}>
@@ -214,20 +215,20 @@ export function ScoreStats({ d }: { d: Data }) {
           {topicRows.length >= 2 && (
             <figure className="ss-figure ss-topics-fig">
               <figcaption>
-                <strong>Tỷ lệ đúng theo chủ đề</strong>
-                <label className="results-select">Sắp xếp
+                <strong>{t("Tỷ lệ đúng theo chủ đề")}</strong>
+                <label className="results-select">{t("Sắp xếp")}
                   <select value={topicSort} onChange={e => setTopicSort(e.target.value)}>
-                    <option value="low">Tỷ lệ thấp → cao</option>
-                    <option value="name">Tên chủ đề A–Z</option>
+                    <option value="low">{t("Tỷ lệ thấp → cao")}</option>
+                    <option value="name">{t("Tên chủ đề A–Z")}</option>
                   </select>
                 </label>
               </figcaption>
               <ul className="ss-topics">
-                {topicRows.map((t) => (
-                  <li key={t.topic} className={t.pct < 70 ? "topic-needs-review" : ""}>
-                    <span>{t.topic}<small>{t.n} câu</small></span>
-                    <div className="ss-topic-track"><i style={{ width: `${t.pct}%` }} /></div>
-                    <strong>{Math.round(t.pct)}%</strong>
+                {topicRows.map((row) => (
+                  <li key={row.topic} className={row.pct < 70 ? "topic-needs-review" : ""}>
+                    <span>{row.topic}<small>{row.n}  {t("câu")}</small></span>
+                    <div className="ss-topic-track"><i style={{ width: `${row.pct}%` }} /></div>
+                    <strong>{Math.round(row.pct)}%</strong>
                   </li>
                 ))}
               </ul>
@@ -236,31 +237,32 @@ export function ScoreStats({ d }: { d: Data }) {
       {analysis.length > 0 && (
         <div className="ss-items" id="report-questions">
           <div className="ss-items-head">
-            <h3>Phân tích câu hỏi</h3>
+            <h3>{t("Phân tích câu hỏi")}</h3>
             <div className="item-analysis-toolbar">
-            <div className="item-analysis-filters" role="group" aria-label="Lọc phân tích câu hỏi">
-              {[["all", "Tất cả"], ["low", "<60%"], ["unclassified", "Chưa phân loại"], ["review", "Cần xem xét"]].map(([value, label]) => (
+            <div className="item-analysis-filters" role="group" aria-label={t("Lọc phân tích câu hỏi")}>
+              {[["all", t("Tất cả")], ["low", "<60%"], ["unclassified", t("Chưa phân loại")], ["review", t("Cần xem xét")]].map(([value, label]) => (
                 <button type="button" key={value} aria-pressed={itemFilter === value} className={itemFilter === value ? "is-active" : ""} onClick={() => setItemFilter(value)}>{label}</button>
               ))}
             </div>
             <label className="results-select">
-              Sắp xếp
+              
+              {t("Sắp xếp")}
               <select value={itemSort} onChange={(e) => setItemSort(e.target.value)}>
-                <option value="order">Theo thứ tự câu</option>
-                <option value="review">Câu cần xem lại trước</option>
-                <option value="hard">Câu khó nhất trước</option>
+                <option value="order">{t("Theo thứ tự câu")}</option>
+                <option value="review">{t("Câu cần xem lại trước")}</option>
+                <option value="hard">{t("Câu khó nhất trước")}</option>
               </select>
             </label>
             </div>
           </div>
-          <div className="ia-list" role="table" aria-label="Phân tích từng câu hỏi">
+          <div className="ia-list" role="table" aria-label={t("Phân tích từng câu hỏi")}>
             <div className="ia-row ia-header" role="row">
-              <span role="columnheader">Câu</span>
-              <span role="columnheader">Nội dung và nhận xét</span>
-              <span role="columnheader">Lựa chọn của lớp</span>
-              <span role="columnheader">Làm đúng</span>
-              <span role="columnheader">Phân loại HS</span>
-              <span role="columnheader">TG trả lời</span>
+              <span role="columnheader">{t("Câu")}</span>
+              <span role="columnheader">{t("Nội dung và nhận xét")}</span>
+              <span role="columnheader">{t("Lựa chọn của lớp")}</span>
+              <span role="columnheader">{t("Làm đúng")}</span>
+              <span role="columnheader">{t("Phân loại HS")}</span>
+              <span role="columnheader">{t("TG trả lời")}</span>
             </div>
             {visibleItems.map(({ q, p, D, flags, severity }) => {
               const [dLabel, dTone] = difficulty(p),
@@ -279,9 +281,9 @@ export function ScoreStats({ d }: { d: Data }) {
                   </div>
                   <div className="ia-dist" role="cell">
                     <details open={compactDistribution ? undefined : true}>
-                    <summary>Phân phối lựa chọn</summary>
+                    <summary>{t("Phân phối lựa chọn")}</summary>
                     <div className="ia-dist-body">
-                    <div className="ia-bar" aria-label={counts.map((x) => `${x.c}: ${x.n}`).join(", ") + `, bỏ trống: ${blank}`}>
+                    <div className="ia-bar" aria-label={counts.map((x) => `${x.c}: ${x.n}`).join(", ") + t(", bỏ trống: {blank}", { blank })}>
                       {counts.filter((x) => x.n > 0).map((x) => (
                         <span key={x.c} className={x.correct ? "seg-correct" : "seg-wrong"} style={{ width: `${(x.n / Math.max(1, total)) * 100}%` }} />
                       ))}
@@ -309,27 +311,27 @@ export function ScoreStats({ d }: { d: Data }) {
                       {qLabel}
                     </span>
                   </div>
-                  <span className="ia-time" role="cell"><span className="ia-mobile-label">TG trả lời: </span>{q.response_ms == null ? "—" : `${num(q.response_ms / 1000)} giây`}</span>
+                  <span className="ia-time" role="cell"><span className="ia-mobile-label">{t("TG trả lời:")} </span>{q.response_ms == null ? "—" : t("{v} giây", { v: num(q.response_ms / 1000) })}</span>
                 </div>
               );
             })}
           </div>
-          {!visibleItems.length && <p className="analysis-empty" role="status">Không có câu phù hợp bộ lọc.</p>}
+          {!visibleItems.length && <p className="analysis-empty" role="status">{t("Không có câu phù hợp bộ lọc.")}</p>}
         </div>
       )}
       <details className="ss-table">
-        <summary>Xem bảng số liệu phổ điểm</summary>
+        <summary>{t("Xem bảng số liệu phổ điểm")}</summary>
         <table>
-          <thead><tr><th>Khoảng điểm</th><th>Số học sinh</th><th>Tỷ lệ</th></tr></thead>
+          <thead><tr><th>{t("Khoảng điểm")}</th><th>{t("Số học sinh")}</th><th>{t("Tỷ lệ")}</th></tr></thead>
           <tbody>
             {bins.map((b) => (
               <tr key={b.from}>
-                <td>{b.from} – {b.to === 10 ? "10" : `dưới ${b.to}`}</td>
+                <td>{b.from} – {b.to === 10 ? "10" : t("dưới {to}", { to: b.to })}</td>
                 <td>{b.students.length}</td>
                 <td>{Math.round((b.students.length / scores.length) * 100)}%</td>
               </tr>
             ))}
-            <tr><td><b>Trung bình</b></td><td colSpan={2}>{fmt(m)}</td></tr>
+            <tr><td><b>{t("Trung bình")}</b></td><td colSpan={2}>{fmt(m)}</td></tr>
           </tbody>
         </table>
       </details>

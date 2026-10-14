@@ -124,6 +124,8 @@ createRoot(document.querySelector("#root")).render(<Harness />);
   ({ sessionId: session } = await request("Target.attachToTarget", { targetId, flatten: true }));
   await request("Page.enable", {}, session);
   await request("Runtime.enable", {}, session);
+  // These assertions read Vietnamese text; headless Chrome reports en-US, which the app would follow.
+  await request("Page.addScriptToEvaluateOnNewDocument", { source: 'localStorage.setItem("classroom-lang", "vi")' }, session);
 });
 
 after(async () => {

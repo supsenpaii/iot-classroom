@@ -25,7 +25,9 @@
 .theme-toggle { width: 40px; min-height: 40px; padding: 8px; background: transparent; border-color: transparent; color: var(--green); box-shadow: none; }
 .theme-toggle svg { width: 21px; height: 21px; }
 .theme-toggle:hover { background: var(--sky-soft); border-color: var(--border); }
-.theme-toggle-floating { position: fixed; top: 16px; right: 16px; z-index: 30; background: var(--paper); border-color: var(--border); }
+.toggle-group { display: inline-flex; align-items: center; gap: 2px; }
+.toggle-group-floating { position: fixed; top: 16px; right: 16px; z-index: 30; background: var(--paper); border: 1px solid var(--border); border-radius: 10px; }
+.lang-toggle { width: auto; min-width: 40px; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
 @media (prefers-reduced-motion: no-preference) {
   .theme-toggle { transition: background-color 160ms, border-color 160ms, color 160ms; }
   .theme-toggle svg { transition: transform 160ms; }
@@ -117,7 +119,7 @@
   [data-theme="dark"] .results-table thead th.is-active { background: var(--sun-soft); }
   [data-theme="dark"] :is(.rt-student, .switch, .theme-toggle, button.text-button) { background: transparent; border-color: transparent; }
   [data-theme="dark"] :is(.switch:hover, .theme-toggle:hover) { background: var(--dark-hover); }
-  [data-theme="dark"] .theme-toggle-floating { background: var(--dark-card); border-color: var(--border); }
+  [data-theme="dark"] .toggle-group-floating { background: var(--dark-card); border-color: var(--border); }
   [data-theme="dark"] .switch.is-on .switch-track { background: #108f6c; }
   [data-theme="dark"] .switch-track span { background: #fff; }
   [data-theme="dark"] .mastery-high { --m-bg: #183d33; --m-fg: #80dfbd; --m-line: #356d59; }

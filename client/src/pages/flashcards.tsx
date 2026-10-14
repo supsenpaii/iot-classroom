@@ -12,6 +12,7 @@ import {
 } from "../components";
 import { useReviewSocket } from "../socket";
 import { Importer } from "./manage";
+import { t, locale } from "../i18n";
 
 const percent = (part: number, total: number) =>
   total ? Math.round((part / total) * 100) : 0;
@@ -31,16 +32,16 @@ function DeckList() {
     <>
       <Head
         eyebrow="FLASHCARD"
-        title="Nhớ lâu hơn, từng thẻ một."
-        description="Ôn tập cả lớp trên màn chiếu với thiết bị ESP32, hoặc gửi link để học sinh tự học trên điện thoại."
+        title={t("Nhớ lâu hơn, từng thẻ một.")}
+        description={t("Ôn tập cả lớp trên màn chiếu với thiết bị ESP32, hoặc gửi link để học sinh tự học trên điện thoại.")}
       />
       <div className="two-col">
         <section className="card">
-          <Field label="Tìm bộ thẻ">
+          <Field label={t("Tìm bộ thẻ")}>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tên bộ thẻ hoặc môn học"
+              placeholder={t("Tên bộ thẻ hoặc môn học")}
             />
           </Field>
           <Status error={decks.error} loading={!decks.data} />
@@ -54,18 +55,18 @@ function DeckList() {
                 <div>
                   <strong>{d.name}</strong>
                   <small>
-                    {d.subject || "Chưa đặt môn học"} · {d.card_count} thẻ
-                    {d.share_token ? " · có link tự học" : ""}
+                    {d.subject || t("Chưa đặt môn học")} · {d.card_count}  {t("thẻ")}
+                    {d.share_token ? t(" · có link tự học") : ""}
                   </small>
                 </div>
-                {d.running_review && <span className="badge">Đang ôn tập</span>}
+                {d.running_review && <span className="badge">{t("Đang ôn tập")}</span>}
                 <span>→</span>
               </a>
             ))}
           {decks.data?.length === 0 && (
             <Empty>
-              Chưa có bộ thẻ. Tạo bộ thẻ mới hoặc chuyển một bộ đề có sẵn thành
-              thẻ.
+              
+              {t("Chưa có bộ thẻ. Tạo bộ thẻ mới hoặc chuyển một bộ đề có sẵn thành thẻ.")}
             </Empty>
           )}
         </section>
@@ -81,14 +82,14 @@ function DeckList() {
               });
             }}
           >
-            <h2>Tạo bộ thẻ</h2>
-            <Field label="Tên bộ thẻ">
+            <h2>{t("Tạo bộ thẻ")}</h2>
+            <Field label={t("Tên bộ thẻ")}>
               <input name="name" required maxLength={150} />
             </Field>
-            <Field label="Môn học">
+            <Field label={t("Môn học")}>
               <input name="subject" maxLength={100} />
             </Field>
-            <button className="primary">Tạo bộ thẻ</button>
+            <button className="primary">{t("Tạo bộ thẻ")}</button>
           </form>
           <form
             className="card form"
@@ -101,23 +102,24 @@ function DeckList() {
               });
             }}
           >
-            <h2>Tạo từ ngân hàng câu hỏi</h2>
+            <h2>{t("Tạo từ ngân hàng câu hỏi")}</h2>
             <p className="muted">
-              Mặt trước là câu hỏi, mặt sau là đáp án đúng kèm lời giải.
+              
+              {t("Mặt trước là câu hỏi, mặt sau là đáp án đúng kèm lời giải.")}
             </p>
-            <Field label="Bộ đề">
+            <Field label={t("Bộ đề")}>
               <select name="bank_id" required disabled={!banks.data?.length}>
                 {banks.data?.map((b) => (
                   <option key={b.id} value={b.id} disabled={!b.question_count}>
-                    {b.name} · {b.question_count} câu
+                    {b.name} · {b.question_count}  {t("câu")}
                   </option>
                 ))}
               </select>
             </Field>
             {banks.data?.length === 0 && (
-              <small className="muted">Chưa có bộ đề nào.</small>
+              <small className="muted">{t("Chưa có bộ đề nào.")}</small>
             )}
-            <button disabled={!banks.data?.length}>Tạo bộ thẻ từ bộ đề</button>
+            <button disabled={!banks.data?.length}>{t("Tạo bộ thẻ từ bộ đề")}</button>
           </form>
         </div>
       </div>
@@ -139,31 +141,33 @@ function Deck({ id }: { id: string }) {
     run(async () => {
       await api(`/flashcard-decks/${id}/share`, "POST", { enabled });
       resource.reload();
-    }, enabled ? "Đã tạo link tự học mới." : "Đã tắt link tự học.");
+    }, enabled ? t("Đã tạo link tự học mới.") : t("Đã tắt link tự học."));
   return (
     <>
       <Head
-        eyebrow="BỘ THẺ"
+        eyebrow={t("BỘ THẺ")}
         title={d.name}
-        description={`${d.subject || "Chưa đặt môn học"} · ${d.cards.length} thẻ`}
+        description={t("{v} · {length} thẻ", { v: d.subject || t("Chưa đặt môn học"), length: d.cards.length })}
       >
         <a className="button" href="/flashcards">
-          ← Tất cả bộ thẻ
+          
+          {t("← Tất cả bộ thẻ")}
         </a>
       </Head>
       <div className="fc-deck-tools">
         <section className="card form">
           <h2>
-            <Icon name="device" /> Ôn tập cả lớp
+            <Icon name="device" />  {t("Ôn tập cả lớp")}
           </h2>
           <p className="muted">
-            Chiếu thẻ lên màn hình. Học sinh bấm <b>A = Nhớ</b>,{" "}
-            <b>B = Chưa nhớ</b> trên thiết bị; lớp thấy ngay bao nhiêu bạn đã
-            nhớ.
+            
+            {t("Chiếu thẻ lên màn hình. Học sinh bấm")} <b>{t("A = Nhớ")}</b>,{" "}
+            <b>{t("B = Chưa nhớ")}</b>  {t("trên thiết bị; lớp thấy ngay bao nhiêu bạn đã nhớ.")}
           </p>
           {running ? (
             <a className="button primary" href={`/flashcards/review/${running.id}`}>
-              Tiếp tục buổi đang ôn →
+              
+              {t("Tiếp tục buổi đang ôn →")}
             </a>
           ) : (
             <>
@@ -173,7 +177,8 @@ function Deck({ id }: { id: string }) {
                   checked={shuffle}
                   onChange={(e) => setShuffle(e.target.checked)}
                 />
-                Xáo trộn thứ tự thẻ
+                
+                {t("Xáo trộn thứ tự thẻ")}
               </label>
               <button
                 className="primary"
@@ -188,23 +193,24 @@ function Deck({ id }: { id: string }) {
                   })
                 }
               >
-                Bắt đầu ôn tập →
+                
+                {t("Bắt đầu ôn tập →")}
               </button>
             </>
           )}
         </section>
         <section className="card form">
           <h2>
-            <Icon name="users" /> Link tự học
+            <Icon name="users" />  {t("Link tự học")}
           </h2>
           {link ? (
             <>
               <p className="muted">
-                Học sinh mở link trên điện thoại, không cần tài khoản. Tiến độ
-                lưu trên máy của từng bạn.
+                
+                {t("Học sinh mở link trên điện thoại, không cần tài khoản. Tiến độ lưu trên máy của từng bạn.")}
               </p>
               <div className="fc-share">
-                <input readOnly value={link} aria-label="Link tự học" onFocus={(e) => e.target.select()} />
+                <input readOnly value={link} aria-label={t("Link tự học")} onFocus={(e) => e.target.select()} />
                 <button
                   onClick={() => void run(async () => {
                     await copyText(link);
@@ -212,27 +218,30 @@ function Deck({ id }: { id: string }) {
                     setTimeout(() => setCopied(false), 1500);
                   })}
                 >
-                  {copied ? "Đã chép" : "Sao chép"}
+                  {copied ? t("Đã chép") : t("Sao chép")}
                 </button>
               </div>
               <div className="actions">
-                <button onClick={() => void share(true)}>Tạo link mới</button>
+                <button onClick={() => void share(true)}>{t("Tạo link mới")}</button>
                 <button className="danger" onClick={() => void share(false)}>
-                  Tắt link
+                  
+                  {t("Tắt link")}
                 </button>
               </div>
             </>
           ) : (
             <>
               <p className="muted">
-                Chưa bật. Khi bật, ai có link đều xem được nội dung bộ thẻ này.
+                
+                {t("Chưa bật. Khi bật, ai có link đều xem được nội dung bộ thẻ này.")}
               </p>
               <button
                 className="primary"
                 disabled={!d.cards.length}
                 onClick={() => void share(true)}
               >
-                Bật link tự học
+                
+                {t("Bật link tự học")}
               </button>
             </>
           )}
@@ -248,9 +257,10 @@ function Deck({ id }: { id: string }) {
         />
       </section>
       <div className="row spread">
-        <h2>Thẻ trong bộ</h2>
+        <h2>{t("Thẻ trong bộ")}</h2>
         <button className="primary" onClick={() => setEditing({ front: "", back: "" })}>
-          + Thêm thẻ
+          
+          {t("+ Thêm thẻ")}
         </button>
       </div>
       {editing && (
@@ -270,22 +280,23 @@ function Deck({ id }: { id: string }) {
               );
               setEditing(editing.id ? null : { front: "", back: "" });
               resource.reload();
-            }, "Đã lưu thẻ.");
+            }, t("Đã lưu thẻ."));
           }}
         >
-          <h2>{editing.id ? "Sửa thẻ" : "Thêm thẻ"}</h2>
+          <h2>{editing.id ? t("Sửa thẻ") : t("Thêm thẻ")}</h2>
           <div className="form-grid">
-            <Field label="Mặt trước (câu hỏi, thuật ngữ)">
+            <Field label={t("Mặt trước (câu hỏi, thuật ngữ)")}>
               <textarea name="front" defaultValue={editing.front} required maxLength={2000} />
             </Field>
-            <Field label="Mặt sau (đáp án, giải thích)">
+            <Field label={t("Mặt sau (đáp án, giải thích)")}>
               <textarea name="back" defaultValue={editing.back} required maxLength={5000} />
             </Field>
           </div>
           <div className="actions">
-            <button className="primary">Lưu thẻ</button>
+            <button className="primary">{t("Lưu thẻ")}</button>
             <button type="button" onClick={() => setEditing(null)}>
-              Đóng
+              
+              {t("Đóng")}
             </button>
           </div>
         </form>
@@ -295,7 +306,7 @@ function Deck({ id }: { id: string }) {
           {d.cards.map((c: Data, i: number) => (
             <article className="card fc-item" key={c.id}>
               <div className="row spread">
-                <span className="badge">Thẻ {i + 1}</span>
+                <span className="badge">{t("Thẻ")} {i + 1}</span>
                 <div>
                   <button
                     className="text-button"
@@ -310,19 +321,21 @@ function Deck({ id }: { id: string }) {
                       );
                     }}
                   >
-                    Sửa
+                    
+                    {t("Sửa")}
                   </button>
                   <button
                     className="text-button danger"
                     onClick={() => {
-                      if (confirm("Xóa thẻ này khỏi bộ thẻ?"))
+                      if (confirm(t("Xóa thẻ này khỏi bộ thẻ?")))
                         void run(async () => {
                           await api(`/flashcards/${c.id}`, "DELETE");
                           resource.reload();
                         });
                     }}
                   >
-                    Xóa
+                    
+                    {t("Xóa")}
                   </button>
                 </div>
               </div>
@@ -332,19 +345,19 @@ function Deck({ id }: { id: string }) {
           ))}
         </div>
       ) : (
-        <Empty>Bộ thẻ chưa có thẻ. Thêm thẻ hoặc nhập file XLSX/CSV.</Empty>
+        <Empty>{t("Bộ thẻ chưa có thẻ. Thêm thẻ hoặc nhập file XLSX/CSV.")}</Empty>
       )}
       {d.reviews.length > 0 && (
         <section className="card">
-          <h2>Các buổi ôn tập</h2>
+          <h2>{t("Các buổi ôn tập")}</h2>
           {d.reviews.map((r: Data) => (
             <a className="list-item" key={r.id} href={`/flashcards/review/${r.id}`}>
               <div>
-                <strong>{new Date(r.created_at).toLocaleString("vi-VN")}</strong>
-                <small>{r.round} vòng</small>
+                <strong>{new Date(r.created_at).toLocaleString(locale())}</strong>
+                <small>{r.round}  {t("vòng")}</small>
               </div>
               <span className="badge">
-                {r.state === "RUNNING" ? "Đang ôn tập" : "Đã kết thúc"}
+                {r.state === "RUNNING" ? t("Đang ôn tập") : t("Đã kết thúc")}
               </span>
               <span>→</span>
             </a>
@@ -360,34 +373,36 @@ function Deck({ id }: { id: string }) {
             void run(async () => {
               await api(`/flashcard-decks/${id}`, "PATCH", body);
               resource.reload();
-            }, "Đã cập nhật bộ thẻ.");
+            }, t("Đã cập nhật bộ thẻ."));
           }}
         >
-          <h3>Thông tin bộ thẻ</h3>
-          <Field label="Tên bộ thẻ">
+          <h3>{t("Thông tin bộ thẻ")}</h3>
+          <Field label={t("Tên bộ thẻ")}>
             <input name="name" defaultValue={d.name} required maxLength={150} />
           </Field>
-          <Field label="Môn học">
+          <Field label={t("Môn học")}>
             <input name="subject" defaultValue={d.subject} maxLength={100} />
           </Field>
-          <button>Lưu thông tin</button>
+          <button>{t("Lưu thông tin")}</button>
         </form>
         <section className="card form">
-          <h3>Xóa bộ thẻ</h3>
+          <h3>{t("Xóa bộ thẻ")}</h3>
           <p className="muted">
-            Xóa luôn các thẻ và lịch sử ôn tập. Link tự học sẽ ngừng hoạt động.
+            
+            {t("Xóa luôn các thẻ và lịch sử ôn tập. Link tự học sẽ ngừng hoạt động.")}
           </p>
           <button
             className="danger"
             onClick={() => {
-              if (confirm(`Xóa bộ thẻ "${d.name}"? Không thể hoàn tác.`))
+              if (confirm(t("Xóa bộ thẻ \"{name}\"? Không thể hoàn tác.", { name: d.name })))
                 void run(async () => {
                   await api(`/flashcard-decks/${id}`, "DELETE");
                   window.location.href = "/flashcards";
                 });
             }}
           >
-            Xóa bộ thẻ
+            
+            {t("Xóa bộ thẻ")}
           </button>
         </section>
       </div>
@@ -427,7 +442,7 @@ export function FlashcardReview({ id }: { id: string }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
   if (!data)
-    return <Status loading={!status.startsWith("Không")} error={status.startsWith("Không") ? status : undefined} />;
+    return <Status loading={!status.startsWith(t("Không"))} error={status.startsWith(t("Không")) ? status : undefined} />;
   if (data.state === "FINISHED") return <ReviewSummary data={data} />;
   const rated = data.counts.KNOWN + data.counts.AGAIN,
     waiting = Math.max(0, data.devices_online - rated),
@@ -438,7 +453,8 @@ export function FlashcardReview({ id }: { id: string }) {
       <header className="fc-review-head">
         <div>
           <p className="eyebrow">
-            ÔN TẬP CẢ LỚP · VÒNG {data.round} · {status.toUpperCase()}
+            
+            {t("ÔN TẬP CẢ LỚP · VÒNG")} {data.round} · {status.toUpperCase()}
           </p>
           <h1>{data.deck_name}</h1>
         </div>
@@ -449,16 +465,18 @@ export function FlashcardReview({ id }: { id: string }) {
               else void stage.current?.requestFullscreen().catch(() => {});
             }}
           >
-            Toàn màn hình
+            
+            {t("Toàn màn hình")}
           </button>
           <button
             className="danger"
             onClick={() => {
-              if (confirm("Kết thúc buổi ôn tập? Thiết bị sẽ ngừng nhận thẻ."))
+              if (confirm(t("Kết thúc buổi ôn tập? Thiết bị sẽ ngừng nhận thẻ.")))
                 command("finish");
             }}
           >
-            Kết thúc
+            
+            {t("Kết thúc")}
           </button>
         </div>
       </header>
@@ -466,7 +484,8 @@ export function FlashcardReview({ id }: { id: string }) {
         <section className="fc-stage">
           <div className="fc-progress">
             <span>
-              Thẻ <b>{data.index + 1}</b>/{data.total}
+              
+              {t("Thẻ")} <b>{data.index + 1}</b>/{data.total}
             </span>
             <div className="fc-progress-track" aria-hidden="true">
               <span style={{ width: `${((data.index + 1) / data.total) * 100}%` }} />
@@ -475,66 +494,70 @@ export function FlashcardReview({ id }: { id: string }) {
           <button
             className={`fc-card${data.side === "back" ? " is-flipped" : ""}`}
             onClick={() => command("flip")}
-            aria-label={data.side === "back" ? "Lật về mặt trước" : "Lật xem mặt sau"}
+            aria-label={data.side === "back" ? t("Lật về mặt trước") : t("Lật xem mặt sau")}
           >
             <span className="fc-face fc-front">
-              <small>MẶT TRƯỚC</small>
+              <small>{t("MẶT TRƯỚC")}</small>
               <span className={`fc-text${lengthClass(data.card.front)}`}>{data.card.front}</span>
             </span>
             <span className="fc-face fc-back">
-              <small>MẶT SAU</small>
+              <small>{t("MẶT SAU")}</small>
               <span className={`fc-text${lengthClass(data.card.back)}`}>{data.card.back}</span>
             </span>
           </button>
           <div className="fc-controls">
             <button disabled={busy || data.index === 0} onClick={() => command("prev")}>
-              ← Thẻ trước
+              
+              {t("← Thẻ trước")}
             </button>
             <button className="primary" disabled={busy} onClick={() => command("flip")}>
-              {data.side === "back" ? "Lật lại" : "Lật thẻ"} <kbd>Space</kbd>
+              {data.side === "back" ? t("Lật lại") : t("Lật thẻ")} <kbd>Space</kbd>
             </button>
             {last ? (
               againCards > 0 ? (
                 <button className="primary fc-sun" disabled={busy} onClick={() => command("repeat")}>
-                  Ôn lại {againCards} thẻ chưa nhớ ↻
+                  
+                  {t("Ôn lại")} {againCards}  {t("thẻ chưa nhớ ↻")}
                 </button>
               ) : (
                 <button disabled={busy} onClick={() => command("finish")}>
-                  Hoàn thành buổi ôn ✓
+                  
+                  {t("Hoàn thành buổi ôn ✓")}
                 </button>
               )
             ) : (
               <button disabled={busy} onClick={() => command("next")}>
-                Thẻ tiếp →
+                
+                {t("Thẻ tiếp →")}
               </button>
             )}
           </div>
         </section>
         <aside className="fc-live card">
-          <h2>Lớp tự đánh giá</h2>
+          <h2>{t("Lớp tự đánh giá")}</h2>
           <div className="fc-tally">
             <div className="fc-known">
               <strong>{data.counts.KNOWN}</strong>
-              <small>Nhớ · phím A</small>
+              <small>{t("Nhớ · phím A")}</small>
             </div>
             <div className="fc-again">
               <strong>{data.counts.AGAIN}</strong>
-              <small>Chưa nhớ · phím B</small>
+              <small>{t("Chưa nhớ · phím B")}</small>
             </div>
             <div className="fc-waiting">
               <strong>{waiting}</strong>
-              <small>Chưa bấm</small>
+              <small>{t("Chưa bấm")}</small>
             </div>
           </div>
-          <div className="stacked-bar" aria-label={`${data.counts.KNOWN} nhớ, ${data.counts.AGAIN} chưa nhớ`}>
+          <div className="stacked-bar" aria-label={t("{KNOWN} nhớ, {AGAIN} chưa nhớ", { KNOWN: data.counts.KNOWN, AGAIN: data.counts.AGAIN })}>
             <span className="correct" style={{ width: `${percent(data.counts.KNOWN, Math.max(rated, data.devices_online))}%` }} />
             <span className="wrong" style={{ width: `${percent(data.counts.AGAIN, Math.max(rated, data.devices_online))}%` }} />
           </div>
           <p className="muted">
-            {data.devices_online} thiết bị đang kết nối
-            {data.devices_online === 0 && " · bật thiết bị hoặc mở trang Giả lập để thử"}
+            {data.devices_online}  {t("thiết bị đang kết nối")}
+            {data.devices_online === 0 && t(" · bật thiết bị hoặc mở trang Giả lập để thử")}
           </p>
-          <h3>Vòng {data.round}</h3>
+          <h3>{t("Vòng")} {data.round}</h3>
           <ol className="fc-round">
             {data.round_stats.map((c: Data) => (
               <li key={c.id} className={c.position === data.index + 1 ? "is-current" : ""}>
@@ -560,12 +583,13 @@ function ReviewSummary({ data }: { data: Data }) {
   return (
     <>
       <Head
-        eyebrow={`ÔN TẬP CẢ LỚP · ${data.round} VÒNG · ĐÃ KẾT THÚC`}
+        eyebrow={t("ÔN TẬP CẢ LỚP · {round} VÒNG · ĐÃ KẾT THÚC", { round: data.round })}
         title={data.deck_name}
-        description="Thẻ khó nhất ở trên cùng. Tỷ lệ tính trên số thiết bị đã bấm ở mỗi vòng."
+        description={t("Thẻ khó nhất ở trên cùng. Tỷ lệ tính trên số thiết bị đã bấm ở mỗi vòng.")}
       >
         <a className="button" href={`/flashcards/${data.deck_id}`}>
-          ← Về bộ thẻ
+          
+          {t("← Về bộ thẻ")}
         </a>
       </Head>
       <section className="card">
@@ -573,10 +597,10 @@ function ReviewSummary({ data }: { data: Data }) {
           <table>
             <thead>
               <tr>
-                <th>Mặt trước</th>
-                <th>Lần đầu nhớ</th>
-                <th>Lần cuối nhớ</th>
-                <th>Số vòng</th>
+                <th>{t("Mặt trước")}</th>
+                <th>{t("Lần đầu nhớ")}</th>
+                <th>{t("Lần cuối nhớ")}</th>
+                <th>{t("Số vòng")}</th>
               </tr>
             </thead>
             <tbody>
@@ -708,11 +732,12 @@ export function Study({ token }: { token: string }) {
   return (
     <main className="study">
       <header className="study-head">
-        <p className="eyebrow">TỰ HỌC · {deck.subject || "FLASHCARD"}</p>
+        <p className="eyebrow">{t("TỰ HỌC ·")} {deck.subject || "FLASHCARD"}</p>
         <h1>{deck.name}</h1>
         <div className="fc-progress">
           <span>
-            Đã nhớ <b>{progress.known.length}</b>/{total}
+            
+            {t("Đã nhớ")} <b>{progress.known.length}</b>/{total}
           </span>
           <div className="fc-progress-track" aria-hidden="true">
             <span style={{ width: `${percent(progress.known.length, total)}%` }} />
@@ -724,49 +749,52 @@ export function Study({ token }: { token: string }) {
           <button
             className={`fc-card study-card${flipped ? " is-flipped" : ""}`}
             onClick={() => setFlipped((f) => !f)}
-            aria-label={flipped ? "Lật về mặt trước" : "Lật xem mặt sau"}
+            aria-label={flipped ? t("Lật về mặt trước") : t("Lật xem mặt sau")}
           >
             <span className="fc-face fc-front">
-              <small>MẶT TRƯỚC · CHẠM ĐỂ LẬT</small>
+              <small>{t("MẶT TRƯỚC · CHẠM ĐỂ LẬT")}</small>
               <span className={`fc-text${lengthClass(card.front)}`}>{card.front}</span>
             </span>
             <span className="fc-face fc-back">
-              <small>MẶT SAU</small>
+              <small>{t("MẶT SAU")}</small>
               <span className={`fc-text${lengthClass(card.back)}`}>{card.back}</span>
             </span>
           </button>
           {flipped ? (
             <div className="study-rate">
               <button className="fc-rate-again" onClick={() => rate(false)}>
-                Chưa nhớ
-                <small>xem lại sau</small>
+                
+                {t("Chưa nhớ")}
+                <small>{t("xem lại sau")}</small>
               </button>
               <button className="fc-rate-known" onClick={() => rate(true)}>
-                Đã nhớ
-                <small>bỏ khỏi lượt này</small>
+                
+                {t("Đã nhớ")}
+                <small>{t("bỏ khỏi lượt này")}</small>
               </button>
             </div>
           ) : (
             <p className="study-hint">
-              Nhớ lại đáp án trong đầu, rồi chạm thẻ để kiểm tra.
+              
+              {t("Nhớ lại đáp án trong đầu, rồi chạm thẻ để kiểm tra.")}
             </p>
           )}
-          <p className="study-meta">Còn {progress.queue.length} thẻ trong lượt này</p>
+          <p className="study-meta">{t("Còn")} {progress.queue.length}  {t("thẻ trong lượt này")}</p>
         </>
       ) : (
         <section className="card study-done">
-          <h2>Hoàn thành! Thuộc cả {total} thẻ.</h2>
+          <h2>{t("Hoàn thành! Thuộc cả")} {total}  {t("thẻ.")}</h2>
           <p className="muted">
             {hardest.length
-              ? `Bạn đã quên tổng cộng ${Object.values(progress.misses).reduce((a, b) => a + b, 0)} lần. Các thẻ cần ôn thêm:`
-              : "Không quên thẻ nào. Rất tốt!"}
+              ? t("Bạn đã quên tổng cộng {v} lần. Các thẻ cần ôn thêm:", { v: Object.values(progress.misses).reduce((a, b) => a + b, 0) })
+              : t("Không quên thẻ nào. Rất tốt!")}
           </p>
           {hardest.length > 0 && (
             <ul className="study-hardest">
               {hardest.map(([cardId, n]) => (
                 <li key={cardId}>
                   <span>{byId.get(cardId)!.front}</span>
-                  <small>quên {n} lần</small>
+                  <small>{t("quên")} {n}  {t("lần")}</small>
                 </li>
               ))}
             </ul>
@@ -785,7 +813,8 @@ export function Study({ token }: { token: string }) {
                   })
                 }
               >
-                Ôn lại thẻ từng quên
+                
+                {t("Ôn lại thẻ từng quên")}
               </button>
             )}
             <button
@@ -797,7 +826,8 @@ export function Study({ token }: { token: string }) {
                 })
               }
             >
-              Học lại từ đầu
+              
+              {t("Học lại từ đầu")}
             </button>
           </div>
         </section>

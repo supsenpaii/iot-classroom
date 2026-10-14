@@ -1,3 +1,4 @@
+import { t, locale, translateServer } from "./i18n";
 export type Data = Record<string, any>; // JSON API documents; inputs are validated by shared Zod schemas on the server.
 export type ApiError = Error & { code: string | undefined; details: unknown };
 type ApiErrorResponse = {
@@ -9,7 +10,7 @@ type ApiErrorResponse = {
 let csrf = "";
 const authChannel = new BroadcastChannel("classroom-auth");
 authChannel.onmessage = (event) => {
-  if (event.data === "signed-out" && !["/student", "/student/"].includes(window.location.pathname)) window.location.replace("/login");
+  if (event.data === "signed-out" && !["/student", "/student/", "/device", "/device/"].includes(window.location.pathname)) window.location.replace("/login");
 };
 export function signedOut() {
   csrf = "";
@@ -39,18 +40,18 @@ export async function api<T = any>(
     },
     body: body instanceof File ? body : body ? JSON.stringify(body) : undefined,
   }).catch(() => {
-    throw new Error("Mất kết nối máy chủ. Kiểm tra mạng rồi thử lại.");
+    throw new Error(t("Mất kết nối máy chủ. Kiểm tra mạng rồi thử lại."));
   });
   const data: unknown = await res.json().catch(() => null);
-  if (!data) throw new Error("Không đọc được phản hồi máy chủ. Thử lại sau.");
+  if (!data) throw new Error(t("Không đọc được phản hồi máy chủ. Thử lại sau."));
   if (!res.ok) {
     if (res.status === 401 && !["/auth/login", "/auth/me", "/presentation/exchange"].includes(path))
       signedOut();
     const failure = data as ApiErrorResponse;
     const error = new Error(
-      (failure.message || "Không kết nối được máy chủ") +
+      (failure.message ? translateServer(failure.message) : t("Không kết nối được máy chủ")) +
         (res.status >= 500 && failure.requestId
-          ? ` · Mã tra cứu: ${failure.requestId}`
+          ? t(" · Mã tra cứu: {requestId}", { requestId: failure.requestId })
           : ""),
     ) as ApiError;
     error.code = failure.code;
@@ -63,58 +64,58 @@ export const fields = (form: HTMLFormElement) =>
   Object.fromEntries(new FormData(form));
 export const fmt = (value: number | null | undefined, suffix = "") =>
   value == null
-    ? "Chưa có điểm"
-    : `${value.toLocaleString("vi-VN", { maximumFractionDigits: 1 })}${suffix}`;
+    ? t("Chưa có điểm")
+    : `${value.toLocaleString(locale(), { maximumFractionDigits: 1 })}${suffix}`;
 export const stateLabel: Record<string, string> = {
-  LOBBY: "Phòng chờ",
-  RUNNING: "Đang diễn ra",
-  PAUSED: "Tạm dừng",
-  FINISHED: "Đã kết thúc",
-  CANCELLED: "Đã hủy",
-  OPEN: "Đang nhận đáp án",
-  CLOSED: "Đã đóng",
-  PENDING: "Chưa mở",
-  WAITING: "Chờ ghép thiết bị",
+  LOBBY: t("Phòng chờ"),
+  RUNNING: t("Đang diễn ra"),
+  PAUSED: t("Tạm dừng"),
+  FINISHED: t("Đã kết thúc"),
+  CANCELLED: t("Đã hủy"),
+  OPEN: t("Đang nhận đáp án"),
+  CLOSED: t("Đã đóng"),
+  PENDING: t("Chưa mở"),
+  WAITING: t("Chờ ghép thiết bị"),
 };
 
 export const eventLabel: Record<string, string> = {
-  start: "Bắt đầu kiểm tra",
-  pause: "Tạm dừng",
-  resume: "Tiếp tục",
-  finish: "Kết thúc bài",
-  cancel: "Hủy buổi",
-  next: "Chuyển câu",
-  "close-question": "Giáo viên đóng câu",
-  "question.closed": "Câu đã đóng",
-  "question.opened": "Mở câu hỏi",
-  "question.voided": "Loại câu khỏi tính điểm",
-  "device.test": "Bấm thử thiết bị",
-  "device.connected": "Thiết bị kết nối",
-  "device.disconnected": "Thiết bị mất kết nối",
-  "server.recovered": "Khôi phục máy chủ",
-  "binding.changed": "Thay đổi ghép thiết bị",
-  "binding.label.snapshot": "Lưu nhãn thiết bị của phiên",
-  "answer.saved": "Đã lưu đáp án",
-  "answer.rejected": "Đáp án không hợp lệ",
-  "reveal-results": "Công bố kết quả lên màn chiếu",
-  "results.imported": "Nhập kết quả có sẵn",
+  start: t("Bắt đầu kiểm tra"),
+  pause: t("Tạm dừng"),
+  resume: t("Tiếp tục"),
+  finish: t("Kết thúc bài"),
+  cancel: t("Hủy buổi"),
+  next: t("Chuyển câu"),
+  "close-question": t("Giáo viên đóng câu"),
+  "question.closed": t("Câu đã đóng"),
+  "question.opened": t("Mở câu hỏi"),
+  "question.voided": t("Loại câu khỏi tính điểm"),
+  "device.test": t("Bấm thử thiết bị"),
+  "device.connected": t("Thiết bị kết nối"),
+  "device.disconnected": t("Thiết bị mất kết nối"),
+  "server.recovered": t("Khôi phục máy chủ"),
+  "binding.changed": t("Thay đổi ghép thiết bị"),
+  "binding.label.snapshot": t("Lưu nhãn thiết bị của phiên"),
+  "answer.saved": t("Đã lưu đáp án"),
+  "answer.rejected": t("Đáp án không hợp lệ"),
+  "reveal-results": t("Công bố kết quả lên màn chiếu"),
+  "results.imported": t("Nhập kết quả có sẵn"),
 };
 export const errorLabel: Record<string, string> = {
-  QUESTION_CLOSED: "Câu đã đóng hoặc hết giờ",
-  SESSION_PAUSED: "Buổi đang tạm dừng",
-  STALE_SEQUENCE: "Gói cũ, đã có lựa chọn mới hơn",
-  DEVICE_NOT_ASSIGNED: "Thiết bị chưa ghép hoặc đã hết quyền",
-  ANSWER_LOCKED: "Đã khóa lựa chọn đầu tiên",
-  REQUEST_REUSED: "Mã gửi lại không khớp nội dung",
-  INVALID_PAYLOAD: "Nội dung gửi không hợp lệ",
-  INVALID_STATE: "Chỉ thử nút khi ở phòng chờ hoặc tạm dừng",
-  STORAGE_ERROR: "Chưa lưu được đáp án; sẽ thử lại",
-  REVIEW_CLOSED: "Buổi ôn tập đã kết thúc",
-  CARD_CHANGED: "Giáo viên đã chuyển sang thẻ khác",
-  ROUND_CHANGED: "Vòng ôn tập đã thay đổi; chờ trạng thái mới",
-  DISPLAY_CHANGED: "Lượt hiển thị thẻ đã thay đổi; chờ trạng thái mới",
-  DEVICE_BUSY: "Thiết bị đang dùng cho bài kiểm tra",
-  POLL_CLOSED: "Khảo sát đã đóng",
-  INVALID_CHOICE: "Lựa chọn không có trong khảo sát",
-  ATTENDANCE_CLOSED: "Điểm danh đã đóng",
+  QUESTION_CLOSED: t("Câu đã đóng hoặc hết giờ"),
+  SESSION_PAUSED: t("Buổi đang tạm dừng"),
+  STALE_SEQUENCE: t("Gói cũ, đã có lựa chọn mới hơn"),
+  DEVICE_NOT_ASSIGNED: t("Thiết bị chưa ghép hoặc đã hết quyền"),
+  ANSWER_LOCKED: t("Đã khóa lựa chọn đầu tiên"),
+  REQUEST_REUSED: t("Mã gửi lại không khớp nội dung"),
+  INVALID_PAYLOAD: t("Nội dung gửi không hợp lệ"),
+  INVALID_STATE: t("Chỉ thử nút khi ở phòng chờ hoặc tạm dừng"),
+  STORAGE_ERROR: t("Chưa lưu được đáp án; sẽ thử lại"),
+  REVIEW_CLOSED: t("Buổi ôn tập đã kết thúc"),
+  CARD_CHANGED: t("Giáo viên đã chuyển sang thẻ khác"),
+  ROUND_CHANGED: t("Vòng ôn tập đã thay đổi; chờ trạng thái mới"),
+  DISPLAY_CHANGED: t("Lượt hiển thị thẻ đã thay đổi; chờ trạng thái mới"),
+  DEVICE_BUSY: t("Thiết bị đang dùng cho bài kiểm tra"),
+  POLL_CLOSED: t("Khảo sát đã đóng"),
+  INVALID_CHOICE: t("Lựa chọn không có trong khảo sát"),
+  ATTENDANCE_CLOSED: t("Điểm danh đã đóng"),
 };

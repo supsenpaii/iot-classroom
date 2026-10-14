@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Data } from "./api";
 import { createUuid } from "./uuid";
+import { t, translateServer } from "./i18n";
 
 export class StudentApiError extends Error {
   constructor(message: string, public code: string, public status: number) { super(message); }
@@ -10,25 +11,25 @@ export async function studentApi(path: string, csrf = "", body?: unknown): Promi
     method: body === undefined ? "GET" : "POST", credentials: "same-origin",
     headers: body === undefined ? {} : { "Content-Type": "application/json", "X-CSRF-Token": csrf },
     body: body === undefined ? undefined : JSON.stringify(body),
-  }).catch(() => { throw new StudentApiError("Mất kết nối máy chủ. Kiểm tra mạng rồi thử lại.", "NETWORK", 0); });
+  }).catch(() => { throw new StudentApiError(t("Mất kết nối máy chủ. Kiểm tra mạng rồi thử lại."), "NETWORK", 0); });
   const data = await res.json().catch(() => null);
-  if (!data) throw new StudentApiError("Chưa đọc được phản hồi máy chủ. Hãy thử lại.", "NETWORK", 0);
-  if (!res.ok) throw new StudentApiError(data.message || "Không thể thực hiện yêu cầu.", data.code, res.status);
+  if (!data) throw new StudentApiError(t("Chưa đọc được phản hồi máy chủ. Hãy thử lại."), "NETWORK", 0);
+  if (!res.ok) throw new StudentApiError(data.message ? translateServer(data.message) : t("Không thể thực hiện yêu cầu."), data.code, res.status);
   return data;
 }
 const answerErrors: Record<string, string> = {
-  QUESTION_CLOSED: "Câu đã đóng hoặc hết giờ.", SESSION_PAUSED: "Bài đang tạm dừng.",
-  STALE_SEQUENCE: "Đã có lựa chọn mới hơn. Đang đồng bộ lại.",
-  DEVICE_NOT_ASSIGNED: "Bạn không còn được ghép vào phòng. Hãy hỏi giáo viên.",
-  ANSWER_LOCKED: "Giáo viên đã khóa lựa chọn đầu tiên.",
-  REQUEST_REUSED: "Không thể gửi lại lựa chọn này. Hãy tải lại trang.",
-  INVALID_PAYLOAD: "Không thể gửi lựa chọn này. Hãy tải lại trang.",
+  QUESTION_CLOSED: t("Câu đã đóng hoặc hết giờ."), SESSION_PAUSED: t("Bài đang tạm dừng."),
+  STALE_SEQUENCE: t("Đã có lựa chọn mới hơn. Đang đồng bộ lại."),
+  DEVICE_NOT_ASSIGNED: t("Bạn không còn được ghép vào phòng. Hãy hỏi giáo viên."),
+  ANSWER_LOCKED: t("Giáo viên đã khóa lựa chọn đầu tiên."),
+  REQUEST_REUSED: t("Không thể gửi lại lựa chọn này. Hãy tải lại trang."),
+  INVALID_PAYLOAD: t("Không thể gửi lựa chọn này. Hãy tải lại trang."),
 };
 export function useStudentQuiz(identity: Data, csrf: string) {
   const [data, setData] = useState<Data | null>(null);
   const [connected, setConnected] = useState(false);
   const [terminal, setTerminal] = useState(false);
-  const [status, setStatus] = useState("Đang kết nối…");
+  const [status, setStatus] = useState(t("Đang kết nối…"));
   const [notice, setNotice] = useState("");
   const [sending, setSending] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
@@ -38,6 +39,7 @@ export function useStudentQuiz(identity: Data, csrf: string) {
   const chooseRef = useRef<(choice: string) => void>(() => {});
 
   useEffect(() => {
+    if (!identity.binding_id) return; // /device renders the hook before a room is joined
     let stopped = false, synchronized = false, attempt = 0, seq = 0;
     let state: Data | null = null, pending: Data | null = null, queued: string | null = null;
     let clockOffset = 0;
@@ -71,12 +73,12 @@ export function useStudentQuiz(identity: Data, csrf: string) {
     function choose(choice: string) {
       if (!mayAnswer() || !/^[ABCD]$/.test(choice)) return;
       setSelected(choice);
-      if (pending) { queued = choice; setNotice(`Chọn ${choice} · đang chờ lưu lựa chọn trước…`); return; }
+      if (pending) { queued = choice; setNotice(t("Chọn {choice} · đang chờ lưu lựa chọn trước…", { choice })); return; }
       pending = { v: 1, type: "answer.submit", request_id: createUuid(),
         session_id: state!.id, question_instance_id: state!.question.id,
         binding_id: state!.binding_id, seq: ++seq, choice };
       try { sessionStorage.setItem(storageKey, JSON.stringify(pending)); } catch {}
-      setSending(true); setNotice(`Đang lưu đáp án ${choice}…`); transmit();
+      setSending(true); setNotice(t("Đang lưu đáp án {choice}…", { choice })); transmit();
     }
     chooseRef.current = choose;
     function reconnect() {
@@ -84,7 +86,7 @@ export function useStudentQuiz(identity: Data, csrf: string) {
       connectTimer = setTimeout(connect, Math.min(10000, 1000 * 2 ** attempt++) + Math.random() * 300);
     }
     async function connect() {
-      synchronized = false; setConnected(false); setStatus("Đang kết nối máy chủ…");
+      synchronized = false; setConnected(false); setStatus(t("Đang kết nối máy chủ…"));
       try {
         const { ticket } = await studentApi("/ticket", csrf, {});
         if (stopped) return;
@@ -105,7 +107,7 @@ export function useStudentQuiz(identity: Data, csrf: string) {
             seq = Math.max(changedQuestion ? 0 : seq, incoming.current_answer?.seq || 0, pending?.seq || 0);
             state = incoming; clockOffset = incoming.server_time - Date.now();
             setOffset(clockOffset); setData(incoming);
-            synchronized = true; attempt = 0; setConnected(true); setStatus("Đã kết nối");
+            synchronized = true; attempt = 0; setConnected(true); setStatus(t("Đã kết nối"));
             if (!pending) {
               setSelected(incoming.current_answer?.choice || null);
               if (changedQuestion) setNotice("");
@@ -116,22 +118,22 @@ export function useStudentQuiz(identity: Data, csrf: string) {
             clearPending();
             if (msg.accepted) {
               if (state) state = { ...state, current_answer: { choice: msg.choice, seq: msg.seq } };
-              setData(state); setSelected(msg.choice); setNotice(`Đã lưu đáp án ${msg.choice}.`);
+              setData(state); setSelected(msg.choice); setNotice(t("Đã lưu đáp án {choice}.", { choice: msg.choice }));
             } else {
               setSelected(state?.current_answer?.choice || null);
-              setNotice(answerErrors[msg.code] || "Chưa lưu được đáp án. Hãy thử lại.");
+              setNotice(answerErrors[msg.code] || t("Chưa lưu được đáp án. Hãy thử lại."));
               active.send(JSON.stringify({ v: 1, type: "snapshot.request" }));
             }
             if (choice && msg.accepted && choice !== msg.choice) choose(choice);
           } else if (msg.type === "error") {
             if (msg.code === "STORAGE_ERROR") {
-              setNotice("Máy chủ chưa lưu được đáp án. Đang gửi lại…");
+              setNotice(t("Máy chủ chưa lưu được đáp án. Đang gửi lại…"));
               if (pending) transmit();
             } else if (!synchronized) {
-              setStatus("Không thể xác thực kết nối. Đang thử lại…"); active.close();
+              setStatus(t("Không thể xác thực kết nối. Đang thử lại…")); active.close();
             } else {
               clearPending(); setSelected(state?.current_answer?.choice || null);
-              setNotice(answerErrors[msg.code] || "Không thể lưu đáp án. Hãy thử lại.");
+              setNotice(answerErrors[msg.code] || t("Không thể lưu đáp án. Hãy thử lại."));
             }
           }
         };
@@ -140,10 +142,10 @@ export function useStudentQuiz(identity: Data, csrf: string) {
           synchronized = false; setConnected(false);
           if (e.code === 4001 || e.code === 4002) {
             setTerminal(true);
-            setStatus(e.code === 4002 ? "Bài đang được mở ở tab khác. Đóng tab đó rồi kết nối lại." : "Quyền làm bài đã hết hoặc bạn đã được gỡ khỏi phòng. Hãy hỏi giáo viên.");
+            setStatus(e.code === 4002 ? t("Bài đang được mở ở tab khác. Đóng tab đó rồi kết nối lại.") : t("Quyền làm bài đã hết hoặc bạn đã được gỡ khỏi phòng. Hãy hỏi giáo viên."));
             return;
           }
-          setStatus("Mất kết nối · đang nối lại…"); reconnect();
+          setStatus(t("Mất kết nối · đang nối lại…")); reconnect();
         };
         active.onerror = () => active.close();
       } catch (e) {
@@ -168,5 +170,8 @@ export function useStudentQuiz(identity: Data, csrf: string) {
     };
   }, [identity.binding_id, identity.session_id, csrf, epoch]);
   return { data, connected, terminal, status, notice, sending, selected, offset,
-    choose: (choice: string) => chooseRef.current(choice), reconnect: () => setEpoch(n => n + 1) };
+    choose: (choice: string) => chooseRef.current(choice),
+    // Lobby/paused clicker test; the server answers button.ack and records device.test.
+    test: (choice: string) => { if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify({ v: 1, type: "button.test", choice })); },
+    reconnect: () => setEpoch(n => n + 1) };
 }

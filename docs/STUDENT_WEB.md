@@ -61,3 +61,7 @@ npm run test:student-web
 Kiểm thử bao gồm Origin/CSRF, tách phiên giáo viên/học sinh, ghép MSSV, retry mất phản hồi,
 ticket đúng phiên, phạm vi quyền WebSocket, ACK không ghi trùng, tạm dừng/hết giờ, restart,
 kết quả riêng và gỡ khỏi phòng.
+
+## Thiết bị ảo `/device`
+
+`/device` là giao diện giống ESP32 thật (màn OLED 128×32, bàn phím 4×4) cho học sinh không có phần cứng. Dùng chung cổng `/api/student/*`, cookie và WebSocket với `/student`, nên học sinh xuất hiện trong "Học sinh đã kết nối" và trong báo cáo như thiết bị thật. Phiên bản đầu chỉ làm quiz (vào phòng, trả lời A–D, xem điểm). Logic màn hình và chuỗi OLED nằm ở `shared/device-screen.ts`, sao chép từ `firmware/esp32-classroom/src/main.cpp`; khi đổi firmware cần đồng bộ lại.

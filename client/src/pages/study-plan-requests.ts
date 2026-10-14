@@ -2,7 +2,7 @@ export type RequestScope = {
   isCurrent: () => boolean;
   cancelled: Promise<void>;
 };
-type Kind = "ai" | "deck" | "copy";
+type Kind = "ai" | "deck" | "copy" | "practice";
 export type StudyRequest = RequestScope & {
   sessionId: string;
   studentId: string;

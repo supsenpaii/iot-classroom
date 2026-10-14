@@ -1,5 +1,6 @@
 import type { Config } from "../../shared/protocol";
 import { Field } from "./components";
+import { t } from "./i18n";
 
 export function ConfigFields({ config }: { config?: Partial<Config> }) {
   const c = config || {
@@ -14,7 +15,7 @@ export function ConfigFields({ config }: { config?: Partial<Config> }) {
   return (
     <>
       <div className="form-grid">
-        <Field label="Số câu">
+        <Field label={t("Số câu")}>
           <input
             name="count"
             type="number"
@@ -24,7 +25,7 @@ export function ConfigFields({ config }: { config?: Partial<Config> }) {
             defaultValue={c.count}
           />
         </Field>
-        <Field label="Thời gian / câu (giây)">
+        <Field label={t("Thời gian / câu (giây)")}>
           <input
             name="seconds"
             type="number"
@@ -34,7 +35,7 @@ export function ConfigFields({ config }: { config?: Partial<Config> }) {
             defaultValue={c.seconds}
           />
         </Field>
-        <Field label="Ngưỡng đạt / 10">
+        <Field label={t("Ngưỡng đạt / 10")}>
           <input
             name="pass_mark"
             type="number"
@@ -47,13 +48,12 @@ export function ConfigFields({ config }: { config?: Partial<Config> }) {
         </Field>
       </div>
       <label className="check">
-        <input name="random" type="checkbox" defaultChecked={c.random} /> Chọn
-        câu ngẫu nhiên, không lặp
+        <input name="random" type="checkbox" defaultChecked={c.random} />  {t("Chọn câu ngẫu nhiên, không lặp")}
       </label>
       <fieldset className="choice-field">
-        <legend>Chuyển câu sau khi hết giờ</legend>
-        <label><input name="auto_next" type="radio" value="true" defaultChecked={!!c.auto_next} /> Tự chuyển sau 3 giây</label>
-        <label><input name="auto_next" type="radio" value="false" defaultChecked={!c.auto_next} /> Giáo viên bấm chuyển câu</label>
+        <legend>{t("Chuyển câu sau khi hết giờ")}</legend>
+        <label><input name="auto_next" type="radio" value="true" defaultChecked={!!c.auto_next} />  {t("Tự chuyển sau 3 giây")}</label>
+        <label><input name="auto_next" type="radio" value="false" defaultChecked={!c.auto_next} />  {t("Giáo viên bấm chuyển câu")}</label>
       </fieldset>
       <label className="check">
         <input
@@ -61,7 +61,8 @@ export function ConfigFields({ config }: { config?: Partial<Config> }) {
           type="checkbox"
           defaultChecked={c.allow_change}
         />{" "}
-        Cho đổi đáp án đến hết giờ
+        
+        {t("Cho đổi đáp án đến hết giờ")}
       </label>
       <label className="check">
         <input
@@ -69,8 +70,8 @@ export function ConfigFields({ config }: { config?: Partial<Config> }) {
           type="checkbox"
           defaultChecked={c.leaderboard !== false}
         />{" "}
-        Thi đua: tính điểm theo đúng + nhanh, hiện bảng xếp hạng khi công bố kết
-        quả và bục vinh danh cuối buổi
+        
+        {t("Thi đua: tính điểm theo đúng + nhanh, hiện bảng xếp hạng khi công bố kết quả và bục vinh danh cuối buổi")}
       </label>
     </>
   );

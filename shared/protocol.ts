@@ -21,6 +21,14 @@ export type StudyGuide = {
     Pick<Question, "topic" | "question" | QuestionOptionKey | "correct_answer" | "explanation">
   >;
 };
+// A saved or fresh study guide with where it came from (server adds these fields).
+export type StudyGuideResult = StudyGuide & {
+  provider?: string;
+  model?: string;
+  lang?: string;
+  created_at?: number;
+  cached?: boolean;
+};
 export const configSchema = z.object({
   count: z.number().int().min(1).max(100),
   seconds: z.number().int().min(5).max(300),

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./components";
+import { LangToggle } from "./i18n";
+import { t } from "./i18n";
 
 type Theme = "light" | "dark";
 const storageKey = "classroom-theme";
@@ -45,11 +47,13 @@ export function ThemeToggle({ floating = false }: { floating?: boolean }) {
       window.removeEventListener("storage", syncStorage);
     };
   }, []);
-  const label = theme === "dark" ? "Chuyển sang chế độ sáng" : "Chuyển sang chế độ tối";
+  const label = theme === "dark" ? t("Chuyển sang chế độ sáng") : t("Chuyển sang chế độ tối");
   return (
+    <span className={`toggle-group${floating ? " toggle-group-floating" : ""}`}>
+    <LangToggle />
     <button
       type="button"
-      className={`theme-toggle${floating ? " theme-toggle-floating" : ""}`}
+      className="theme-toggle"
       title={label}
       aria-label={label}
       aria-pressed={theme === "dark"}
@@ -62,5 +66,6 @@ export function ThemeToggle({ floating = false }: { floating?: boolean }) {
     >
       <Icon name={theme === "dark" ? "sun" : "moon"} />
     </button>
+    </span>
   );
 }

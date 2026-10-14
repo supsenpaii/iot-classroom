@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, fmt, eventLabel, errorLabel, type Data } from "../api";
 import { ChoiceShape, useApp } from "../components";
+import { t, locale } from "../i18n";
 
 // Mastery bands used everywhere on the results page: <60% red, 60–79% amber, >=80% green.
 export const mastery = (pct: number | null | undefined) =>
@@ -51,7 +52,7 @@ function Gauge({ pct }: { pct: number | null }) {
     c = 2 * Math.PI * r,
     filled = pct == null ? 0 : Math.max(0, Math.min(100, pct)) / 100;
   return (
-    <svg viewBox="0 0 128 128" className={`gauge mastery-${mastery(pct)}`} role="img" aria-label={`Điểm trung bình lớp ${pctText(pct)}`}>
+    <svg viewBox="0 0 128 128" className={`gauge mastery-${mastery(pct)}`} role="img" aria-label={t("Điểm trung bình lớp {v}", { v: pctText(pct) })}>
       <circle cx="64" cy="64" r={r} className="gauge-track" />
       <circle
         cx="64"
@@ -74,34 +75,34 @@ export function ResultsSummary({ d }: { d: Data }) {
     completePct = d.stats.participants ? (d.stats.complete / d.stats.participants) * 100 : null,
     band = mastery(meanPct);
   return (
-    <section className="results-hero" aria-label="Tóm tắt kết quả">
+    <section className="results-hero" aria-label={t("Tóm tắt kết quả")}>
       <div className="results-hero-score">
         <div>
-          <span className="eyebrow-label">Điểm trung bình lớp</span>
+          <span className="eyebrow-label">{t("Điểm trung bình lớp")}</span>
           <div className="summary-score-value">
             <strong>{fmt(d.stats.mean)}<small>/10</small></strong>
             <span className="summary-gauge"><Gauge pct={meanPct} /></span>
           </div>
           <span className={`pill mastery-${band}`}>
-            {band === "high" ? "Lớp nắm bài tốt" : band === "mid" ? "Lớp nắm bài khá" : band === "low" ? "Cần ôn lại" : "Chưa có điểm"}
+            {band === "high" ? t("Lớp nắm bài tốt") : band === "mid" ? t("Lớp nắm bài khá") : band === "low" ? t("Cần ôn lại") : t("Chưa có điểm")}
           </span>
         </div>
       </div>
       <dl className="results-hero-stats">
         <div>
-          <dt>Học sinh tham gia</dt>
+          <dt>{t("Học sinh tham gia")}</dt>
           <dd>{d.stats.participants}</dd>
-          <small>{d.students.length - d.stats.participants} vắng</small>
+          <small>{d.students.length - d.stats.participants}  {t("vắng")}</small>
         </div>
         <div>
-          <dt>Hoàn thành</dt>
+          <dt>{t("Hoàn thành")}</dt>
           <dd>{pctText(completePct)}</dd>
-          <small>{d.stats.complete}/{d.stats.participants} học sinh · đủ {d.N} câu</small>
+          <small>{d.stats.complete}/{d.stats.participants}  {t("học sinh · đủ")} {d.N}  {t("câu")}</small>
         </div>
         <div>
-          <dt>Tỷ lệ đạt (≥ {fmt(d.session.config.pass_mark)})</dt>
+          <dt>{t("Tỷ lệ đạt (≥")} {fmt(d.session.config.pass_mark)})</dt>
           <dd>{pctText(d.stats.pass_rate)}</dd>
-          <small>cao nhất {fmt(d.stats.max)} · thấp nhất {fmt(d.stats.min)}</small>
+          <small>{t("cao nhất")} {fmt(d.stats.max)}  {t("· thấp nhất")} {fmt(d.stats.min)}</small>
         </div>
       </dl>
     </section>
@@ -164,12 +165,12 @@ export function ResultsGrid({
               ? "correct"
               : "wrong";
   const stateText: Record<string, string> = {
-    absent: "Vắng",
-    pending: "Chưa mở",
-    voided: "Đã loại",
-    blank: "Bỏ trống",
-    correct: "Đúng",
-    wrong: "Sai",
+    absent: t("Vắng"),
+    pending: t("Chưa mở"),
+    voided: t("Đã loại"),
+    blank: t("Bỏ trống"),
+    correct: t("Đúng"),
+    wrong: t("Sai"),
   };
   const question = d.questions.find((q: Data) => q.id === questionId),
     qIndex = question ? d.questions.indexOf(question) : -1,
@@ -183,35 +184,37 @@ export function ResultsGrid({
     <section className="card results-grid-card" id="results-grid">
       <div className="results-toolbar">
         <div>
-          <h2>Kết quả</h2>
+          <h2>{t("Kết quả")}</h2>
         </div>
         <div className="results-controls">
-          <Switch label="Hiện tên" on={showNames} onChange={setShowNames} />
-          <Switch label="Hiện đáp án" on={showAnswers} onChange={setShowAnswers} />
+          <Switch label={t("Hiện tên")} on={showNames} onChange={setShowNames} />
+          <Switch label={t("Hiện đáp án")} on={showAnswers} onChange={setShowAnswers} />
           <label className="results-select">
-            Sắp xếp
+            
+            {t("Sắp xếp")}
             <select value={sort} onChange={(e) => setSort(e.target.value)}>
-              <option value="name">Tên A–Z</option>
-              <option value="high">Điểm cao → thấp</option>
-              <option value="low">Điểm thấp → cao</option>
+              <option value="name">{t("Tên A–Z")}</option>
+              <option value="high">{t("Điểm cao → thấp")}</option>
+              <option value="low">{t("Điểm thấp → cao")}</option>
             </select>
           </label>
           <label className="results-select">
-            Lọc câu
-            <select aria-label="Lọc câu trong bảng kết quả" value={filter} onChange={(e) => setFilter(e.target.value)}>
-              <option value="all">Tất cả</option>
-              <option value="blank">Có bỏ trống</option>
-              <option value="incident">Có sự cố</option>
-              <option value="early">Chưa mở do kết thúc sớm</option>
-              <option value="voided">Câu bị loại</option>
+            
+            {t("Lọc câu")}
+            <select aria-label={t("Lọc câu trong bảng kết quả")} value={filter} onChange={(e) => setFilter(e.target.value)}>
+              <option value="all">{t("Tất cả")}</option>
+              <option value="blank">{t("Có bỏ trống")}</option>
+              <option value="incident">{t("Có sự cố")}</option>
+              <option value="early">{t("Chưa mở do kết thúc sớm")}</option>
+              <option value="voided">{t("Câu bị loại")}</option>
             </select>
           </label>
         </div>
       </div>
       <div className="results-legend" aria-hidden="true">
-        <span><i className="cell-correct" />Đúng</span>
-        <span><i className="cell-wrong" />Sai</span>
-        <span><i className="cell-blank" />Bỏ trống</span>
+        <span><i className="cell-correct" />{t("Đúng")}</span>
+        <span><i className="cell-wrong" />{t("Sai")}</span>
+        <span><i className="cell-blank" />{t("Bỏ trống")}</span>
         <span><i className="pill mastery-high" />≥ 80%</span>
         <span><i className="pill mastery-mid" />60–79%</span>
         <span><i className="pill mastery-low" />&lt; 60%</span>
@@ -221,14 +224,14 @@ export function ResultsGrid({
           <table className="results-table">
             <thead>
               <tr>
-                <th scope="col" className="rt-name">Học sinh</th>
-                <th scope="col" className="rt-score">Điểm</th>
+                <th scope="col" className="rt-name">{t("Học sinh")}</th>
+                <th scope="col" className="rt-score">{t("Điểm")}</th>
                 {questions.map((q: Data) => (
                   <th scope="col" key={q.id} className={q.id === questionId ? "is-active" : ""}>
                     <button
                       className="rt-q"
                       onClick={() => openQuestion(q.id)}
-                      aria-label={`Xem chi tiết câu ${q.question_order}`}
+                      aria-label={t("Xem chi tiết câu {question_order}", { question_order: q.question_order })}
                     >
                       {q.question_order}
                     </button>
@@ -258,12 +261,12 @@ export function ResultsGrid({
                           </span>
                         </button>
                       ) : (
-                        <span className="rt-anon">Học sinh {String(row + 1).padStart(2, "0")}</span>
+                        <span className="rt-anon">{t("Học sinh")} {String(row + 1).padStart(2, "0")}</span>
                       )}
                     </th>
                     <td className="rt-score">
                       <span className={`pill mastery-${st.absent ? "none" : mastery(pct)}`}>
-                        {st.absent ? "Vắng" : pctText(pct)}
+                        {st.absent ? t("Vắng") : pctText(pct)}
                       </span>
                     </td>
                     {questions.map((q: Data) => {
@@ -274,7 +277,7 @@ export function ResultsGrid({
                         <td key={q.id}>
                           <button
                             className={`rt-cell cell-${state}${active ? " is-active" : ""}`}
-                            aria-label={`${showNames ? st.full_name : `Học sinh ${row + 1}`}, câu ${q.question_order}: ${stateText[state]}${a?.choice ? `, chọn ${a.choice}` : ""}${a?.incidents?.length ? ", có sự cố" : ""}`}
+                            aria-label={t("{v}, câu {question_order}: {v2}{v3}{v4}", { v: showNames ? st.full_name : t("Học sinh {v}", { v: row + 1 }), question_order: q.question_order, v2: stateText[state], v3: a?.choice ? t(", chọn {choice}", { choice: a.choice }) : "", v4: a?.incidents?.length ? t(", có sự cố") : "" })}
                             onClick={() => setSelectedCell(active ? null : { student: st.id, question: q.id })}
                           >
                             {state === "absent" || state === "pending" || state === "voided"
@@ -286,7 +289,7 @@ export function ResultsGrid({
                                   : state === "correct"
                                     ? "✓"
                                     : "✕"}
-                            {a?.incidents?.length > 0 && <i className="rt-flag" title="Có sự kiện cần xem xét" />}
+                            {a?.incidents?.length > 0 && <i className="rt-flag" title={t("Có sự kiện cần xem xét")} />}
                           </button>
                         </td>
                       );
@@ -297,7 +300,7 @@ export function ResultsGrid({
             </tbody>
             <tfoot>
               <tr>
-                <th scope="row" className="rt-name">Cả lớp</th>
+                <th scope="row" className="rt-name">{t("Cả lớp")}</th>
                 <td className="rt-score">
                   <span className={`pill mastery-${mastery(d.stats.mean == null ? null : d.stats.mean * 10)}`}>
                     {pctText(d.stats.mean == null ? null : d.stats.mean * 10)}
@@ -308,9 +311,9 @@ export function ResultsGrid({
                     <button
                       className={`rt-total mastery-${q.voided || q.status === "PENDING" ? "none" : mastery(q.correct_rate)}`}
                       onClick={() => openQuestion(q.id)}
-                      aria-label={`Câu ${q.question_order}: ${pctText(q.correct_rate)} cả lớp đúng`}
+                      aria-label={t("Câu {question_order}: {v} cả lớp đúng", { question_order: q.question_order, v: pctText(q.correct_rate) })}
                     >
-                      {q.voided ? "Loại" : q.status === "PENDING" ? "—" : pctText(q.correct_rate)}
+                      {q.voided ? t("Loại") : q.status === "PENDING" ? "—" : pctText(q.correct_rate)}
                     </button>
                   </td>
                 ))}
@@ -319,25 +322,27 @@ export function ResultsGrid({
           </table>
         </div>
       ) : (
-        <p className="muted">Không có câu phù hợp bộ lọc.</p>
+        <p className="muted">{t("Không có câu phù hợp bộ lọc.")}</p>
       )}
       {cellStudent && cellDetail && (
-        <div className="matrix-detail" role="region" aria-label="Bằng chứng kết quả">
+        <div className="matrix-detail" role="region" aria-label={t("Bằng chứng kết quả")}>
           <div className="row spread">
-            <h3>{cellStudent.full_name} · câu {cellDetail.order}</h3>
-            <button onClick={() => setSelectedCell(null)}>Đóng</button>
+            <h3>{cellStudent.full_name}  {t("· câu")} {cellDetail.order}</h3>
+            <button onClick={() => setSelectedCell(null)}>{t("Đóng")}</button>
           </div>
           <p>
-            Trạng thái: <b>{cellStudent.absent ? "Vắng" : cellDetail.status === "PENDING" ? "Chưa mở" : cellDetail.voided ? "Đã loại khỏi điểm" : !cellDetail.choice ? "Bỏ trống" : cellDetail.choice === cellDetail.correct_answer ? "Đúng" : "Sai"}</b> · Lựa chọn: {cellDetail.choice || "Không có đáp án lưu"} · Đáp án đúng: {cellDetail.correct_answer}
-            {cellDetail.response_ms != null && ` · Trả lời sau ${fmt(cellDetail.response_ms / 1000, " giây")}`}
+            
+            {t("Trạng thái:")} <b>{cellStudent.absent ? t("Vắng") : cellDetail.status === "PENDING" ? t("Chưa mở") : cellDetail.voided ? t("Đã loại khỏi điểm") : !cellDetail.choice ? t("Bỏ trống") : cellDetail.choice === cellDetail.correct_answer ? t("Đúng") : t("Sai")}</b>  {t("· Lựa chọn:")} {cellDetail.choice || t("Không có đáp án lưu")}  {t("· Đáp án đúng:")} {cellDetail.correct_answer}
+            {cellDetail.response_ms != null && t(" · Trả lời sau {v}", { v: fmt(cellDetail.response_ms / 1000, t(" giây")) })}
           </p>
           <p>
-            Mở câu: {cellDetail.opened_at ? new Date(cellDetail.opened_at).toLocaleString("vi-VN") : "Chưa mở"} · Đóng câu: {cellDetail.closed_at ? new Date(cellDetail.closed_at).toLocaleString("vi-VN") : "Chưa đóng"} · Lưu đáp án: {cellDetail.received_at ? new Date(cellDetail.received_at).toLocaleString("vi-VN") : "Không có"}
+            
+            {t("Mở câu:")} {cellDetail.opened_at ? new Date(cellDetail.opened_at).toLocaleString(locale()) : t("Chưa mở")}  {t("· Đóng câu:")} {cellDetail.closed_at ? new Date(cellDetail.closed_at).toLocaleString(locale()) : t("Chưa đóng")}  {t("· Lưu đáp án:")} {cellDetail.received_at ? new Date(cellDetail.received_at).toLocaleString(locale()) : t("Không có")}
           </p>
-          <p>Thiết bị đã lưu: {cellDetail.device_label || "Không có"} · Sự kiện liên quan: {cellDetail.incidents.length || "Không có"}</p>
+          <p>{t("Thiết bị đã lưu:")} {cellDetail.device_label || t("Không có")}  {t("· Sự kiện liên quan:")} {cellDetail.incidents.length || t("Không có")}</p>
           {cellDetail.incidents.map((e: Data) => (
             <p key={e.id} className="warning">
-              {new Date(e.created_at).toLocaleString("vi-VN")} · {eventLabel[e.type] || e.type}
+              {new Date(e.created_at).toLocaleString(locale())} · {eventLabel[e.type] || e.type}
               {e.code ? ` · ${errorLabel[e.code] || e.code}` : ""}
             </p>
           ))}
@@ -355,7 +360,7 @@ export function ResultsGrid({
             void run(async () => {
               await api(`/sessions/${reportId}/questions/${question.id}/void`, "POST", { reason });
               reload();
-            }, "Đã loại câu và tính lại báo cáo.")
+            }, t("Đã loại câu và tính lại báo cáo."))
           }
         />
       )}
@@ -387,18 +392,18 @@ function QuestionDrill({
         .filter((st: Data) => st.details.find((a: Data) => a.question_id === q.id)?.choice === c)
         .map((st: Data) => st.full_name.split(" ").at(-1));
   return (
-    <div className="question-drill" role="region" aria-label={`Chi tiết câu ${q.question_order}`}>
+    <div className="question-drill" role="region" aria-label={t("Chi tiết câu {question_order}", { question_order: q.question_order })}>
       <div className="row spread">
         <div className="qd-nav">
-          <button disabled={index <= 0} onClick={() => onNavigate(-1)} aria-label="Câu trước">←</button>
-          <span>Câu {q.question_order}/{d.questions.length}</span>
-          <button disabled={index >= d.questions.length - 1} onClick={() => onNavigate(1)} aria-label="Câu sau">→</button>
+          <button disabled={index <= 0} onClick={() => onNavigate(-1)} aria-label={t("Câu trước")}>←</button>
+          <span>{t("Câu")} {q.question_order}/{d.questions.length}</span>
+          <button disabled={index >= d.questions.length - 1} onClick={() => onNavigate(1)} aria-label={t("Câu sau")}>→</button>
         </div>
         <div className="actions">
           <span className={`pill mastery-${q.voided || q.status === "PENDING" ? "none" : mastery(q.correct_rate)}`}>
-            {q.voided ? "Đã loại" : q.status === "PENDING" ? "Chưa mở" : `${pctText(q.correct_rate)} đúng`}
+            {q.voided ? t("Đã loại") : q.status === "PENDING" ? t("Chưa mở") : t("{v} đúng", { v: pctText(q.correct_rate) })}
           </span>
-          <button onClick={onClose}>Đóng</button>
+          <button onClick={onClose}>{t("Đóng")}</button>
         </div>
       </div>
       <h3>{q.data.question}</h3>
@@ -414,7 +419,7 @@ function QuestionDrill({
               <div className="qd-body">
                 <span className="qd-label">
                   {q.data[`option_${c.toLowerCase()}`]}
-                  {correct && <em>Đáp án đúng</em>}
+                  {correct && <em>{t("Đáp án đúng")}</em>}
                 </span>
                 <div className="qd-track" aria-hidden="true">
                   <span style={{ width: `${pct}%` }} />
@@ -422,7 +427,7 @@ function QuestionDrill({
                 {names.length > 0 && (
                   <small className="qd-names">
                     {names.slice(0, 12).join(", ")}
-                    {names.length > 12 && ` và ${names.length - 12} bạn khác`}
+                    {names.length > 12 && t(" và {v} bạn khác", { v: names.length - 12 })}
                   </small>
                 )}
               </div>
@@ -436,12 +441,12 @@ function QuestionDrill({
         })}
       </div>
       <p className="muted">
-        {answered} trả lời · {Math.max(0, q.blank ?? 0)} bỏ trống
-        {q.response_ms != null && ` · trả lời trung bình sau ${fmt(q.response_ms / 1000, " giây")}`}
+        {answered}  {t("trả lời ·")} {Math.max(0, q.blank ?? 0)}  {t("bỏ trống")}
+        {q.response_ms != null && t(" · trả lời trung bình sau {v}", { v: fmt(q.response_ms / 1000, t(" giây")) })}
       </p>
-      {q.data.explanation && <p className="qd-explain">Lời giải: {q.data.explanation}</p>}
+      {q.data.explanation && <p className="qd-explain">{t("Lời giải:")} {q.data.explanation}</p>}
       {q.voided ? (
-        <p className="warning">Lý do loại: {q.void_reason}</p>
+        <p className="warning">{t("Lý do loại:")} {q.void_reason}</p>
       ) : (
         q.status === "CLOSED" && (
           <form
@@ -449,18 +454,18 @@ function QuestionDrill({
             onSubmit={(e) => {
               e.preventDefault();
               const reason = String(new FormData(e.currentTarget).get("reason"));
-              if (confirm("Loại câu này và tính lại điểm toàn lớp?")) onVoid(reason);
+              if (confirm(t("Loại câu này và tính lại điểm toàn lớp?"))) onVoid(reason);
             }}
           >
             <input
               name="reason"
-              aria-label={`Lý do loại câu ${q.question_order}`}
-              placeholder="Lý do loại câu (vd: đề sai)"
+              aria-label={t("Lý do loại câu {question_order}", { question_order: q.question_order })}
+              placeholder={t("Lý do loại câu (vd: đề sai)")}
               minLength={3}
               maxLength={500}
               required
             />
-            <button className="danger">Loại câu khỏi tính điểm</button>
+            <button className="danger">{t("Loại câu khỏi tính điểm")}</button>
           </form>
         )
       )}

@@ -10,6 +10,7 @@ import {
 } from "react";
 import { api, type Data } from "./api";
 import type { RequestScope } from "./pages/study-plan-requests";
+import { t } from "./i18n";
 export const Context = createContext<{
   user: Data;
   run: (fn: () => Promise<unknown>, success?: string, scope?: RequestScope) => Promise<void>;
@@ -25,7 +26,7 @@ export function DeleteSessionButton({ id, name, state }: { id: string; name: str
       className="danger"
       disabled={deleting}
       onClick={() => {
-        if (!window.confirm(`Xóa buổi kiểm tra “${name}”? Toàn bộ đáp án, điểm, báo cáo và nhật ký của buổi sẽ bị xóa. Thao tác này không thể hoàn tác.`)) return;
+        if (!window.confirm(t("Xóa buổi kiểm tra “{name}”? Toàn bộ đáp án, điểm, báo cáo và nhật ký của buổi sẽ bị xóa. Thao tác này không thể hoàn tác.", { name }))) return;
         setDeleting(true);
         void run(async () => {
           await api(`/sessions/${id}`, "DELETE");
@@ -33,7 +34,7 @@ export function DeleteSessionButton({ id, name, state }: { id: string; name: str
         }).finally(() => setDeleting(false));
       }}
     >
-      {deleting ? "Đang xóa buổi…" : "Xóa buổi kiểm tra"}
+      {deleting ? t("Đang xóa buổi…") : t("Xóa buổi kiểm tra")}
     </button>
   );
 }
@@ -75,7 +76,8 @@ export function Status({
   if (loading)
     return (
       <p role="status" className="empty">
-        Đang tải dữ liệu…
+        
+        {t("Đang tải dữ liệu…")}
       </p>
     );
   return null;

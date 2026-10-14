@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { Data } from "./api";
 import { signedOut } from "./api";
+import { t } from "./i18n";
 export const socketUrl = () =>
   `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`;
 export function useSessionSocket(id: string, projectionToken?: string) {
   const [data, setData] = useState<Data | null>(null),
-    [status, setStatus] = useState("Đang kết nối…"),
+    [status, setStatus] = useState(t("Đang kết nối…")),
     [offset, setOffset] = useState(0),
     [syncedAt, setSyncedAt] = useState<number | null>(null),
     [controlResult, setControlResult] = useState<Data | null>(null),
@@ -17,7 +18,7 @@ export function useSessionSocket(id: string, projectionToken?: string) {
       retry = 0,
       timer: ReturnType<typeof setTimeout>;
     function connect() {
-      setStatus(retry ? "Mất kết nối · đang nối lại…" : "Đang kết nối…");
+      setStatus(retry ? t("Mất kết nối · đang nối lại…") : t("Đang kết nối…"));
       const ws = new WebSocket(socketUrl());
       socket.current = ws;
       ws.onopen = () => {
@@ -41,9 +42,9 @@ export function useSessionSocket(id: string, projectionToken?: string) {
           );
           setOffset(m.data.server_time - Date.now());
           setSyncedAt(Date.now());
-          setStatus("Đã kết nối");
+          setStatus(t("Đã kết nối"));
         } else if (m.type === "error")
-          setStatus("Không thể đồng bộ. Kiểm tra quyền truy cập.");
+          setStatus(t("Không thể đồng bộ. Kiểm tra quyền truy cập."));
         else if (m.type === "projection.command.result")
           setControlResult(m);
       };
@@ -56,13 +57,13 @@ export function useSessionSocket(id: string, projectionToken?: string) {
             if (!ended) setData(null);
             setStatus(
               ended
-                ? "Buổi đã kết thúc"
-                : "Quyền trình chiếu đã hết hạn. Mở lại từ bảng điều khiển.",
+                ? t("Buổi đã kết thúc")
+                : t("Quyền trình chiếu đã hết hạn. Mở lại từ bảng điều khiển."),
             );
           } else signedOut();
           return;
         }
-        setStatus("Mất kết nối · đang nối lại…");
+        setStatus(t("Mất kết nối · đang nối lại…"));
         timer = setTimeout(
           connect,
           Math.min(10000, 1000 * 2 ** retry++) + Math.random() * 300,
@@ -103,7 +104,7 @@ export const useReviewSocket = (id: string) =>
   useActivitySocket("review_id", "flashcard", id);
 export function useActivitySocket(helloKey: string, mode: string, id: string) {
   const [data, setData] = useState<Data | null>(null),
-    [status, setStatus] = useState("Đang kết nối…");
+    [status, setStatus] = useState(t("Đang kết nối…"));
   useEffect(() => {
     let stopped = false,
       retry = 0,
@@ -121,15 +122,15 @@ export function useActivitySocket(helloKey: string, mode: string, id: string) {
           setData((old) =>
             !old || m.data.state_version >= old.state_version ? m.data : old,
           );
-          setStatus("Đã kết nối");
+          setStatus(t("Đã kết nối"));
         } else if (m.type === "error")
-          setStatus("Không thể đồng bộ. Kiểm tra quyền truy cập.");
+          setStatus(t("Không thể đồng bộ. Kiểm tra quyền truy cập."));
       };
       ws.onclose = (e) => {
         if (stopped) return;
         if (e.code === 4001) return signedOut();
-        if (e.code === 4004) return setStatus("Không tìm thấy dữ liệu.");
-        setStatus("Mất kết nối · đang nối lại…");
+        if (e.code === 4004) return setStatus(t("Không tìm thấy dữ liệu."));
+        setStatus(t("Mất kết nối · đang nối lại…"));
         timer = setTimeout(
           connect,
           Math.min(10000, 1000 * 2 ** retry++) + Math.random() * 300,

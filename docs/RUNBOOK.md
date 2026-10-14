@@ -32,7 +32,29 @@ Người dùng có thể tự tạo tài khoản tại `/register` bằng email 
 
 Chưa có xác minh email hoặc tự đặt lại mật khẩu qua email; người vận hành dùng lệnh reset nếu giáo viên quên mật khẩu. Bản phân phối không có dữ liệu mẫu hoặc tài khoản mặc định.
 
-## Gợi ý ôn tập AI qua OpenRouter
+## Gợi ý ôn tập AI qua Gemini (chính) và OpenRouter (dự phòng)
+
+Thứ tự gọi: **Gemini** (`GEMINI_API_KEY`) → nếu Gemini lỗi mạng, HTTP 5xx, quá thời gian hoặc trả sai cấu trúc thì chuyển sang **OpenRouter** (`OPENROUTER_API_KEYS`, nếu có). HTTP 429 (hết quota) thì **không** chuyển nhà cung cấp; hệ thống báo rõ để giáo viên chờ hoặc kiểm tra quota. Chỉ cần một trong hai key để dùng tính năng.
+
+1. Tạo key tại <https://aistudio.google.com/apikey> (đăng nhập tài khoản Google).
+2. Thêm vào `.env`, một dòng, không dấu ngoặc kép:
+
+```dotenv
+GEMINI_API_KEY=dan-key-cua-ban-vao-day
+# Tùy chọn, nhiều model cách nhau dấu phẩy (model sau là dự phòng); mặc định gemini-3.1-flash-lite,gemini-3.8-flash. Xem tên model hiện hành tại https://ai.google.dev/gemini-api/docs/models
+GEMINI_MODEL=
+```
+
+3. Khởi động lại ứng dụng. Mỗi lần tạo lời giải, log có một dòng `study-guide ok|fail provider=… model=… ms=…`, không chứa nội dung đề hay key.
+
+Lời giải được **lưu theo từng học sinh** trong buổi kiểm tra; mở lại không gọi AI nữa. Bấm **Tạo lại** để làm mới, hoặc chọn số câu luyện thêm (1–5) trước khi tạo. Loại một câu khỏi tính điểm sẽ xóa các lời giải đã lưu của buổi đó. Giới hạn số lượt mỗi giáo viên mỗi ngày đặt bằng `AI_DAILY_LIMIT` (mặc định 100, đếm trong bộ nhớ nên về 0 khi khởi động lại). Nút **Tạo link luyện thêm cho học sinh** biến các câu luyện thêm thành bộ flashcard có link tự học; tên bộ thẻ không chứa danh tính học sinh.
+
+Lưu ý:
+- Key chỉ nằm trên máy chủ, gửi qua header `x-goog-api-key`; không đặt trong `VITE_*`, mã frontend hay repository.
+- Gói miễn phí của Gemini API có thể dùng dữ liệu gửi đi để cải thiện sản phẩm của Google; kiểm tra điều khoản trước khi dùng dữ liệu thật. Chỉ nội dung câu hỏi và lựa chọn được gửi, không gửi tên hay MSSV.
+- Nếu key từng bị dán vào chat, email hoặc commit, hãy thu hồi và tạo key mới.
+
+## Gợi ý ôn tập AI qua OpenRouter (dự phòng)
 
 ### Lấy OpenRouter API key
 

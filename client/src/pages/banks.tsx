@@ -11,6 +11,7 @@ import {
   useResource,
 } from "../components";
 import { Importer } from "./manage";
+import { t } from "../i18n";
 
 const blankQuestion = {
   question: "",
@@ -24,7 +25,7 @@ const blankQuestion = {
   difficulty: "medium",
 };
 const LETTERS = ["A", "B", "C", "D"];
-const difficultyLabel: Record<string, string> = { easy: "Dễ", medium: "Trung bình", hard: "Khó" };
+const difficultyLabel: Record<string, string> = { easy: t("Dễ"), medium: t("Trung bình"), hard: t("Khó") };
 // Each bank gets a stable cover colour from its name, so the list reads like a shelf of quiz covers.
 const coverTone = (name: string) => {
   let h = 2166136261; // FNV-1a spreads similar names across all four colours
@@ -58,13 +59,13 @@ function BankList() {
   return (
     <>
       <Head
-        eyebrow="NGÂN HÀNG CÂU HỎI"
-        title="Bài giảng hay, từ câu hỏi tốt."
-        description="Mỗi bộ đề dùng được cho kiểm tra, flashcard và phiếu bài tập."
+        eyebrow={t("NGÂN HÀNG CÂU HỎI")}
+        title={t("Bài giảng hay, từ câu hỏi tốt.")}
+        description={t("Mỗi bộ đề dùng được cho kiểm tra, flashcard và phiếu bài tập.")}
       >
         <input
-          aria-label="Tìm bộ đề"
-          placeholder="Tìm bộ đề hoặc môn học…"
+          aria-label={t("Tìm bộ đề")}
+          placeholder={t("Tìm bộ đề hoặc môn học…")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -81,12 +82,12 @@ function BankList() {
                   <div className="bank-card-body">
                     {b.subject && <span className="chip">{b.subject}</span>}
                     <strong>{b.name}</strong>
-                    <small>{b.question_count} câu hỏi</small>
+                    <small>{b.question_count}  {t("câu hỏi")}</small>
                   </div>
                 </a>
               ))}
           </div>
-          {banks.data?.length === 0 && <Empty>Chưa có bộ đề. Tạo bộ đề rồi nhập XLSX/CSV.</Empty>}
+          {banks.data?.length === 0 && <Empty>{t("Chưa có bộ đề. Tạo bộ đề rồi nhập XLSX/CSV.")}</Empty>}
         </div>
         <form
           className="card form bank-side"
@@ -99,14 +100,14 @@ function BankList() {
             });
           }}
         >
-          <h2>Tạo bộ đề</h2>
-          <Field label="Tên bộ đề">
-            <input name="name" required maxLength={150} placeholder="Ôn tập chương GPIO" />
+          <h2>{t("Tạo bộ đề")}</h2>
+          <Field label={t("Tên bộ đề")}>
+            <input name="name" required maxLength={150} placeholder={t("Ôn tập chương GPIO")} />
           </Field>
-          <Field label="Môn học">
+          <Field label={t("Môn học")}>
             <input name="subject" maxLength={100} placeholder="IoT" />
           </Field>
-          <button className="primary">+ Tạo bộ đề</button>
+          <button className="primary">{t("+ Tạo bộ đề")}</button>
         </form>
       </div>
     </>
@@ -138,11 +139,12 @@ function BankDetail({ id }: { id: string }) {
       );
       setEditing(null);
       resource.reload();
-    }, "Đã lưu câu hỏi.");
+    }, t("Đã lưu câu hỏi."));
   return (
     <>
       <a className="bank-back" href="/question-banks">
-        ← Tất cả bộ đề
+        
+        {t("← Tất cả bộ đề")}
       </a>
       <section className="bank-hero">
         <Cover name={d.name} subject={d.subject} />
@@ -155,10 +157,10 @@ function BankDetail({ id }: { id: string }) {
           </div>
           <h1>{d.name}</h1>
           <p className="bank-meta">
-            <span><Icon name="file" /> {d.questions.length} câu hỏi</span>
-            <span className="level easy">{byLevel("easy")} dễ</span>
-            <span className="level medium">{byLevel("medium")} trung bình</span>
-            <span className="level hard">{byLevel("hard")} khó</span>
+            <span><Icon name="file" /> {d.questions.length}  {t("câu hỏi")}</span>
+            <span className="level easy">{byLevel("easy")}  {t("dễ")}</span>
+            <span className="level medium">{byLevel("medium")}  {t("trung bình")}</span>
+            <span className="level hard">{byLevel("hard")}  {t("khó")}</span>
           </p>
         </div>
       </section>
@@ -166,7 +168,7 @@ function BankDetail({ id }: { id: string }) {
         <div className="bank-main">
           <div className="bank-toolbar">
             <div>
-              <strong>{d.questions.length} câu hỏi</strong>
+              <strong>{d.questions.length}  {t("câu hỏi")}</strong>
               <span className="bank-flags">
                 <button
                   role="switch"
@@ -175,13 +177,14 @@ function BankDetail({ id }: { id: string }) {
                   onClick={() => setHideAnswers(!hideAnswers)}
                 >
                   <span className="switch-track" aria-hidden="true"><span /></span>
-                  Ẩn đáp án
+                  
+                  {t("Ẩn đáp án")}
                 </button>
               </span>
             </div>
             <input
-              aria-label="Tìm câu hỏi"
-              placeholder="Tìm câu hỏi, chủ đề…"
+              aria-label={t("Tìm câu hỏi")}
+              placeholder={t("Tìm câu hỏi, chủ đề…")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -208,22 +211,23 @@ function BankDetail({ id }: { id: string }) {
               <article className="qcard" key={q.id}>
                 <header>
                   <span className="qcard-no"># {d.questions.indexOf(q) + 1}</span>
-                  <span className="qcard-type"><Icon name="check" /> Trắc nghiệm</span>
+                  <span className="qcard-type"><Icon name="check" />  {t("Trắc nghiệm")}</span>
                   {q.topic && <span className="chip is-soft">{q.topic}</span>}
                   <span className={`level ${q.difficulty}`}>{difficultyLabel[q.difficulty] ?? q.difficulty}</span>
                   <span className="qcard-actions">
-                    <button className="text-button" onClick={() => setEditing(q)}>Sửa</button>
+                    <button className="text-button" onClick={() => setEditing(q)}>{t("Sửa")}</button>
                     <button
                       className="text-button danger"
                       onClick={() => {
-                        if (confirm("Xóa câu hỏi khỏi bộ đề? Các bài đã bắt đầu vẫn giữ bản sao."))
+                        if (confirm(t("Xóa câu hỏi khỏi bộ đề? Các bài đã bắt đầu vẫn giữ bản sao.")))
                           void run(async () => {
                             await api(`/questions/${q.id}`, "DELETE");
                             resource.reload();
                           });
                       }}
                     >
-                      Xóa
+                      
+                      {t("Xóa")}
                     </button>
                   </span>
                 </header>
@@ -236,25 +240,26 @@ function BankDetail({ id }: { id: string }) {
                         <span className="qcard-mark" aria-hidden="true">{correct ? "✓" : ""}</span>
                         <b>{c}</b>
                         <span>{q[`option_${c.toLowerCase()}`]}</span>
-                        {correct && <span className="sr-only">(đáp án đúng)</span>}
+                        {correct && <span className="sr-only">{t("(đáp án đúng)")}</span>}
                       </li>
                     );
                   })}
                 </ul>
-                {q.explanation && !hideAnswers && <p className="qcard-explain">Lời giải: {q.explanation}</p>}
+                {q.explanation && !hideAnswers && <p className="qcard-explain">{t("Lời giải:")} {q.explanation}</p>}
               </article>
             ),
           )}
           {!d.questions.length && !editing && (
-            <Empty>Bộ đề chưa có câu hỏi. Thêm câu hỏi hoặc nhập file XLSX/CSV.</Empty>
+            <Empty>{t("Bộ đề chưa có câu hỏi. Thêm câu hỏi hoặc nhập file XLSX/CSV.")}</Empty>
           )}
-          {d.questions.length > 0 && !shown.length && <Empty>Không có câu hỏi khớp từ khóa.</Empty>}
+          {d.questions.length > 0 && !shown.length && <Empty>{t("Không có câu hỏi khớp từ khóa.")}</Empty>}
         </div>
         <aside className="bank-side">
           <a className="button primary bank-primary" href={`/sessions/new?bank=${id}`}>
-            ▶ Tạo buổi kiểm tra
+            
+            {t("▶ Tạo buổi kiểm tra")}
           </a>
-          <p className="bank-side-label">Soạn và ôn tập</p>
+          <p className="bank-side-label">{t("Soạn và ôn tập")}</p>
           <button
             className="bank-action"
             onClick={() => {
@@ -262,10 +267,10 @@ function BankDetail({ id }: { id: string }) {
               window.scrollTo({ top: 0, behavior: "smooth" });
             }}
           >
-            <Icon name="file" /> Thêm câu hỏi
+            <Icon name="file" />  {t("Thêm câu hỏi")}
           </button>
           <button className="bank-action" onClick={() => setImportOpen(!importOpen)}>
-            <Icon name="arrow" /> {importOpen ? "Đóng nhập file" : "Nhập từ Excel/CSV"}
+            <Icon name="arrow" /> {importOpen ? t("Đóng nhập file") : t("Nhập từ Excel/CSV")}
           </button>
           <button
             className="bank-action"
@@ -277,13 +282,13 @@ function BankDetail({ id }: { id: string }) {
               })
             }
           >
-            <Icon name="cards" /> Tạo bộ flashcard
+            <Icon name="cards" />  {t("Tạo bộ flashcard")}
           </button>
           <a className={`button bank-action${d.questions.length ? "" : " is-disabled"}`} href={`/question-banks/${id}/worksheet`}>
-            <Icon name="book" /> In phiếu bài tập
+            <Icon name="book" />  {t("In phiếu bài tập")}
           </a>
           <details className="bank-info">
-            <summary>Đổi tên, môn học</summary>
+            <summary>{t("Đổi tên, môn học")}</summary>
             <form
               className="form"
               onSubmit={(e) => {
@@ -292,16 +297,16 @@ function BankDetail({ id }: { id: string }) {
                 void run(async () => {
                   await api(`/question-banks/${id}`, "PATCH", body);
                   resource.reload();
-                }, "Đã cập nhật bộ đề.");
+                }, t("Đã cập nhật bộ đề."));
               }}
             >
-              <Field label="Tên bộ đề">
+              <Field label={t("Tên bộ đề")}>
                 <input name="name" defaultValue={d.name} required maxLength={150} />
               </Field>
-              <Field label="Môn học">
+              <Field label={t("Môn học")}>
                 <input name="subject" defaultValue={d.subject} maxLength={100} />
               </Field>
-              <button>Lưu thông tin</button>
+              <button>{t("Lưu thông tin")}</button>
             </form>
           </details>
         </aside>
@@ -328,9 +333,9 @@ function QuestionEditor({
       }}
     >
       <header>
-        <span className="qcard-no">{question.id ? "Sửa câu hỏi" : "Câu hỏi mới"}</span>
+        <span className="qcard-no">{question.id ? t("Sửa câu hỏi") : t("Câu hỏi mới")}</span>
       </header>
-      <Field label="Nội dung câu hỏi">
+      <Field label={t("Nội dung câu hỏi")}>
         <textarea name="question" defaultValue={question.question} required maxLength={2000} autoFocus />
       </Field>
       <div className="qcard-edit-options">
@@ -339,7 +344,7 @@ function QuestionEditor({
             <b>{c}</b>
             <input
               name={`option_${c.toLowerCase()}`}
-              aria-label={`Lựa chọn ${c}`}
+              aria-label={t("Lựa chọn {c}", { c })}
               defaultValue={question[`option_${c.toLowerCase()}`]}
               required
               maxLength={500}
@@ -348,30 +353,30 @@ function QuestionEditor({
         ))}
       </div>
       <div className="form-grid">
-        <Field label="Đáp án đúng">
+        <Field label={t("Đáp án đúng")}>
           <select name="correct_answer" defaultValue={question.correct_answer}>
             {LETTERS.map((c) => (
               <option key={c}>{c}</option>
             ))}
           </select>
         </Field>
-        <Field label="Độ khó">
+        <Field label={t("Độ khó")}>
           <select name="difficulty" defaultValue={question.difficulty}>
-            <option value="easy">Dễ</option>
-            <option value="medium">Trung bình</option>
-            <option value="hard">Khó</option>
+            <option value="easy">{t("Dễ")}</option>
+            <option value="medium">{t("Trung bình")}</option>
+            <option value="hard">{t("Khó")}</option>
           </select>
         </Field>
-        <Field label="Chủ đề">
-          <input name="topic" defaultValue={question.topic} maxLength={100} placeholder="Ví dụ: GPIO" />
+        <Field label={t("Chủ đề")}>
+          <input name="topic" defaultValue={question.topic} maxLength={100} placeholder={t("Ví dụ: GPIO")} />
         </Field>
-        <Field label="Lời giải (không bắt buộc)">
+        <Field label={t("Lời giải (không bắt buộc)")}>
           <input name="explanation" defaultValue={question.explanation} maxLength={4000} />
         </Field>
       </div>
       <div className="actions">
-        <button className="primary">Lưu câu hỏi</button>
-        <button type="button" onClick={onCancel}>Hủy</button>
+        <button className="primary">{t("Lưu câu hỏi")}</button>
+        <button type="button" onClick={onCancel}>{t("Hủy")}</button>
       </div>
     </form>
   );
@@ -386,23 +391,24 @@ function Worksheet({ id }: { id: string }) {
   return (
     <>
       <div className="worksheet-tools no-print">
-        <a className="button" href={`/question-banks/${id}`}>← Về bộ đề</a>
+        <a className="button" href={`/question-banks/${id}`}>{t("← Về bộ đề")}</a>
         <label className="check">
           <input type="checkbox" checked={withKey} onChange={(e) => setWithKey(e.target.checked)} />
-          Kèm đáp án ở trang cuối
+          
+          {t("Kèm đáp án ở trang cuối")}
         </label>
-        <button className="primary" onClick={() => window.print()}>In / Lưu PDF</button>
+        <button className="primary" onClick={() => window.print()}>{t("In / Lưu PDF")}</button>
       </div>
       <article className="worksheet">
         <header className="worksheet-head">
           <div>
-            <p className="eyebrow">{d.subject || "PHIẾU BÀI TẬP"}</p>
+            <p className="eyebrow">{d.subject || t("PHIẾU BÀI TẬP")}</p>
             <h1>{d.name}</h1>
-            <p>{d.questions.length} câu trắc nghiệm · Khoanh tròn một đáp án đúng</p>
+            <p>{d.questions.length}  {t("câu trắc nghiệm · Khoanh tròn một đáp án đúng")}</p>
           </div>
           <div className="worksheet-fields">
-            <span>Họ và tên: ................................................</span>
-            <span>Lớp: ................ Ngày: ....../....../..........</span>
+            <span>{t("Họ và tên: ................................................")}</span>
+            <span>{t("Lớp: ................ Ngày: ....../....../..........")}</span>
           </div>
         </header>
         <ol className="worksheet-questions">
@@ -421,7 +427,7 @@ function Worksheet({ id }: { id: string }) {
         </ol>
         {withKey && (
           <section className="worksheet-key">
-            <h2>Đáp án · {d.name}</h2>
+            <h2>{t("Đáp án ·")} {d.name}</h2>
             <ol>
               {d.questions.map((q: Data) => (
                 <li key={q.id}>

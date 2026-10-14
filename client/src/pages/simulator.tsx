@@ -4,11 +4,12 @@ import { api, stateLabel, errorLabel, type Data } from "../api";
 import { Head, Status, useApp, useResource } from "../components";
 import { socketUrl } from "../socket";
 import type { FlashcardRatePacket } from "../../../shared/protocol";
-const ratingLabel: Record<string, string> = { KNOWN: "Nhớ", AGAIN: "Chưa nhớ" };
+import { t } from "../i18n";
+const ratingLabel: Record<string, string> = { KNOWN: t("Nhớ"), AGAIN: t("Chưa nhớ") };
 function SimDevice({ device }: { device: Data }) {
   const [state, setState] = useState<Data>({ state: "WAITING" }),
-    [status, setStatus] = useState("Đang kết nối…"),
-    [ack, setAck] = useState("Chưa gửi"),
+    [status, setStatus] = useState(t("Đang kết nối…")),
+    [ack, setAck] = useState(t("Chưa gửi")),
     [offline, setOffline] = useState(false);
   const socket = useRef<WebSocket | null>(null),
     current = useRef<Data>({}),
@@ -28,7 +29,7 @@ function SimDevice({ device }: { device: Data }) {
   function send(packet: Data, label: string) {
     pending.current = packet;
     last.current = packet;
-    setAck(`Đang gửi ${label}…`);
+    setAck(t("Đang gửi {label}…", { label }));
     transmit();
   }
   function sameDisplay(packet: FlashcardRatePacket, s: Data) {
@@ -40,24 +41,24 @@ function SimDevice({ device }: { device: Data }) {
     const s = current.current;
     if ((s.mode === "poll" || s.mode === "attendance") && pending.current) {
       queued.current = choice;
-      setAck("Đang chờ ACK · giữ lựa chọn mới nhất");
+      setAck(t("Đang chờ ACK · giữ lựa chọn mới nhất"));
       return;
     }
     if (s.mode === "attendance") {
       send(
         { v: 1, type: "attendance.checkin", request_id: createUuid(), attendance_id: s.id },
-        "điểm danh",
+        t("điểm danh"),
       );
       return;
     }
     if (s.mode === "poll") {
       if ("ABCD".indexOf(choice) >= s.options) {
-        setAck(`Khảo sát chỉ có ${s.options} lựa chọn`);
+        setAck(t("Khảo sát chỉ có {options} lựa chọn", { options: s.options }));
         return;
       }
       send(
         { v: 1, type: "poll.vote", request_id: createUuid(), poll_id: s.id, choice },
-        `ý kiến ${choice}`,
+        t("ý kiến {choice}", { choice }),
       );
       return;
     }
@@ -65,11 +66,11 @@ function SimDevice({ device }: { device: Data }) {
       // A = remembered, B = not yet.
       const rating = choice === "A" ? "KNOWN" : choice === "B" ? "AGAIN" : null;
       if (!rating) {
-        setAck("Flashcard: A = Nhớ, B = Chưa nhớ");
+        setAck(t("Flashcard: A = Nhớ, B = Chưa nhớ"));
         return;
       }
       if (!s.display_id || !Number.isInteger(s.round)) {
-        setAck("Chưa đồng bộ lượt ôn tập. Đang lấy lại trạng thái…");
+        setAck(t("Chưa đồng bộ lượt ôn tập. Đang lấy lại trạng thái…"));
         socket.current?.send(JSON.stringify({ v: 1, type: "snapshot.request" }));
         return;
       }
@@ -86,8 +87,8 @@ function SimDevice({ device }: { device: Data }) {
       if (pending.current) {
         if (pending.current.type === "flashcard.rate") {
           queuedRating.current = packet;
-          setAck("Đang chờ ACK · giữ lựa chọn mới nhất");
-        } else setAck("Đang chờ ACK của hoạt động trước");
+          setAck(t("Đang chờ ACK · giữ lựa chọn mới nhất"));
+        } else setAck(t("Đang chờ ACK của hoạt động trước"));
         return;
       }
       send(packet, ratingLabel[rating]);
@@ -100,16 +101,16 @@ function SimDevice({ device }: { device: Data }) {
       return;
     }
     if (!s.binding_id) {
-      setAck("Chưa ghép học sinh");
+      setAck(t("Chưa ghép học sinh"));
       return;
     }
     if (s.state !== "RUNNING" || s.question?.status !== "OPEN") {
-      setAck("Câu chưa mở hoặc đã đóng");
+      setAck(t("Câu chưa mở hoặc đã đóng"));
       return;
     }
     if (pending.current) {
       queued.current = choice;
-      setAck("Đang chờ ACK · giữ lựa chọn mới nhất");
+      setAck(t("Đang chờ ACK · giữ lựa chọn mới nhất"));
       return;
     }
     const packet = {
@@ -124,12 +125,12 @@ function SimDevice({ device }: { device: Data }) {
     };
     pending.current = packet;
     last.current = packet;
-    setAck(`Đang gửi ${choice}…`);
+    setAck(t("Đang gửi {choice}…", { choice }));
     transmit();
   }
   useEffect(() => {
     if (offline) {
-      setStatus("Mất mạng mô phỏng");
+      setStatus(t("Mất mạng mô phỏng"));
       return;
     }
     let stopped = false,
@@ -137,7 +138,7 @@ function SimDevice({ device }: { device: Data }) {
       timer: ReturnType<typeof setTimeout>;
     async function connect() {
       try {
-        setStatus(attempt ? "Đang nối lại…" : "Đang kết nối…");
+        setStatus(attempt ? t("Đang nối lại…") : t("Đang kết nối…"));
         const { ticket } = await api(`/devices/${device.id}/ticket`, "POST");
         if (stopped) return;
         const ws = new WebSocket(socketUrl());
@@ -152,7 +153,7 @@ function SimDevice({ device }: { device: Data }) {
             const old = current.current;
             current.current = msg.data;
             setState(msg.data);
-            setStatus("Đã kết nối");
+            setStatus(t("Đã kết nối"));
             if (
               old.question?.id !== msg.data.question?.id ||
               old.binding_id !== msg.data.binding_id
@@ -170,12 +171,12 @@ function SimDevice({ device }: { device: Data }) {
             if (pending.current && pending.current.request_id !== msg.request_id) return;
             if (drop.current) {
               drop.current = false;
-              setAck("Đã bỏ ACK để thử gửi lại…");
+              setAck(t("Đã bỏ ACK để thử gửi lại…"));
               return;
             }
             setAck(msg.accepted
-              ? `Đã ACK ${ratingLabel[msg.rating]}${msg.duplicate ? " · gói gửi lại" : ""}`
-              : `Từ chối: ${errorLabel[msg.code] || msg.code}`);
+              ? t("Đã ACK {v}{v2}", { v: ratingLabel[msg.rating], v2: msg.duplicate ? t(" · gói gửi lại") : "" })
+              : t("Từ chối: {v}", { v: errorLabel[msg.code] || msg.code }));
             if (pending.current?.request_id === msg.request_id) {
               pending.current = null;
               if (retryTimer.current) clearTimeout(retryTimer.current);
@@ -191,9 +192,9 @@ function SimDevice({ device }: { device: Data }) {
             setAck(
               msg.accepted
                 ? msg.type === "attendance.ack"
-                  ? "Đã điểm danh"
-                  : `Đã ACK ${msg.type === "poll.ack" ? `ý kiến ${msg.choice}` : ratingLabel[msg.rating]}`
-                : `Từ chối: ${errorLabel[msg.code] || msg.code}`,
+                  ? t("Đã điểm danh")
+                  : t("Đã ACK {v}", { v: msg.type === "poll.ack" ? t("ý kiến {choice}", { choice: msg.choice }) : ratingLabel[msg.rating] })
+                : t("Từ chối: {v}", { v: errorLabel[msg.code] || msg.code }),
             );
             if (pending.current?.request_id === msg.request_id) {
               pending.current = null;
@@ -205,13 +206,13 @@ function SimDevice({ device }: { device: Data }) {
           } else if (msg.type === "answer.ack") {
             if (drop.current) {
               drop.current = false;
-              setAck("Đã bỏ ACK để thử gửi lại…");
+              setAck(t("Đã bỏ ACK để thử gửi lại…"));
               return;
             }
             setAck(
               msg.accepted
-                ? `Đã ACK ${msg.choice} · seq ${msg.seq}${msg.duplicate ? " · gói gửi lại" : ""}`
-                : `Từ chối: ${errorLabel[msg.code] || msg.code}`,
+                ? t("Đã ACK {choice} · seq {seq}{v}", { choice: msg.choice, seq: msg.seq, v: msg.duplicate ? t(" · gói gửi lại") : "" })
+                : t("Từ chối: {v}", { v: errorLabel[msg.code] || msg.code }),
             );
             if (pending.current?.request_id === msg.request_id) {
               pending.current = null;
@@ -221,17 +222,17 @@ function SimDevice({ device }: { device: Data }) {
               if (choice) choose(choice);
             }
           } else if (msg.type === "button.ack")
-            setAck(msg.assigned ? "Đã nhận bấm thử" : "Bấm thử: chưa ghép");
+            setAck(msg.assigned ? t("Đã nhận bấm thử") : t("Bấm thử: chưa ghép"));
           else if (msg.type === "error")
-            setAck(`Lỗi: ${errorLabel[msg.code] || msg.code}`);
+            setAck(t("Lỗi: {v}", { v: errorLabel[msg.code] || msg.code }));
         };
         ws.onclose = (e) => {
           if (stopped) return;
           if (e.code === 4001 || e.code === 4002) {
-            setStatus("Kết nối bị thu hồi hoặc thay thế");
+            setStatus(t("Kết nối bị thu hồi hoặc thay thế"));
             return;
           }
-          setStatus("Mất kết nối");
+          setStatus(t("Mất kết nối"));
           timer = setTimeout(
             connect,
             Math.min(10000, 1000 * 2 ** attempt++) + Math.random() * 300,
@@ -260,28 +261,30 @@ function SimDevice({ device }: { device: Data }) {
       </div>
       {state.mode === "poll" ? (
         <p>
-          Khảo sát · {state.options} lựa chọn
-          {state.current_choice && ` · đã chọn ${state.current_choice}`}
+          
+          {t("Khảo sát ·")} {state.options}  {t("lựa chọn")}
+          {state.current_choice && t(" · đã chọn {current_choice}", { current_choice: state.current_choice })}
         </p>
       ) : state.mode === "attendance" ? (
         <p>
-          Điểm danh · {state.checked_in ? "đã có mặt" : "bấm phím bất kỳ để điểm danh"}
+          
+          {t("Điểm danh ·")} {state.checked_in ? t("đã có mặt") : t("bấm phím bất kỳ để điểm danh")}
         </p>
       ) : state.mode === "flashcard" ? (
         <p>
-          Flashcard · thẻ {state.card.index}/{state.card.total} ·{" "}
-          {state.card.side === "back" ? "mặt sau" : "mặt trước"} · A = Nhớ, B =
-          Chưa nhớ
+          
+          {t("Flashcard · thẻ")} {state.card.index}/{state.card.total} ·{" "}
+          {state.card.side === "back" ? t("mặt sau") : t("mặt trước")}  {t("· A = Nhớ, B = Chưa nhớ")}
           {state.current_rating &&
-            ` · đã chọn ${ratingLabel[state.current_rating]}`}
+            t(" · đã chọn {v}", { v: ratingLabel[state.current_rating] })}
         </p>
       ) : (
         <p>
-          {state.binding_id ? "Đã ghép học sinh" : "Chờ giáo viên ghép thiết bị"}{" "}
+          {state.binding_id ? t("Đã ghép học sinh") : t("Chờ giáo viên ghép thiết bị")}{" "}
           ·{" "}
           {state.question
             ? `${stateLabel[state.question.status]}`
-            : "Chưa mở câu"}
+            : t("Chưa mở câu")}
         </p>
       )}
       <div className="sim-buttons">
@@ -289,7 +292,7 @@ function SimDevice({ device }: { device: Data }) {
           <button
             key={c}
             className={`choice-${c.toLowerCase()}`}
-            disabled={offline || status !== "Đã kết nối"}
+            disabled={offline || status !== t("Đã kết nối")}
             onClick={() => choose(c)}
           >
             {c}
@@ -301,15 +304,16 @@ function SimDevice({ device }: { device: Data }) {
       </p>
       <div className="actions">
         <button onClick={() => setOffline(!offline)}>
-          {offline ? "Nối lại mạng" : "Ngắt mạng"}
+          {offline ? t("Nối lại mạng") : t("Ngắt mạng")}
         </button>
         <button
           onClick={() => {
             drop.current = true;
-            setAck("Sẽ bỏ ACK kế tiếp rồi tự gửi lại");
+            setAck(t("Sẽ bỏ ACK kế tiếp rồi tự gửi lại"));
           }}
         >
-          Mất ACK một lần
+          
+          {t("Mất ACK một lần")}
         </button>
         <button
           disabled={!last.current || offline}
@@ -318,7 +322,8 @@ function SimDevice({ device }: { device: Data }) {
               socket.current.send(JSON.stringify(last.current));
           }}
         >
-          Gửi lại gói cuối
+          
+          {t("Gửi lại gói cuối")}
         </button>
       </div>
     </article>
@@ -333,25 +338,25 @@ export function Simulator() {
     [joining, setJoining] = useState(false);
   const joinBatch = useRef<{ code: string; packets: Data[] } | null>(null);
   if (!user.simulator)
-    return <Status error="Giả lập đã tắt trên môi trường này." />;
+    return <Status error={t("Giả lập đã tắt trên môi trường này.")} />;
   return (
     <>
       <Head
-        eyebrow="MÔI TRƯỜNG THỬ"
-        title="Thiết bị giả. Luồng kiểm tra thật."
-        description="Cùng giao thức WebSocket và quy tắc ACK như ESP32. Mỗi thẻ là một thiết bị."
+        eyebrow={t("MÔI TRƯỜNG THỬ")}
+        title={t("Thiết bị giả. Luồng kiểm tra thật.")}
+        description={t("Cùng giao thức WebSocket và quy tắc ACK như ESP32. Mỗi thẻ là một thiết bị.")}
       />
       <section className="card room-pairing">
-        <h2>Tự kết nối bằng ROOM ID</h2>
-        <p className="muted">Mở nhận thiết bị ở phòng kiểm tra, nhập mã rồi kết nối. Thiết bị giả lập vào phòng chưa ghép; giáo viên chọn MSSV cho từng thiết bị trong Quản lý thiết bị &amp; sửa ghép học sinh trước khi bắt đầu.</p>
+        <h2>{t("Tự kết nối bằng ROOM ID")}</h2>
+        <p className="muted">{t("Mở nhận thiết bị ở phòng kiểm tra, nhập mã rồi kết nối. Thiết bị giả lập vào phòng chưa ghép; giáo viên chọn MSSV cho từng thiết bị trong Quản lý thiết bị & sửa ghép học sinh trước khi bắt đầu.")}</p>
         <form className="row" onSubmit={(e) => {
           e.preventDefault();
           if (joining) return;
           setJoining(true);
           void run(async () => {
             const code = roomCode.replace(/\s/g, "");
-            if (!/^\d{8}$/.test(code)) throw Error("ROOM ID cần đúng 8 chữ số.");
-            if (!Number.isInteger(count) || count < 1 || count > 50) throw Error("Chọn từ 1 đến 50 thiết bị.");
+            if (!/^\d{8}$/.test(code)) throw Error(t("ROOM ID cần đúng 8 chữ số."));
+            if (!Number.isInteger(count) || count < 1 || count > 50) throw Error(t("Chọn từ 1 đến 50 thiết bị."));
             // Keep the exact packets in memory until the batch succeeds so a lost response is retryable.
             if (!joinBatch.current || joinBatch.current.code !== code)
               joinBatch.current = { code, packets: Array.from({ length: count }, (_, i) => ({
@@ -366,20 +371,20 @@ export function Simulator() {
               }
               joinBatch.current = null;
             } finally { r.reload(); }
-          }, "Thiết bị đã vào phòng và chờ ghép. Mở Quản lý thiết bị trong phòng, chọn MSSV cho từng thiết bị rồi bấm thử.").finally(() => setJoining(false));
+          }, t("Thiết bị đã vào phòng và chờ ghép. Mở Quản lý thiết bị trong phòng, chọn MSSV cho từng thiết bị rồi bấm thử.")).finally(() => setJoining(false));
         }}>
           <label className="field">ROOM ID<input inputMode="numeric" autoComplete="off" required value={roomCode} placeholder="4827 1936" maxLength={12} disabled={joining} onChange={(e) => { setRoomCode(e.target.value); joinBatch.current = null; }} /></label>
-          <label className="field">Số thiết bị<input type="number" min={1} max={50} required value={count} disabled={joining} onChange={(e) => { setCount(Number(e.target.value)); joinBatch.current = null; }} /></label>
-          <button className="primary" disabled={joining}>{joining ? "Đang kết nối…" : "Kết nối bằng mã"}</button>
+          <label className="field">{t("Số thiết bị")}<input type="number" min={1} max={50} required value={count} disabled={joining} onChange={(e) => { setCount(Number(e.target.value)); joinBatch.current = null; }} /></label>
+          <button className="primary" disabled={joining}>{joining ? t("Đang kết nối…") : t("Kết nối bằng mã")}</button>
         </form>
       </section>
       <div className="card">
         <div className="row spread">
           <div>
-            <h2>Kết nối thiết bị đã đăng ký</h2>
+            <h2>{t("Kết nối thiết bị đã đăng ký")}</h2>
             <p className="muted">
-              Mở trang này bên cạnh phòng chờ, ghép thiết bị rồi bấm A/B/C/D để
-              thử.
+              
+              {t("Mở trang này bên cạnh phòng chờ, ghép thiết bị rồi bấm A/B/C/D để thử.")}
             </p>
           </div>
           <button
@@ -393,7 +398,8 @@ export function Simulator() {
               )
             }
           >
-            Kết nối tối đa 50 thiết bị
+            
+            {t("Kết nối tối đa 50 thiết bị")}
           </button>
         </div>
         <div className="device-choices">
@@ -426,11 +432,12 @@ export function Simulator() {
                   label: `SIM-${String((r.data?.length || 0) + i + 1).padStart(2, "0")}`,
                 });
               r.reload();
-            }, "Đã tạo thiết bị thử. Chọn kết nối và ghép trong phòng chờ.");
+            }, t("Đã tạo thiết bị thử. Chọn kết nối và ghép trong phòng chờ."));
           }}
         >
           <label className="field">
-            Số thiết bị thử cần tạo
+            
+            {t("Số thiết bị thử cần tạo")}
             <input
               type="number"
               min={1}
@@ -439,7 +446,7 @@ export function Simulator() {
               onChange={(e) => setCount(Number(e.target.value))}
             />
           </label>
-          <button>Tạo thiết bị giả lập</button>
+          <button>{t("Tạo thiết bị giả lập")}</button>
         </form>
       </div>
       <Status error={r.error} loading={!r.data} />

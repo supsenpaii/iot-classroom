@@ -49,6 +49,10 @@ export type AppConfig = {
   trustProxy: number;
   maxUpload: number;
   openRouterApiKeys: string[];
+  geminiApiKey?: string;
+  geminiModel?: string;
+  // Study guides per teacher per day (in memory; resets on restart). Default 100.
+  aiDailyLimit?: number;
   openRouterModels?: string[];
 };
 const nameSchema = z.string().trim().min(1).max(150);
@@ -117,6 +121,16 @@ export function createApplication(db: DB, config: AppConfig) {
   const loginAttempts = new Map<string, { count: number; until: number }>();
   const registrationAttempts = new Map<string, { count: number; until: number }>();
   const studyGuideInFlight = new Set<string>();
+  const aiUsage = new Map<string, number>();
+  const aiKey = (teacher: string) => `${teacher}:${new Date().toISOString().slice(0, 10)}`;
+  const savedGuide = (row: Row) => ({
+    ...JSON.parse(row.payload),
+    provider: row.provider,
+    model: row.model,
+    lang: row.lang,
+    created_at: row.created_at,
+    cached: true,
+  });
   let loginInFlight = 0;
   let registrationInFlight = 0;
   app.post("/api/auth/register", async (req, res) => {
@@ -136,7 +150,7 @@ export function createApplication(db: DB, config: AppConfig) {
     const input = z
       .object({
         email: z.string().trim().email().max(200),
-        password: z.string().min(1).max(200),
+        password: z.string().min(12).max(200),
       })
       .strict()
       .parse(req.body);
@@ -381,7 +395,7 @@ export function createApplication(db: DB, config: AppConfig) {
       ...t,
       csrf: req.session.csrf,
       simulator: config.simulator,
-      ai: config.openRouterApiKeys.length > 0,
+      ai: !!config.geminiApiKey || config.openRouterApiKeys.length > 0,
     });
   });
   app.post("/api/auth/logout", (req, res, next) => {
@@ -400,7 +414,7 @@ export function createApplication(db: DB, config: AppConfig) {
     const input = z
       .object({
         current: z.string().max(200),
-        password: z.string().min(1).max(200),
+        password: z.string().min(12).max(200),
       })
       .parse(req.body);
     const t = must(one(db, "SELECT * FROM teachers WHERE id=?", owner(req)));
@@ -1231,7 +1245,10 @@ export function createApplication(db: DB, config: AppConfig) {
   });
   app.get("/api/sessions/:id/report", (req, res) => {
     owned(db, "quiz_sessions", param(req), owner(req));
-    res.json(quiz.report(param(req)));
+    const saved: Record<string, unknown> = {};
+    for (const row of all(db, "SELECT * FROM study_guides WHERE session_id=?", param(req)))
+      saved[row.student_id] = savedGuide(row);
+    res.json({ ...quiz.report(param(req)), study_guides: saved });
   });
   // Review deck from the questions one student got wrong (or the whole class struggled with), shared at once.
   app.post("/api/sessions/:id/review-deck", (req, res) => {
@@ -1285,16 +1302,24 @@ ${q.data.explanation}` : ""),
   });
   app.post("/api/sessions/:id/study-guide", async (req, res) => {
     const session = owned(db, "quiz_sessions", param(req), owner(req));
-    const { student_id } = z
+    const { student_id, regenerate, lang, practice_count } = z
       .object({
         student_id: z.string().min(1).max(80),
+        regenerate: z.boolean().optional(),
+        lang: z.enum(["vi", "en"]).optional(),
+        practice_count: z.number().int().min(1).max(5).optional(),
       })
       .strict()
       .parse(req.body);
-    if (!config.openRouterApiKeys.length)
+    // A saved guide is returned even when no AI provider is configured.
+    const saved = regenerate
+      ? undefined
+      : one(db, "SELECT * FROM study_guides WHERE session_id=? AND student_id=?", session.id, student_id);
+    if (saved) return res.json(savedGuide(saved));
+    if (!config.geminiApiKey && !config.openRouterApiKeys.length)
       throw new AppError(
         "AI_NOT_CONFIGURED",
-        "Chưa cấu hình OPENROUTER_API_KEYS trên máy chủ.",
+        "Chưa cấu hình GEMINI_API_KEY hoặc OPENROUTER_API_KEYS trên máy chủ.",
         503,
       );
     if (session.state !== "FINISHED")
@@ -1364,14 +1389,73 @@ ${q.data.explanation}` : ""),
       );
     input.missed = input.missed.sort((a, b) => a.no - b.no).slice(0, 15);
 
-    studyGuideInFlight.add(requestKey);
-    try {
-      res.json(
-        await createStudyGuide(input, config.openRouterApiKeys, config.openRouterModels),
+    const quotaKey = aiKey(owner(req)), limit = config.aiDailyLimit ?? 100;
+    if ((aiUsage.get(quotaKey) ?? 0) >= limit)
+      throw new AppError(
+        "AI_DAILY_LIMIT",
+        `Đã dùng hết ${limit} lượt tạo gợi ý AI hôm nay. Thử lại vào ngày mai hoặc tăng AI_DAILY_LIMIT.`,
+        429,
       );
+    studyGuideInFlight.add(requestKey);
+    aiUsage.set(quotaKey, (aiUsage.get(quotaKey) ?? 0) + 1);
+    try {
+      const result = await createStudyGuide(
+        input,
+        {
+          geminiApiKey: config.geminiApiKey,
+          geminiModel: config.geminiModel,
+          openRouterApiKeys: config.openRouterApiKeys,
+          openRouterModels: config.openRouterModels,
+        },
+        { practiceCount: practice_count, lang },
+      );
+      const createdAt = Date.now();
+      db.prepare("INSERT OR REPLACE INTO study_guides VALUES (?,?,?,?,?,?,?)").run(
+        session.id,
+        student.id,
+        JSON.stringify({ explanations: result.explanations, practice: result.practice }),
+        result.provider,
+        result.model,
+        lang ?? "vi",
+        createdAt,
+      );
+      res.json({ ...result, lang: lang ?? "vi", created_at: createdAt, cached: false });
+    } catch (error) {
+      // A failed call used no quota worth keeping.
+      aiUsage.set(quotaKey, Math.max(0, (aiUsage.get(quotaKey) ?? 1) - 1));
+      throw error;
     } finally {
       studyGuideInFlight.delete(requestKey);
     }
+  });
+  // Practice questions the AI wrote, as a flashcard deck with a self-study link. The deck name
+  // carries no student identity because the link is public.
+  app.post("/api/sessions/:id/study-guide/deck", (req, res) => {
+    const session = owned(db, "quiz_sessions", param(req), owner(req));
+    const { student_id } = z.object({ student_id: z.string().min(1).max(80) }).strict().parse(req.body);
+    const saved = one(db, "SELECT * FROM study_guides WHERE session_id=? AND student_id=?", session.id, student_id);
+    if (!saved)
+      throw new AppError("NO_GUIDE", "Chưa có gợi ý AI đã lưu cho học sinh này. Hãy tạo gợi ý trước.", 409);
+    const practice = JSON.parse(saved.payload).practice as Array<Record<string, string>>;
+    const subject = String(one(db, "SELECT subject FROM question_banks WHERE id=?", session.bank_id)?.subject ?? "");
+    const token = shareToken();
+    const deckId = db.transaction(() => {
+      const id = flashcards.createDeck(
+        owner(req),
+        `Luyện thêm: ${session.name} · ${token.slice(0, 4)}`.slice(0, 150),
+        subject,
+      );
+      flashcards.addCards(
+        id,
+        practice.map((p) => ({
+          front: `${p.question}\n\nA. ${p.option_a}\nB. ${p.option_b}\nC. ${p.option_c}\nD. ${p.option_d}`,
+          back: `${p.correct_answer}. ${p[`option_${p.correct_answer.toLowerCase()}`]}\n\n${p.explanation}`,
+        })),
+      );
+      db.prepare("UPDATE flashcard_decks SET share_token=? WHERE id=?").run(token, id);
+      return id;
+    })();
+    res.status(201).json({ id: deckId, share_token: token, cards: practice.length });
   });
   app.post("/api/sessions/:id/questions/:question/void", (req, res) => {
     owned(db, "quiz_sessions", param(req), owner(req));
@@ -1394,6 +1478,8 @@ ${q.data.explanation}` : ""),
       db.prepare(
         "UPDATE session_questions SET voided=1,void_reason=? WHERE id=?",
       ).run(reason, q.id);
+      // Saved study guides were written for the old scoring.
+      db.prepare("DELETE FROM study_guides WHERE session_id=?").run(param(req));
       quiz.event(
         param(req),
         "question.voided",

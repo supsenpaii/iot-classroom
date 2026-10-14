@@ -14,6 +14,7 @@ import "./pages/student.css";
 import "./styles.css";
 import { ThemeToggle } from "./theme";
 import "./theme.css";
+import { t } from "./i18n";
 const Dashboard = lazy(() => import("./pages/manage").then(m => ({ default: m.Dashboard })));
 const Classes = lazy(() => import("./pages/manage").then(m => ({ default: m.Classes })));
 const Devices = lazy(() => import("./pages/manage").then(m => ({ default: m.Devices })));
@@ -30,15 +31,16 @@ const Study = lazy(() => import("./pages/flashcards").then(m => ({ default: m.St
 const Polls = lazy(() => import("./pages/polls").then(m => ({ default: m.Polls })));
 const AttendancePage = lazy(() => import("./pages/attendance").then(m => ({ default: m.AttendancePage })));
 const StudentPage = lazy(() => import("./pages/student").then(m => ({ default: m.StudentPage })));
+const DevicePage = lazy(() => import("./pages/device").then(m => ({ default: m.DevicePage })));
 const nav = [
-  ["/dashboard", "home", "Tổng quan"],
-  ["/question-banks", "file", "Ngân hàng câu hỏi"],
+  ["/dashboard", "home", t("Tổng quan")],
+  ["/question-banks", "file", t("Ngân hàng câu hỏi")],
   ["/flashcards", "cards", "Flashcard"],
-  ["/polls", "poll", "Khảo sát nhanh"],
-  ["/attendance", "check", "Điểm danh"],
-  ["/classes", "users", "Lớp học"],
-  ["/devices", "device", "Thiết bị"],
-  ["/reports", "chart", "Báo cáo"],
+  ["/polls", "poll", t("Khảo sát nhanh")],
+  ["/attendance", "check", t("Điểm danh")],
+  ["/classes", "users", t("Lớp học")],
+  ["/devices", "device", t("Thiết bị")],
+  ["/reports", "chart", t("Báo cáo")],
 ];
 function App() {
   const [user, setUser] = useState<Data | null>(null),
@@ -49,8 +51,9 @@ function App() {
   const noticeOwners = useRef<{ error?: RequestScope; message?: RequestScope }>({});
   const path = window.location.pathname;
   const studentPage = path === "/student" || path === "/student/";
+  const devicePage = path === "/device" || path === "/device/";
   useEffect(() => {
-    if (studentPage || path.startsWith("/present/") || path.startsWith("/study/")) {
+    if (studentPage || devicePage || path.startsWith("/present/") || path.startsWith("/study/")) {
       setLoading(false);
       return;
     }
@@ -63,7 +66,7 @@ function App() {
       .finally(() => setLoading(false));
   }, [path]);
   useEffect(() => {
-    if (!user || studentPage || path.startsWith("/present/") || path.startsWith("/study/"))
+    if (!user || studentPage || devicePage || path.startsWith("/present/") || path.startsWith("/study/"))
       return;
     const verify = () => {
       if (document.visibilityState === "visible")
@@ -107,6 +110,7 @@ function App() {
     }
   }
   if (studentPage) return <StudentPage />;
+  if (devicePage) return <DevicePage />;
   if (path.startsWith("/present/"))
     return <><Presentation id={path.split("/")[2]} /><ThemeToggle floating /></>;
   if (path.startsWith("/study/")) return <><Study token={path.split("/")[2]} /><ThemeToggle floating /></>;
@@ -122,7 +126,7 @@ function App() {
     e.preventDefault();
     const input = fields(e.currentTarget);
     if (registering && input.password !== input.confirm) {
-      setError("Hai mật khẩu chưa trùng nhau.");
+      setError(t("Hai mật khẩu chưa trùng nhau."));
       return;
     }
     await run(async () => {
@@ -150,7 +154,7 @@ function App() {
             <br />
             Class<span>.</span>
           </h1>
-          <p>Mỗi câu trả lời đều được lắng nghe.</p>
+          <p>{t("Mỗi câu trả lời đều được lắng nghe.")}</p>
           <div className="login-art">
             <span className="choice-a">A</span>
             <span className="choice-b">B</span>
@@ -159,27 +163,28 @@ function App() {
           </div>
         </div>
         <form onSubmit={submitAuth} className="login-form">
-          <p className="eyebrow">KHÔNG GIAN DẠY HỌC</p>
-          <h2>{registering ? "Tạo tài khoản giáo viên." : "Chào mừng thầy cô."}</h2>
+          <p className="eyebrow">{t("KHÔNG GIAN DẠY HỌC")}</p>
+          <h2>{registering ? t("Tạo tài khoản giáo viên.") : t("Chào mừng thầy cô.")}</h2>
           <p className="muted">
             {registering
-              ? "Đăng ký để tạo lớp học và bắt đầu kiểm tra."
-              : "Đăng nhập để bắt đầu giờ học."}
+              ? t("Đăng ký để tạo lớp học và bắt đầu kiểm tra.")
+              : t("Đăng nhập để bắt đầu giờ học.")}
           </p>
           <Field label="Email">
             <input name="email" type="email" autoComplete="username" required />
           </Field>
-          <Field label="Mật khẩu">
+          <Field label={t("Mật khẩu")}>
             <input
               name="password"
               type="password"
               maxLength={200}
+              minLength={registering ? 12 : undefined}
               autoComplete={registering ? "new-password" : "current-password"}
               required
             />
           </Field>
           {registering && (
-            <Field label="Nhập lại mật khẩu">
+            <Field label={t("Nhập lại mật khẩu")}>
               <input
                 name="confirm"
                 type="password"
@@ -193,19 +198,19 @@ function App() {
           <button className="primary" disabled={!!busy}>
             {busy
               ? registering
-                ? "Đang tạo tài khoản…"
-                : "Đang đăng nhập…"
+                ? t("Đang tạo tài khoản…")
+                : t("Đang đăng nhập…")
               : registering
-                ? "Tạo tài khoản →"
-                : "Đăng nhập →"}
+                ? t("Tạo tài khoản →")
+                : t("Đăng nhập →")}
           </button>
           <small>
-            {registering ? "Đã có tài khoản? " : "Chưa có tài khoản? "}
+            {registering ? t("Đã có tài khoản? ") : t("Chưa có tài khoản? ")}
             <a href={registering ? "/login" : "/register"}>
-              {registering ? "Đăng nhập" : "Đăng ký ngay"}
+              {registering ? t("Đăng nhập") : t("Đăng ký ngay")}
             </a>
           </small>
-          <a href="/student">Học sinh: vào phòng làm bài</a>
+          <a href="/student">{t("Học sinh: vào phòng làm bài")}</a>
         </form>
       </main>
     );
@@ -229,7 +234,7 @@ function App() {
   else if (path === "/account")
     content = (
       <>
-        <Head eyebrow="TÀI KHOẢN" title="Đổi mật khẩu" />
+        <Head eyebrow={t("TÀI KHOẢN")} title={t("Đổi mật khẩu")} />
         <form
           className="card form narrow"
           onSubmit={(e) => {
@@ -241,7 +246,7 @@ function App() {
             });
           }}
         >
-          <Field label="Mật khẩu hiện tại">
+          <Field label={t("Mật khẩu hiện tại")}>
             <input
               name="current"
               type="password"
@@ -249,16 +254,17 @@ function App() {
               required
             />
           </Field>
-          <Field label="Mật khẩu mới">
+          <Field label={t("Mật khẩu mới")}>
             <input
               name="password"
               type="password"
               maxLength={200}
+              minLength={12}
               autoComplete="new-password"
               required
             />
           </Field>
-          <button className="primary">Lưu và đăng nhập lại</button>
+          <button className="primary">{t("Lưu và đăng nhập lại")}</button>
         </form>
       </>
     );
@@ -270,10 +276,10 @@ function App() {
           <a href="/dashboard" className="brand">
             <Icon name="book" />
             <span>
-              SmartClass<small>LỚP HỌC TƯƠNG TÁC</small>
+              SmartClass<small>{t("LỚP HỌC TƯƠNG TÁC")}</small>
             </span>
           </a>
-          <p className="nav-caption">KHÔNG GIAN DẠY HỌC</p>
+          <p className="nav-caption">{t("KHÔNG GIAN DẠY HỌC")}</p>
           <nav>
             {nav.map(([href, icon, label]) => (
               <a
@@ -297,7 +303,7 @@ function App() {
               <span className="avatar">GV</span>
               <span className="account-email">
                 {user.email}
-                <small>Giáo viên</small>
+                <small>{t("Giáo viên")}</small>
               </span>
             </a>
             <button
@@ -308,18 +314,19 @@ function App() {
                 })
               }
             >
-              Đăng xuất
+              
+              {t("Đăng xuất")}
             </button>
           </div>
         </aside>
         <div className="workspace">
           <div className="topbar">
             <span>
-              SmartClass <span className="muted">/</span> Không gian giáo viên
+              SmartClass <span className="muted">/</span>  {t("Không gian giáo viên")}
             </span>
             <div className="topbar-actions">
               <ThemeToggle />
-              <a href="/account" className="avatar" aria-label="Tài khoản">
+              <a href="/account" className="avatar" aria-label={t("Tài khoản")}>
                 GV
               </a>
             </div>
@@ -330,21 +337,22 @@ function App() {
                 className={`notice ${error ? "error" : ""}`}
                 role={error ? "alert" : "status"}
               >
-                {error || message || (busy ? "Đang xử lý…" : "")}
+                {error || message || (busy ? t("Đang xử lý…") : "")}
                 <button
                   onClick={() => {
                     setError("");
                     setMessage("");
                   }}
-                  aria-label="Đóng thông báo"
+                  aria-label={t("Đóng thông báo")}
                 >
-                  ×
+                  
+                  {t("×")}
                 </button>
               </div>
             )}
             {content}
           </main>
-          <footer>SmartClass · Cùng nhau tiến xa hơn</footer>
+          <footer>{t("SmartClass · Cùng nhau tiến xa hơn")}</footer>
         </div>
       </div>
     </Context.Provider>

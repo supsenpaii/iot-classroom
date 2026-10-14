@@ -22,6 +22,9 @@ const application = createApplication(db, {
   simulator: process.env.ENABLE_SIMULATOR === "true",
   trustProxy: Number(process.env.TRUST_PROXY || 0),
   maxUpload: Number(process.env.MAX_UPLOAD_BYTES || 5242880),
+  geminiApiKey: process.env.GEMINI_API_KEY?.trim() || undefined,
+  geminiModel: process.env.GEMINI_MODEL?.trim() || undefined,
+  aiDailyLimit: Number(process.env.AI_DAILY_LIMIT) > 0 ? Number(process.env.AI_DAILY_LIMIT) : undefined,
   openRouterModels: (process.env.OPENROUTER_MODELS || "")
     .split(",")
     .map((model) => model.trim())

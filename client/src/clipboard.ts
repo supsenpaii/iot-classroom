@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 export async function copyText(text: string): Promise<void> {
   if (typeof navigator.clipboard?.writeText === "function") {
     try {
@@ -29,7 +30,7 @@ export async function copyText(text: string): Promise<void> {
     // The async Clipboard API is unavailable over HTTP on a LAN address.
     if (!document.execCommand("copy")) throw new Error("Copy failed");
   } catch {
-    throw new Error("Không thể sao chép tự động. Hãy chọn mã hoặc đường dẫn rồi sao chép thủ công.");
+    throw new Error(t("Không thể sao chép tự động. Hãy chọn mã hoặc đường dẫn rồi sao chép thủ công."));
   } finally {
     field.remove();
     if (focused instanceof HTMLElement) focused.focus({ preventScroll: true });

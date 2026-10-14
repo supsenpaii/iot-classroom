@@ -35,7 +35,7 @@ async function request(path, { method = "GET", body, cookie, csrf, origin = conf
 }
 
 try {
-  const password = "a";
+  const password = "first-teacher-password";
   assert.equal((await request("/api/auth/register", { method: "POST", origin: "https://invalid.test", body: { email: "x@example.test", password } })).status, 403);
   assert.equal((await request("/api/auth/register", { method: "POST", body: { email: "x@example.test", password: "" } })).status, 422);
 
@@ -59,10 +59,10 @@ try {
   assert.equal((await request("/api/auth/login", { method: "POST", body: { email: first.data.email, password: "wrong" } })).status, 401);
   assert.equal((await request("/api/auth/login", { method: "POST", body: { email: first.data.email, password } })).status, 200);
   assert.equal((await request("/api/auth/change-password", { method: "POST", body: { current: password, password: "" }, cookie: first.cookie, csrf: first.data.csrf })).status, 422);
-  assert.equal((await request("/api/auth/change-password", { method: "POST", body: { current: password, password: "xy" }, cookie: first.cookie, csrf: first.data.csrf })).status, 200);
+  assert.equal((await request("/api/auth/change-password", { method: "POST", body: { current: password, password: "another-long-password" }, cookie: first.cookie, csrf: first.data.csrf })).status, 200);
   assert.equal((await request("/api/auth/me", { cookie: first.cookie })).status, 401);
   assert.equal((await request("/api/auth/login", { method: "POST", body: { email: first.data.email, password } })).status, 401);
-  const changedLogin = await request("/api/auth/login", { method: "POST", body: { email: first.data.email, password: "xy" } });
+  const changedLogin = await request("/api/auth/login", { method: "POST", body: { email: first.data.email, password: "another-long-password" } });
   assert.equal(changedLogin.status, 200);
   assert.equal((await request(`/api/classes/${ownClass.data.id}`, { cookie: changedLogin.cookie })).status, 200);
   assert.equal((await request("/api/auth/register", { method: "POST", body: { email: "third@example.test", password: "" } })).status, 422);
