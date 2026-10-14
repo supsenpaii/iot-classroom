@@ -45,7 +45,7 @@ function AttendanceHome() {
           <h2>{t("Bắt đầu điểm danh")}</h2>
           <p className="muted">
             
-            {t("Học sinh cần được gán thiết bị mặc định ở trang Lớp học. Em chưa gán thiết bị vẫn điểm danh tay được.")}
+            {t("Học sinh cần được gán thiết bị mặc định ở trang Lớp học. Học sinh chưa gán thiết bị vẫn có thể điểm danh thủ công.")}
           </p>
           <Status error={classes.error} loading={!classes.data} />
           {classes.data

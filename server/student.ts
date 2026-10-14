@@ -40,7 +40,7 @@ export function studentBinding(db: DB, identity: StudentIdentity) {
 
 export function studentSnapshot(db: DB, quiz: Quiz, identity: StudentIdentity) {
   const binding = studentBinding(db, identity);
-  if (!binding) throw new AppError("STUDENT_ACCESS_ENDED", "Bạn đã được gỡ khỏi phòng hoặc quyền làm bài đã hết. Hãy hỏi giáo viên.", 401);
+  if (!binding) throw new AppError("STUDENT_ACCESS_ENDED", "Bạn không còn trong phòng này hoặc quyền làm bài đã hết. Hãy hỏi giáo viên.", 401);
   const s = quiz.get(identity.session_id), config = JSON.parse(s.config);
   const q = quiz.current(s.id);
   const question = q ? JSON.parse(q.data) : null;
@@ -93,7 +93,7 @@ export function createStudentPortal(db: DB, config: AppConfig, quiz: Quiz, pairi
   const identity = (req: Request) => {
     const student = req.session.student;
     if (!student || !studentBinding(db, student))
-      throw new AppError("STUDENT_ACCESS_ENDED", "Quyền làm bài đã hết hoặc bạn đã được gỡ khỏi phòng. Hãy hỏi giáo viên.", 401);
+      throw new AppError("STUDENT_ACCESS_ENDED", "Bạn không còn trong phòng này hoặc quyền làm bài đã hết. Hãy hỏi giáo viên.", 401);
     return student;
   };
   router.get("/session", async (req, res) => {

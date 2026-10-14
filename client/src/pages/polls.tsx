@@ -16,7 +16,7 @@ import { t, locale } from "../i18n";
 const TEMPLATES = [
   {
     label: t("Hiểu bài chưa?"),
-    question: t("Em hiểu phần vừa học đến đâu?"),
+    question: t("Bạn hiểu phần vừa học đến đâu?"),
     options: [t("Hiểu rõ, tự làm được"), t("Hiểu sơ, cần thêm ví dụ"), t("Chưa hiểu lắm"), t("Cần giảng lại")],
   },
   {
@@ -26,7 +26,7 @@ const TEMPLATES = [
   },
   {
     label: t("Phiếu cuối giờ"),
-    question: t("Buổi học hôm nay em thấy thế nào?"),
+    question: t("Hôm nay bạn thấy buổi học thế nào?"),
     options: [t("Rất thích, dễ hiểu"), t("Ổn"), t("Hơi khó theo"), t("Cần ôn lại cả bài")],
   },
   { label: t("Đúng / Sai"), question: "", options: [t("Đúng"), t("Sai")] },

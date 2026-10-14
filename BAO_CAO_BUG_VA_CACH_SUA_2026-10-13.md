@@ -72,7 +72,7 @@ Bằng Chromium headless và API/WebSocket thật, trên server dựng tạm:
 - Nguyên nhân (đã xác minh): `server/http-errors.ts:52` thay `message` bằng câu chung; `client/src/api.ts` gán `error.details` rồi không trang nào đọc.
 - Cách sửa đề xuất: trong `api.ts`, nếu `res.status === 422` và có `fieldErrors[0]`, ghép "{message chung}: {tên trường} — {thông điệp}". Ước lượng: **S**. Cần ánh xạ tên trường (`question` → "Câu hỏi") bằng bảng nhỏ.
 - Cách kiểm chứng sau sửa: test giao diện kiểm câu hiển thị; xem T-001 trong báo cáo văn bản.
-- Trạng thái: Mới
+- Trạng thái: Đã sửa 2026-10-14: `api.ts` ghép tên trường (và thông điệp ở chế độ VI) vào lỗi 422
 
 ### BUG-003 · Trung bình · Giao diện · Trang phòng kiểm tra tràn ngang ở 768 px
 - Cách tái hiện: 1) Mở `/sessions/<id>` ở cửa sổ 768 px rộng (máy tính bảng ngang), cả sáng và tối. 2) Cuộn ngang xuất hiện, tràn 50 px.
@@ -119,7 +119,7 @@ Bằng Chromium headless và API/WebSocket thật, trên server dựng tạm:
 - Nguyên nhân (đã xác minh): `server/quiz.ts:308` gắn snapshot vào `details`; `server/http-errors.ts` đưa `details` vào `fieldErrors`. Chỉ giáo viên chủ buổi thấy nên không phải lỗ hổng, nhưng thừa và gây khó đọc log.
 - Cách sửa đề xuất: trả `{ code, state_version }`; giao diện tự gọi lại snapshot. Ước lượng: **S**.
 - Cách kiểm chứng sau sửa: `scripts/test-activity-guards.mjs` hoặc test lệnh phiên bản.
-- Trạng thái: Mới
+- Trạng thái: Đã sửa 2026-10-14: `VERSION_CONFLICT` chỉ trả `{ state_version }` (`server/quiz.ts`)
 
 ### BUG-008 · Thấp · Thiết bị ảo · Dòng OLED sau khi mất kết nối nhắc nhập lại MSSV
 - Cách tái hiện: 1) Vào phòng bằng `/device`. 2) Ngắt server vài giây.
@@ -128,16 +128,16 @@ Bằng Chromium headless và API/WebSocket thật, trên server dựng tạm:
 - Nguyên nhân (đã xác minh): `shared/device-screen.ts` `oledLines` sao chép đúng `drawOledStatus()` của firmware (`main.cpp:386-398`), vốn cũng như vậy.
 - Cách sửa đề xuất: khi `joined && !live` hiện `RECONNECTING...` ở dòng 2 (cả firmware lẫn web). Ước lượng: **S**.
 - Cách kiểm chứng sau sửa: `test-device-ui` thêm ca; với firmware cần `test-oled-display` (cập nhật mã băm vàng).
-- Trạng thái: Mới
+- Trạng thái: Đã sửa 2026-10-14: `/device` hiện `RECONNECTING...` khi đã vào phòng nhưng mất kết nối; firmware chưa đổi
 
 ### BUG-009 · Thấp · Hạ tầng test · Test trình duyệt treo im lặng trên máy chặn sandbox Chromium
 - Cách tái hiện: 1) Trên Linux có hạn chế user namespace, chạy `node scripts/test-study-plan-race.mjs`.
-- Kết quả thực tế: không in lỗi, treo đến hết thời gian chờ (chạy 150 s rồi bị `timeout` giết); 30 test "FAIL" với `Cannot set properties of null` nếu chạy được đến cuối.
+- Kết quả thực tế: Chromium khởi động nhưng trang không dựng được; các test báo `Cannot set properties of null` hoặc treo đến hết thời gian chờ.
 - Kết quả mong đợi: báo ngay "không khởi động được Chromium".
 - Nguyên nhân (đã xác minh): `scripts/test-study-plan-race.mjs:126` và `scripts/test-student-code-ui.mjs:102` spawn Chromium không có `--no-sandbox`, và không kiểm tra tiến trình thoát sớm. Lỗi trùng với bản gốc (kiểm bằng `git worktree` ở `HEAD`).
 - Cách sửa đề xuất: hỗ trợ `SMARTCLASS_TEST_CHROME_ARGS`; nếu `browser` thoát trước khi có `DevToolsActivePort`, `throw` kèm stderr. Ước lượng: **S**.
 - Cách kiểm chứng sau sửa: chạy trên máy chặn sandbox, có lỗi rõ.
-- Trạng thái: Mới
+- Trạng thái: Đã sửa 2026-10-14: hai test nhận `SMARTCLASS_TEST_CHROME_ARGS` (ví dụ `--no-sandbox`)
 
 ### BUG-010 · Thấp · Hạ tầng test · Test firmware cần `ArduinoJson.h` nhưng không có hướng dẫn cài
 - Cách tái hiện: `node scripts/test-oled-display.mjs`.
@@ -164,7 +164,7 @@ Bằng Chromium headless và API/WebSocket thật, trên server dựng tạm:
 - Nguyên nhân (nghi ngờ): `scripts/admin.ts` không bọc lỗi mở file.
 - Cách sửa đề xuất: bọc kiểm tra `PRAGMA integrity_check` trong `try`, in thông báo ngắn. Ước lượng: **S**.
 - Cách kiểm chứng sau sửa: chạy lại bước tái hiện.
-- Trạng thái: Mới
+- Trạng thái: Đã sửa 2026-10-14: `scripts/admin.ts` in một dòng và thoát mã 1, DB hiện tại giữ nguyên
 
 ### BUG-013 · Thấp · Tài liệu · `HUONG_DAN_CHAY_DEMO.md` lỗi thời
 - Kết quả thực tế: ghi "chưa có firmware ESP32 thật trong repo" (hiện có `firmware/esp32-classroom`), "mật khẩu ≥ 12 ký tự" (máy chủ không ép, xem BUG-001), và chưa nhắc `/student`, `/device`.

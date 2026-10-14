@@ -159,7 +159,8 @@ export function oledLines(d: Device, c: Ctx, now: number): [string, string, stri
   if (d.notice && now - d.noticeAt < NOTICE_MS)
     return [fit(l1), fit(d.notice), fit(d.notice === "NOT ON THE LIST" ? "PLEASE RE-ENTER" : d.input)];
   const q = `Q ${c.questionOrder}/${c.total}  ${c.remainingSec}s`;
-  let l2 = promptFor(d);
+  // Joined but offline: the firmware shows the entry prompt here; "RECONNECTING..." is clearer.
+  let l2 = c.joined && !live ? "RECONNECTING..." : promptFor(d);
   if (live) {
     if (c.state === "RUNNING" || c.state === "PAUSED") l2 = c.hasQuestion ? q : "WAITING FOR QUESTION";
     else if (c.state === "LOBBY") l2 = `${c.total} Q / ${c.seconds} sec each`;

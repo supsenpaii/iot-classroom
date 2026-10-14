@@ -99,7 +99,7 @@ createRoot(document.querySelector("#root")).render(<Harness />);
   });
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   origin = `http://127.0.0.1:${server.address().port}`;
-  browser = spawn(chrome, ["--headless", "--disable-gpu", "--remote-debugging-port=0", `--user-data-dir=${join(dir, "profile")}`, "about:blank"], { stdio: ["ignore", "ignore", "pipe"] });
+  browser = spawn(chrome, ["--headless", "--disable-gpu", ...(process.env.SMARTCLASS_TEST_CHROME_ARGS?.split(" ").filter(Boolean) ?? []), "--remote-debugging-port=0", `--user-data-dir=${join(dir, "profile")}`, "about:blank"], { stdio: ["ignore", "ignore", "pipe"] });
   const endpoint = await new Promise((resolve, reject) => {
     let output = "";
     const timer = setTimeout(() => reject(Error("Chrome debugger startup timeout: " + output.slice(-1000))), 10000);

@@ -103,3 +103,18 @@ test("comma-separated Gemini models are tried in order before OpenRouter", async
   await createStudyGuide(input, { geminiApiKey: GEMINI_KEY, geminiModel: "model-a, model-b" });
   assert.deepEqual(calls.map(c => c.url.match(/models\/([^:]+):/)[1]), ["model-a", "model-b"]);
 });
+
+test("practice answers are spread over A-D without changing which text is correct", async () => {
+  const four = { ...guide, practice: [1, 2, 3, 4].map(i => ({ ...guide.practice[0], question: `Câu ${i}?`, correct_answer: "B", explanation: "Vì phép cộng." })) };
+  fakeFetch({ gemini: [geminiOk(JSON.stringify(four))], openrouter: [] });
+  const out = await createStudyGuide(input, providers, { practiceCount: 4 });
+  assert.equal(new Set(out.practice.map(p => p.correct_answer)).size, 4);
+  for (const p of out.practice) assert.equal(p[`option_${p.correct_answer.toLowerCase()}`], "4", "option text under the correct letter is still the right one");
+});
+
+test("an explanation that names a letter keeps its correct answer", async () => {
+  const named = { ...guide, practice: [{ ...guide.practice[0], correct_answer: "B", explanation: "Đáp án B đúng vì 2 + 2 = 4." }] };
+  fakeFetch({ gemini: [geminiOk(JSON.stringify(named))], openrouter: [] });
+  const out = await createStudyGuide(input, providers);
+  assert.equal(out.practice[0].correct_answer, "B");
+});

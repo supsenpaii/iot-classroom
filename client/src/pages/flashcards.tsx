@@ -394,7 +394,7 @@ function Deck({ id }: { id: string }) {
           <button
             className="danger"
             onClick={() => {
-              if (confirm(t("Xóa bộ thẻ \"{name}\"? Không thể hoàn tác.", { name: d.name })))
+              if (confirm(t("Xóa bộ thẻ “{name}”? Không thể hoàn tác.", { name: d.name })))
                 void run(async () => {
                   await api(`/flashcard-decks/${id}`, "DELETE");
                   window.location.href = "/flashcards";

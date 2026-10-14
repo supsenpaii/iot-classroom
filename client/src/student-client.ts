@@ -13,7 +13,7 @@ export async function studentApi(path: string, csrf = "", body?: unknown): Promi
     body: body === undefined ? undefined : JSON.stringify(body),
   }).catch(() => { throw new StudentApiError(t("Mất kết nối máy chủ. Kiểm tra mạng rồi thử lại."), "NETWORK", 0); });
   const data = await res.json().catch(() => null);
-  if (!data) throw new StudentApiError(t("Chưa đọc được phản hồi máy chủ. Hãy thử lại."), "NETWORK", 0);
+  if (!data) throw new StudentApiError(t("Chưa đọc được phản hồi từ máy chủ. Hãy thử lại sau ít phút."), "NETWORK", 0);
   if (!res.ok) throw new StudentApiError(data.message ? translateServer(data.message) : t("Không thể thực hiện yêu cầu."), data.code, res.status);
   return data;
 }
@@ -142,7 +142,7 @@ export function useStudentQuiz(identity: Data, csrf: string) {
           synchronized = false; setConnected(false);
           if (e.code === 4001 || e.code === 4002) {
             setTerminal(true);
-            setStatus(e.code === 4002 ? t("Bài đang được mở ở tab khác. Đóng tab đó rồi kết nối lại.") : t("Quyền làm bài đã hết hoặc bạn đã được gỡ khỏi phòng. Hãy hỏi giáo viên."));
+            setStatus(e.code === 4002 ? t("Bài đang được mở ở tab khác. Đóng tab đó rồi kết nối lại.") : t("Bạn không còn trong phòng này hoặc quyền làm bài đã hết. Hãy hỏi giáo viên."));
             return;
           }
           setStatus(t("Mất kết nối · đang nối lại…")); reconnect();

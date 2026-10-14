@@ -73,7 +73,7 @@ export function StudentPage() {
       packet.current = session.pending;
       setUncertain(!!session.pending);
       if (session.pending) { setStudentCode(session.pending.student_code); setRoomCode(session.pending.room_code); }
-      if (session.access_ended) setError(t("Bạn đã được gỡ khỏi phòng hoặc quyền làm bài đã hết. Hỏi giáo viên rồi nhập lại phòng."));
+      if (session.access_ended) setError(t("Bạn không còn trong phòng này hoặc quyền làm bài đã hết. Hãy hỏi giáo viên."));
     } catch (e) { setError((e as Error).message); } finally { setLoading(false); }
   }
   useEffect(() => { document.title = t("Làm bài kiểm tra · Lớp học tương tác"); void bootstrap(); }, []);

@@ -98,7 +98,7 @@ Kết quả quét tự động: ở chế độ EN, mọi dòng tiếng Việt c
 - Vấn đề: phần còn lại của giao diện học sinh dùng "bạn" ("Bạn đã vào phòng"); mẫu này dùng "em".
 - Đề xuất VI: "Bạn hiểu phần vừa học đến đâu?"; "Hôm nay bạn thấy buổi học thế nào?". (Giáo viên vẫn sửa được câu hỏi.)
 - Đề xuất EN: "How well do you understand what we just covered?"; "How did you find today's lesson?"
-- Mức độ: Trung bình
+- Mức độ: Trung bình · **Đã sửa 2026-10-14**
 
 ### T-011 · Điểm danh · hướng dẫn giáo viên có "Em chưa gán…"
 - Vị trí: `client/src/pages/attendance.tsx:48`
@@ -106,7 +106,7 @@ Kết quả quét tự động: ở chế độ EN, mọi dòng tiếng Việt c
 - Vấn đề: văn bản dành cho giáo viên nhưng xưng "em" như học sinh.
 - Đề xuất VI: "Học sinh chưa gán thiết bị vẫn có thể điểm danh thủ công."
 - Đề xuất EN: "Students without a device can still be marked manually."
-- Mức độ: Trung bình
+- Mức độ: Trung bình · **Đã sửa 2026-10-14**
 
 ### T-012 · Hai câu gần giống cho cùng một tình huống
 - Vị trí: `client/src/pages/student.tsx:76`, `client/src/student-client.ts:145`, `server/student.ts:43,96`
@@ -114,12 +114,12 @@ Kết quả quét tự động: ở chế độ EN, mọi dòng tiếng Việt c
 - Vấn đề: bốn biến thể của cùng một ý; học sinh thấy các câu khác nhau tùy chỗ.
 - Đề xuất VI (một câu duy nhất): "Bạn không còn trong phòng này hoặc quyền làm bài đã hết. Hãy hỏi giáo viên."
 - Đề xuất EN: "You're no longer in this room, or your access has ended. Ask your teacher."
-- Mức độ: Trung bình
+- Mức độ: Trung bình · **Đã sửa 2026-10-14**
 
 ### T-013 · Hai thông báo cho "không đọc được phản hồi"
 - Vị trí: `client/src/api.ts:46` ("Không đọc được phản hồi máy chủ. Thử lại sau."), `client/src/student-client.ts:16` ("Chưa đọc được phản hồi máy chủ. Hãy thử lại.")
 - Đề xuất VI: dùng một câu: "Chưa đọc được phản hồi từ máy chủ. Hãy thử lại sau ít phút."
-- Mức độ: Thấp
+- Mức độ: Thấp · **Đã sửa 2026-10-14**
 
 ---
 
@@ -129,7 +129,7 @@ Kết quả quét tự động: ở chế độ EN, mọi dòng tiếng Việt c
 - Vị trí: `client/src/pages/score-stats.tsx:192` ("TB"), `:264` ("Phân loại HS"), `:265` ("TG trả lời")
 - Đề xuất VI: "Phân loại học sinh", "Thời gian trả lời", "Điểm TB" → "Trung bình".
 - Đề xuất EN: "Student grouping", "Response time", "Avg" (đã có).
-- Mức độ: Thấp
+- Mức độ: Thấp · **Đã sửa 2026-10-14 (TG, HS)**
 
 ### T-015 · Câu bị cắt thành nhiều khóa dịch (khó dịch đúng thứ tự từ)
 - Vị trí: `client/src/pages/manage.tsx:1041,1047` ("Cần" + liên kết + "trước."), `client/src/pages/flashcards.tsx:164` ("…Học sinh bấm" + "A = Nhớ" + …), `client/src/pages/results-grid.tsx:100` ("học sinh · đủ … câu"), `client/src/pages/attendance.tsx:180` ("Có mặt {v}{v2}")
@@ -146,7 +146,7 @@ Kết quả quét tự động: ở chế độ EN, mọi dòng tiếng Việt c
 ### T-017 · Dấu ngoặc kép không đồng nhất
 - Vị trí: `client/src/components.tsx:29` (“…”), `client/src/pages/flashcards.tsx:397` ("…")
 - Đề xuất: dùng cùng một kiểu “…” cho tên trong hộp thoại xác nhận.
-- Mức độ: Thấp
+- Mức độ: Thấp · **Đã sửa 2026-10-14**
 
 ### T-018 · Câu hỏi mẫu và số thập phân
 - Vị trí: `client/src/pages/score-stats.tsx:13-17`
@@ -158,7 +158,7 @@ Kết quả quét tự động: ở chế độ EN, mọi dòng tiếng Việt c
 - Hiện tại: dòng 1 "CONNECTING...", dòng 2 "STUDENT ID + ENTER" kèm "SAVED: B"
 - Vấn đề: đã vào phòng rồi mà dòng 2 vẫn nhắc nhập MSSV (giống firmware thật). Học sinh có thể tưởng phải nhập lại.
 - Đề xuất: dòng 2 là "RECONNECTING..." khi đã vào phòng nhưng chưa có snapshot (cả firmware và web).
-- Mức độ: Trung bình
+- Mức độ: Trung bình · **Đã sửa phía web 2026-10-14; firmware chưa đổi**
 
 ---
 

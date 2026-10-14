@@ -1,4 +1,4 @@
-import { t, locale, translateServer } from "./i18n";
+import { t, locale, translateServer, getLang } from "./i18n";
 export type Data = Record<string, any>; // JSON API documents; inputs are validated by shared Zod schemas on the server.
 export type ApiError = Error & { code: string | undefined; details: unknown };
 type ApiErrorResponse = {
@@ -43,13 +43,17 @@ export async function api<T = any>(
     throw new Error(t("Mất kết nối máy chủ. Kiểm tra mạng rồi thử lại."));
   });
   const data: unknown = await res.json().catch(() => null);
-  if (!data) throw new Error(t("Không đọc được phản hồi máy chủ. Thử lại sau."));
+  if (!data) throw new Error(t("Chưa đọc được phản hồi từ máy chủ. Hãy thử lại sau ít phút."));
   if (!res.ok) {
     if (res.status === 401 && !["/auth/login", "/auth/me", "/presentation/exchange"].includes(path))
       signedOut();
     const failure = data as ApiErrorResponse;
+    // Validation failures: say which field and why (server messages are Vietnamese).
+    const first = Array.isArray(failure.fieldErrors) ? (failure.fieldErrors[0] as { path?: unknown[]; message?: string } | undefined) : undefined;
+    const field = first?.path?.length ? fieldLabel(String(first.path[first.path.length - 1])) : "";
+    const detail = res.status === 422 && field ? `: ${field}${getLang() === "vi" && first?.message ? ` — ${first.message}` : ""}` : "";
     const error = new Error(
-      (failure.message ? translateServer(failure.message) : t("Không kết nối được máy chủ")) +
+      (failure.message ? translateServer(failure.message) : t("Không kết nối được máy chủ")) + detail +
         (res.status >= 500 && failure.requestId
           ? t(" · Mã tra cứu: {requestId}", { requestId: failure.requestId })
           : ""),
@@ -60,6 +64,16 @@ export async function api<T = any>(
   }
   return data as T;
 }
+// Labels for the fields that most often fail validation; unknown fields show their key.
+const fieldLabel = (key: string) =>
+  ({
+    name: t("Tên"), email: "Email", password: t("Mật khẩu"), current: t("Mật khẩu hiện tại"),
+    question: t("Câu hỏi"), option_a: t("Lựa chọn {c}", { c: "A" }), option_b: t("Lựa chọn {c}", { c: "B" }),
+    option_c: t("Lựa chọn {c}", { c: "C" }), option_d: t("Lựa chọn {c}", { c: "D" }),
+    correct_answer: t("Đáp án đúng"), explanation: t("Lời giải:"), topic: t("Chủ đề"),
+    student_code: t("Mã học sinh"), full_name: t("Họ tên"), seconds: t("Thời gian"), count: t("Số câu"),
+    subject: t("Môn học"), reason: t("Lý do"),
+  }[key] ?? key);
 export const fields = (form: HTMLFormElement) =>
   Object.fromEntries(new FormData(form));
 export const fmt = (value: number | null | undefined, suffix = "") =>

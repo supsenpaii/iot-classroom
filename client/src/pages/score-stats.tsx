@@ -261,8 +261,8 @@ export function ScoreStats({ d }: { d: Data }) {
               <span role="columnheader">{t("Nội dung và nhận xét")}</span>
               <span role="columnheader">{t("Lựa chọn của lớp")}</span>
               <span role="columnheader">{t("Làm đúng")}</span>
-              <span role="columnheader">{t("Phân loại HS")}</span>
-              <span role="columnheader">{t("TG trả lời")}</span>
+              <span role="columnheader">{t("Phân loại học sinh")}</span>
+              <span role="columnheader">{t("Thời gian trả lời")}</span>
             </div>
             {visibleItems.map(({ q, p, D, flags, severity }) => {
               const [dLabel, dTone] = difficulty(p),
@@ -311,7 +311,7 @@ export function ScoreStats({ d }: { d: Data }) {
                       {qLabel}
                     </span>
                   </div>
-                  <span className="ia-time" role="cell"><span className="ia-mobile-label">{t("TG trả lời:")} </span>{q.response_ms == null ? "—" : t("{v} giây", { v: num(q.response_ms / 1000) })}</span>
+                  <span className="ia-time" role="cell"><span className="ia-mobile-label">{t("Thời gian trả lời:")} </span>{q.response_ms == null ? "—" : t("{v} giây", { v: num(q.response_ms / 1000) })}</span>
                 </div>
               );
             })}

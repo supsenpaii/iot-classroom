@@ -308,7 +308,7 @@ export class Quiz {
           "VERSION_CONFLICT",
           "Trạng thái đã thay đổi; hãy dùng trạng thái mới nhất",
           409,
-          this.snapshot(id),
+          { state_version: s.state_version },
         );
       const cfg: Config = JSON.parse(s.config),
         q = this.current(id),

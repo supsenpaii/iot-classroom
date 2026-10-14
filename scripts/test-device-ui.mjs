@@ -99,6 +99,7 @@ test("OLED text for every quiz state", () => {
     ["QUIZ COMPLETE", "Correct: 8/10", "Score: 8.00/10"]);
   assert.equal(L(live({ state: "FINISHED", resultReady: true, result: { correct: 0, total: 3, score: null } }))[2], "Score: --");
   assert.equal(L({ ...run, connected: false })[0], "CONNECTING...");
+  assert.equal(L({ ...run, connected: false })[1], "RECONNECTING...", "joined but offline must not ask for the student ID again");
   for (const line of L(run)) assert.ok(line.length <= 21);
 });
 

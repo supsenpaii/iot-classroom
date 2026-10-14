@@ -23,13 +23,19 @@ if (action === "restore") {
   if (resolve(source) === resolve(path))
     throw Error("Backup và database đích phải khác nhau");
   const release = acquireAppLock(path);
-  const backup = new Database(resolve(source), { readonly: true });
-  if (backup.pragma("integrity_check", { simple: true }) !== "ok")
-    throw Error("Backup không toàn vẹn");
-  if (
-    !backup.prepare("SELECT 1 FROM sqlite_master WHERE name='migrations'").get()
-  )
-    throw Error("Backup không phải database của app");
+  let backup: Database.Database | undefined;
+  try {
+    backup = new Database(resolve(source), { readonly: true, fileMustExist: true });
+    if (backup.pragma("integrity_check", { simple: true }) !== "ok")
+      throw Error("Backup không toàn vẹn");
+    if (!backup.prepare("SELECT 1 FROM sqlite_master WHERE name='migrations'").get())
+      throw Error("Backup không phải database của app");
+  } catch (error) {
+    release();
+    // A short message instead of a SQLite stack trace; the current database was not touched.
+    console.error(`Không khôi phục được: file backup không hợp lệ (${(error as Error).message}). Database hiện tại giữ nguyên.`);
+    process.exit(1);
+  }
   backup.close();
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   if (existsSync(path)) {
