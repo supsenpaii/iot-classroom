@@ -14,7 +14,7 @@ import { questionSchema, flashcardSchema } from "../../../shared/protocol";
 import { studentCodeSchema, STUDENT_CODE_ERROR } from "../../../shared/student-code";
 import "./class-management.css";
 import { ConfigFields, readConfig } from "../quiz-config";
-import { t, locale } from "../i18n";
+import { t, locale, tc } from "../i18n";
 export { ConfigFields, readConfig } from "../quiz-config";
 export function Dashboard() {
   const sessions = useResource<Data[]>("/sessions"),
@@ -365,7 +365,7 @@ export function Importer({
               }}
             >
               
-              {t("Xác nhận và lưu")} {preview.rows.length}  {t("dòng")}
+              {t("Xác nhận và lưu")} {preview.rows.length}  {tc(preview.rows.length, "dòng")}
             </button>
             <button onClick={() => setPreview(null)}>{t("Bỏ bản xem trước")}</button>
           </div>
@@ -446,7 +446,7 @@ export function Classes({ id }: { id?: string }) {
                   <div>
                     <strong>{c.name}</strong>
                     <small>
-                      {c.student_count}  {t("học sinh")}
+                      {c.student_count}  {tc(c.student_count, "học sinh")}
                       {c.archived ? t(" · Đã lưu trữ") : ""}
                     </small>
                   </div>
@@ -489,7 +489,7 @@ export function Classes({ id }: { id?: string }) {
                 <h2 id="class-roster-heading">
                   <Icon name="users" />  {t("Danh sách học sinh")}
                 </h2>
-                <span className="badge">{d.students.length}  {t("học sinh")}</span>
+                <span className="badge">{d.students.length}  {tc(d.students.length, "học sinh")}</span>
               </div>
               <label className="class-roster-search">
                 <span>{t("Tìm học sinh")}</span>
@@ -1008,7 +1008,7 @@ export function Setup() {
                 ?.filter((c) => !c.archived)
                 .map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name} · {c.student_count}  {t("học sinh")}
+                    {c.name} · {c.student_count}  {tc(c.student_count, "học sinh")}
                   </option>
                 ))}
             </select>
@@ -1023,7 +1023,7 @@ export function Setup() {
               <option value="">{t("Chọn bộ đề")}</option>
               {banks.data?.map((b) => (
                 <option key={b.id} value={b.id}>
-                  {b.name} · {b.question_count}  {t("câu")}
+                  {b.name} · {b.question_count}  {tc(b.question_count, "câu")}
                 </option>
               ))}
             </select>

@@ -11,7 +11,7 @@ import {
   useResource,
 } from "../components";
 import { Importer } from "./manage";
-import { t } from "../i18n";
+import { t, lazy, tc } from "../i18n";
 
 const blankQuestion = {
   question: "",
@@ -25,7 +25,7 @@ const blankQuestion = {
   difficulty: "medium",
 };
 const LETTERS = ["A", "B", "C", "D"];
-const difficultyLabel: Record<string, string> = { easy: t("Dễ"), medium: t("Trung bình"), hard: t("Khó") };
+const difficultyLabel: Record<string, string> = lazy(() => ({ easy: t("Dễ"), medium: t("Trung bình"), hard: t("Khó") }));
 // Each bank gets a stable cover colour from its name, so the list reads like a shelf of quiz covers.
 const coverTone = (name: string) => {
   let h = 2166136261; // FNV-1a spreads similar names across all four colours
@@ -82,7 +82,7 @@ function BankList() {
                   <div className="bank-card-body">
                     {b.subject && <span className="chip">{b.subject}</span>}
                     <strong>{b.name}</strong>
-                    <small>{b.question_count}  {t("câu hỏi")}</small>
+                    <small>{b.question_count}  {tc(b.question_count, "câu hỏi")}</small>
                   </div>
                 </a>
               ))}
@@ -157,7 +157,7 @@ function BankDetail({ id }: { id: string }) {
           </div>
           <h1>{d.name}</h1>
           <p className="bank-meta">
-            <span><Icon name="file" /> {d.questions.length}  {t("câu hỏi")}</span>
+            <span><Icon name="file" /> {d.questions.length}  {tc(d.questions.length, "câu hỏi")}</span>
             <span className="level easy">{byLevel("easy")}  {t("dễ")}</span>
             <span className="level medium">{byLevel("medium")}  {t("trung bình")}</span>
             <span className="level hard">{byLevel("hard")}  {t("khó")}</span>
@@ -168,7 +168,7 @@ function BankDetail({ id }: { id: string }) {
         <div className="bank-main">
           <div className="bank-toolbar">
             <div>
-              <strong>{d.questions.length}  {t("câu hỏi")}</strong>
+              <strong>{d.questions.length}  {tc(d.questions.length, "câu hỏi")}</strong>
               <span className="bank-flags">
                 <button
                   role="switch"

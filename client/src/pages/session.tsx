@@ -15,7 +15,7 @@ import {
 import { useClock, useSessionSocket } from "../socket";
 import { ConfigFields, readConfig } from "../quiz-config";
 import { RoomPairing } from "./room-pairing";
-import { t, locale } from "../i18n";
+import { t, locale, tk, tc } from "../i18n";
 export function SessionPage({ id }: { id: string }) {
   const { run, user } = useApp(),
     initial = useResource(`/sessions/${id}`),
@@ -100,11 +100,11 @@ export function SessionPage({ id }: { id: string }) {
         <DeleteSessionButton id={id} name={s.name} state={s.state} />
       </Head>
       <div
-        className={`connection ${live.status === t("Đã kết nối") ? "" : "warning"}`}
+        className={`connection ${live.status === tk("Đã kết nối") ? "" : "warning"}`}
         role="status"
       >
-        ● {live.status} · {stateLabel[s.state]}
-        {live.status !== t("Đã kết nối") && (
+        ● {t(live.status)} · {stateLabel[s.state]}
+        {live.status !== tk("Đã kết nối") && (
           <>  {t("· Dữ liệu có thể đã cũ")}{live.syncedAt ? t(" (đồng bộ lần cuối {v})", { v: new Date(live.syncedAt).toLocaleTimeString(locale()) }) : ""}<button onClick={live.reconnect}>{t("Kết nối lại")}</button></>
         )}
       </div>
@@ -119,15 +119,15 @@ export function SessionPage({ id }: { id: string }) {
       </section>}
       {s.state !== "LOBBY" && !finished && <section className="card live-controls" aria-label={t("Điều khiển bài kiểm tra")}>
         <div className="live-metric"><Icon name="file" /><span><strong>{t("Câu")} {s.question?.question_order || 0}/{s.config.count}</strong><small>{s.question?.status === "OPEN" ? t("Đang nhận đáp án") : s.state === "PAUSED" ? t("Đã tạm dừng") : s.config.auto_next ? t("Đang chờ tự chuyển") : t("Chờ giáo viên chuyển")}</small></span></div>
-        <div className="live-metric"><Icon name="clock" /><span><strong>{time}  {t("giây")}</strong><small>{s.state === "PAUSED" ? t("Đồng hồ tạm dừng") : t("Thời gian còn lại")}</small></span></div>
+        <div className="live-metric"><Icon name="clock" /><span><strong>{time}  {tc(time, "giây")}</strong><small>{s.state === "PAUSED" ? t("Đồng hồ tạm dừng") : t("Thời gian còn lại")}</small></span></div>
         <div className="live-metric"><Icon name="users" /><span><strong>{s.answered}/{s.participants}</strong><small>{t("Đã lưu đáp án / dự thi")}</small></span></div>
         <div className="live-buttons">
-          {s.state === "PAUSED" ? <button className="primary" disabled={busy || live.status !== t("Đã kết nối")} onClick={() => command("resume")}>{t("▶ Tiếp tục")}</button> : <>
-            {s.question?.status === "OPEN" && <button className="primary" disabled={busy || live.status !== t("Đã kết nối")} onClick={() => command("close-question")}>{t("Đóng câu")}</button>}
+          {s.state === "PAUSED" ? <button className="primary" disabled={busy || live.status !== tk("Đã kết nối")} onClick={() => command("resume")}>{t("▶ Tiếp tục")}</button> : <>
+            {s.question?.status === "OPEN" && <button className="primary" disabled={busy || live.status !== tk("Đã kết nối")} onClick={() => command("close-question")}>{t("Đóng câu")}</button>}
             {s.config.auto_next
               ? s.question?.status === "CLOSED" && <button className="primary" disabled>{t("Tự chuyển sau 3 giây")}</button>
-              : <button className={s.question?.status === "CLOSED" ? "primary" : ""} disabled={busy || live.status !== t("Đã kết nối") || s.question?.status !== "CLOSED"} title={s.question?.status !== "CLOSED" ? t("Đóng câu hiện tại trước khi chuyển câu.") : undefined} onClick={() => command("next")}>{t("Câu tiếp theo →")}</button>}
-            <button disabled={busy || live.status !== t("Đã kết nối")} onClick={() => command("pause")}>{t("Ⅱ Tạm dừng")}</button>
+              : <button className={s.question?.status === "CLOSED" ? "primary" : ""} disabled={busy || live.status !== tk("Đã kết nối") || s.question?.status !== "CLOSED"} title={s.question?.status !== "CLOSED" ? t("Đóng câu hiện tại trước khi chuyển câu.") : undefined} onClick={() => command("next")}>{t("Câu tiếp theo →")}</button>}
+            <button disabled={busy || live.status !== tk("Đã kết nối")} onClick={() => command("pause")}>{t("Ⅱ Tạm dừng")}</button>
           </>}
         </div>
       </section>}
@@ -156,7 +156,7 @@ export function SessionPage({ id }: { id: string }) {
           <span>{t("Bỏ trống:")} <b>{unanswered}</b></span>
         </div>
         <small>{s.question.results ? t("Đã công bố phân bố và đáp án đúng trên màn chiếu.") : t("Chưa hiện trên màn chiếu. Chỉ tính câu đã đóng.")}</small>
-        <div className="actions"><button disabled={busy || live.status !== t("Đã kết nối") || !!s.question.results} onClick={() => command("reveal-results")}>{s.question.results ? t("Đã công bố trên màn chiếu") : t("Công bố kết quả trên màn chiếu")}</button></div>
+        <div className="actions"><button disabled={busy || live.status !== tk("Đã kết nối") || !!s.question.results} onClick={() => command("reveal-results")}>{s.question.results ? t("Đã công bố trên màn chiếu") : t("Công bố kết quả trên màn chiếu")}</button></div>
       </section>}
       {s.leaderboard_full?.length > 0 && (
         <section className="card leaderboard-card" aria-label={t("Bảng xếp hạng thi đua")}>
@@ -183,7 +183,7 @@ export function SessionPage({ id }: { id: string }) {
         </section>
       )}
       {s.state === "LOBBY" && <ol className="setup-steps" aria-label={t("Các bước chuẩn bị bài")}><li className="selected">{t("1. Lớp và bộ đề")}</li><li className="selected">{t("2. Cấu hình")}</li><li className="selected">{t("3. Ghép thiết bị")}</li><li>{t("4. Sẵn sàng")}</li></ol>}
-      {!finished && <RoomPairing session={s} offset={live.offset} connected={live.status === t("Đã kết nối")} reload={() => { initial.reload(); devices.reload(); }} />}
+      {!finished && <RoomPairing session={s} offset={live.offset} connected={live.status === tk("Đã kết nối")} reload={() => { initial.reload(); devices.reload(); }} />}
       <div className={`room-grid ${s.state === "LOBBY" ? "" : finished ? "is-finished" : "is-live"}`}>
         {s.state === "LOBBY" && <section className="hero session-hero">
           <div className="row spread">
@@ -210,7 +210,7 @@ export function SessionPage({ id }: { id: string }) {
             <div>
               <Icon name="clock" />
               <span>
-                <b>{s.config.seconds}  {t("giây")}</b>
+                <b>{s.config.seconds}  {tc(s.config.seconds, "giây")}</b>
                 <small>{t("/ câu")}</small>
               </span>
             </div>
@@ -227,7 +227,7 @@ export function SessionPage({ id }: { id: string }) {
               <>
                 <button
                   className="primary"
-                  disabled={busy || live.status !== t("Đã kết nối")}
+                  disabled={busy || live.status !== tk("Đã kết nối")}
                   onClick={() => command("start")}
                 >
                   
@@ -308,7 +308,7 @@ export function SessionPage({ id }: { id: string }) {
           <div className="row spread">
             <h2>
               <Icon name="users" />  {t("Học sinh trong phòng")}{" "}
-              <span className="badge">{s.students.length}  {t("học sinh")}</span>
+              <span className="badge">{s.students.length}  {tc(s.students.length, "học sinh")}</span>
             </h2>
             <div className="student-tools">
               <select aria-label={t("Lọc học sinh theo trạng thái")} value={studentFilter} onChange={(e) => setStudentFilter(e.target.value)}>
@@ -497,7 +497,7 @@ export function SessionPage({ id }: { id: string }) {
                 </span>
                 <span>
                   
-                  {t("Thời gian")} <b>{s.config.seconds}  {t("giây")}</b>
+                  {t("Thời gian")} <b>{s.config.seconds}  {tc(s.config.seconds, "giây")}</b>
                 </span>
               </div>
               <p>
@@ -646,13 +646,13 @@ function ProjectionView({ id, token }: { id: string; token: string }) {
       <div role="status" className="projection-status">
         {s && ["FINISHED", "CANCELLED"].includes(s.state)
           ? stateLabel[s.state]
-          : live.status}
+          : t(live.status)}
         {s &&
           !["FINISHED", "CANCELLED"].includes(s.state) &&
           ` · ${stateLabel[s.state]}`}
       </div>
       {!s ? (
-        <Status loading={!live.status.startsWith(t("Quyền trình chiếu đã hết hạn"))} error={live.status.startsWith(t("Quyền trình chiếu đã hết hạn")) ? live.status : undefined} />
+        <Status loading={!live.status.startsWith(tk("Quyền trình chiếu đã hết hạn"))} error={live.status.startsWith(tk("Quyền trình chiếu đã hết hạn")) ? t(live.status) : undefined} />
       ) : s.state === "LOBBY" ? (
         <div className="projection-wait">
           <p className="eyebrow">{t("SẴN SÀNG CHO GIỜ HỌC")}</p>
@@ -722,7 +722,7 @@ function ProjectionView({ id, token }: { id: string; token: string }) {
             <div className="projection-controls">
               <button
                 className="primary"
-                disabled={nextPending || live.status !== t("Đã kết nối") || s.question.status !== "CLOSED"}
+                disabled={nextPending || live.status !== tk("Đã kết nối") || s.question.status !== "CLOSED"}
                 onClick={nextQuestion}
               >
                 {nextPending ? t("Đang chuyển câu…") : t("Câu tiếp theo →")}
@@ -751,7 +751,7 @@ function Podium({ board, title }: { board: Data[]; title: string }) {
         {steps.map((r) => (
           <div key={r.name} className={`podium-step place-${r.place}`}>
             <span className="podium-name">{r.name}</span>
-            <span className="podium-points">{r.points.toLocaleString(locale())}  {t("điểm")}</span>
+            <span className="podium-points">{r.points.toLocaleString(locale())}  {tc(r.points.toLocaleString(locale()), "điểm")}</span>
             <div className="podium-block">{r.rank}</div>
           </div>
         ))}

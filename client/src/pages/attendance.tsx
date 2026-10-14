@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { api, type Data } from "../api";
 import { Empty, Head, Icon, Status, useApp, useResource } from "../components";
 import { useActivitySocket } from "../socket";
-import { t, locale } from "../i18n";
+import { t, locale, tk, tc } from "../i18n";
 
 const clock = (ms: number | null) =>
   ms ? new Date(ms).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" }) : "";
@@ -54,7 +54,7 @@ function AttendanceHome() {
               <div className="list-item" key={c.id}>
                 <div>
                   <strong>{c.name}</strong>
-                  <small>{c.student_count}  {t("học sinh")}</small>
+                  <small>{c.student_count}  {tc(c.student_count, "học sinh")}</small>
                 </div>
                 <button
                   className="primary"
@@ -94,8 +94,8 @@ function AttendanceLive({ id }: { id: string }) {
   if (!data)
     return (
       <Status
-        loading={!status.startsWith(t("Không"))}
-        error={status.startsWith(t("Không")) ? status : undefined}
+        loading={!status.startsWith(tk("Không"))}
+        error={status.startsWith(tk("Không")) ? t(status) : undefined}
       />
     );
   const open = data.state === "OPEN",
@@ -144,7 +144,7 @@ function AttendanceLive({ id }: { id: string }) {
           {open
             ? t("Học sinh bấm phím bất kỳ trên thiết bị của mình. Bấm vào ô để sửa tay.")
             : t("Đã đóng. Vẫn có thể bấm vào ô để sửa trước khi xuất Excel.")}
-          {" "}{status !== t("Đã kết nối") && `(${status})`}
+          {" "}{status !== tk("Đã kết nối") && `(${t(status)})`}
         </p>
       </div>
       {noDevice > 0 && (

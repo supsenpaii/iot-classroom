@@ -5,7 +5,7 @@ import { StudentApiError, studentApi, useStudentQuiz } from "../student-client";
 import { ThemeToggle } from "../theme";
 import { studentCodeSchema, STUDENT_CODE_ERROR } from "../../../shared/student-code";
 import "./student.css";
-import { t, locale } from "../i18n";
+import { t, locale, useLang } from "../i18n";
 
 function QuizRoom({ identity, csrf, onLeave }: { identity: Data; csrf: string; onLeave: () => Promise<void> }) {
   const quiz = useStudentQuiz(identity, csrf);
@@ -27,7 +27,7 @@ function QuizRoom({ identity, csrf, onLeave }: { identity: Data; csrf: string; o
       <div><p className="student-eyebrow">{s?.class_name || t("PHÒNG KIỂM TRA")}</p><h1>{s?.name || t("Đang vào phòng…")}</h1></div>
       <div className="student-identity"><strong>{s?.full_name || `${t("MSSV")} ${identity.student_code}`}</strong><span>{t("MSSV")} {identity.student_code}</span></div>
     </header>
-    <p role="status" className={`student-connection ${quiz.connected ? "is-connected" : ""}`}>{quiz.status}</p>
+    <p role="status" className={`student-connection ${quiz.connected ? "is-connected" : ""}`}>{t(quiz.status)}</p>
     {!quiz.connected && quiz.terminal && <div className="student-reconnect"><button onClick={quiz.reconnect}>{t("Kết nối lại")}</button><button disabled={leaving} onClick={() => void leave()}>{t("Quay lại nhập phòng")}</button></div>}
     {error && <p role="alert" className="student-error">{error}</p>}
     {s && ended ? <section className="student-panel student-result">
@@ -76,7 +76,9 @@ export function StudentPage() {
       if (session.access_ended) setError(t("Bạn không còn trong phòng này hoặc quyền làm bài đã hết. Hãy hỏi giáo viên."));
     } catch (e) { setError((e as Error).message); } finally { setLoading(false); }
   }
-  useEffect(() => { document.title = t("Làm bài kiểm tra · Lớp học tương tác"); void bootstrap(); }, []);
+  const lang = useLang();
+  useEffect(() => { document.title = t("Làm bài kiểm tra · Lớp học tương tác"); }, [lang]);
+  useEffect(() => { void bootstrap(); }, []);
   async function join(e: FormEvent<HTMLFormElement>) {
     e.preventDefault(); if (busy || !csrf) return;
     const parsed = studentCodeSchema.safeParse(studentCode), room = roomCode.replace(/\s/g, "");

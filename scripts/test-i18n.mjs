@@ -23,11 +23,12 @@ for (const file of files) {
   const text = readFileSync(file, "utf8");
   const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, file.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
   const visit = (n) => {
-    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "t") {
-      const arg = n.arguments[0];
+    // t("key", params), tk("key") and tc(count, "key") all name a dictionary key.
+    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && ["t", "tk", "tc"].includes(n.expression.text)) {
+      const name = n.expression.text, arg = n.arguments[name === "tc" ? 1 : 0];
       if (arg && ts.isStringLiteralLike(arg)) used.set(arg.text, file);
-      // The key itself is Vietnamese by design; parameters are still checked.
-      for (const param of n.arguments.slice(1)) visit(param);
+      // The key itself is Vietnamese by design; other arguments are still checked.
+      n.arguments.forEach((a, i) => { if (i !== (name === "tc" ? 1 : 0) && !(name !== "tc" && i === 0)) visit(a); });
       return;
     }
     const isLiteral = ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isJsxText(n);
@@ -67,4 +68,34 @@ test("no Vietnamese text left outside t()", () => {
 test("report unused entries (informational)", () => {
   const unused = Object.keys(dict.en).filter((k) => !used.has(k));
   console.log(`# ${used.size} keys in use, ${unused.length} entries not referenced by a literal t() (server messages and shared constants are expected)`);
+});
+
+// Runtime behaviour of the helpers: plurals, lazy tables, server patterns, language switch.
+function loadI18n() {
+  const code = ts.transpileModule(readFileSync(join(root, "i18n.tsx"), "utf8"),
+    { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  const exports = {};
+  const fakeRequire = (name) => name === "react" ? { useSyncExternalStore: () => "vi" }
+    : name === "./locales/en" ? dict
+    : name === "react/jsx-runtime" ? { jsx: () => null, jsxs: () => null } : (() => { throw Error(name); })();
+  new Function("require", "exports", code)(fakeRequire, exports);
+  return exports;
+}
+test("language switch, plurals, lazy labels and server patterns", () => {
+  const i = loadI18n();
+  assert.equal(i.getLang(), "vi");
+  assert.equal(i.t("{count} ý kiến", { count: 1 }), "1 ý kiến");
+  const label = i.lazy(() => ({ a: i.t("Phòng chờ") }));
+  assert.equal(label.a, "Phòng chờ");
+  i.setLang("en");
+  assert.equal(i.getLang(), "en");
+  assert.equal(label.a, "Lobby", "a lazy table follows the language without being rebuilt by hand");
+  assert.equal(i.t("{count} ý kiến", { count: 1 }), "1 response");
+  assert.equal(i.t("{count} ý kiến", { count: 11 }), "11 responses");
+  assert.equal(i.t("{count} ý kiến", { count: 21 }), "21 responses");
+  assert.equal(i.tc(1, "câu"), "question");
+  assert.equal(i.tc(3, "câu"), "questions");
+  assert.equal(i.translateServer("Thiết bị L1 đã gán cho Nam trong lớp này"), "Device L1 is already assigned to Nam in this class");
+  i.setLang("vi");
+  assert.equal(label.a, "Phòng chờ");
 });

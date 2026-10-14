@@ -12,7 +12,7 @@ import {
 } from "../components";
 import { useReviewSocket } from "../socket";
 import { Importer } from "./manage";
-import { t, locale } from "../i18n";
+import { t, locale, tk, tc } from "../i18n";
 
 const percent = (part: number, total: number) =>
   total ? Math.round((part / total) * 100) : 0;
@@ -55,7 +55,7 @@ function DeckList() {
                 <div>
                   <strong>{d.name}</strong>
                   <small>
-                    {d.subject || t("Chưa đặt môn học")} · {d.card_count}  {t("thẻ")}
+                    {d.subject || t("Chưa đặt môn học")} · {d.card_count}  {tc(d.card_count, "thẻ")}
                     {d.share_token ? t(" · có link tự học") : ""}
                   </small>
                 </div>
@@ -111,7 +111,7 @@ function DeckList() {
               <select name="bank_id" required disabled={!banks.data?.length}>
                 {banks.data?.map((b) => (
                   <option key={b.id} value={b.id} disabled={!b.question_count}>
-                    {b.name} · {b.question_count}  {t("câu")}
+                    {b.name} · {b.question_count}  {tc(b.question_count, "câu")}
                   </option>
                 ))}
               </select>
@@ -354,7 +354,7 @@ function Deck({ id }: { id: string }) {
             <a className="list-item" key={r.id} href={`/flashcards/review/${r.id}`}>
               <div>
                 <strong>{new Date(r.created_at).toLocaleString(locale())}</strong>
-                <small>{r.round}  {t("vòng")}</small>
+                <small>{r.round}  {tc(r.round, "vòng")}</small>
               </div>
               <span className="badge">
                 {r.state === "RUNNING" ? t("Đang ôn tập") : t("Đã kết thúc")}
@@ -442,7 +442,7 @@ export function FlashcardReview({ id }: { id: string }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
   if (!data)
-    return <Status loading={!status.startsWith(t("Không"))} error={status.startsWith(t("Không")) ? status : undefined} />;
+    return <Status loading={!status.startsWith(tk("Không"))} error={status.startsWith(tk("Không")) ? t(status) : undefined} />;
   if (data.state === "FINISHED") return <ReviewSummary data={data} />;
   const rated = data.counts.KNOWN + data.counts.AGAIN,
     waiting = Math.max(0, data.devices_online - rated),
@@ -454,7 +454,7 @@ export function FlashcardReview({ id }: { id: string }) {
         <div>
           <p className="eyebrow">
             
-            {t("ÔN TẬP CẢ LỚP · VÒNG")} {data.round} · {status.toUpperCase()}
+            {t("ÔN TẬP CẢ LỚP · VÒNG")} {data.round} · {t(status).toUpperCase()}
           </p>
           <h1>{data.deck_name}</h1>
         </div>
@@ -554,7 +554,7 @@ export function FlashcardReview({ id }: { id: string }) {
             <span className="wrong" style={{ width: `${percent(data.counts.AGAIN, Math.max(rated, data.devices_online))}%` }} />
           </div>
           <p className="muted">
-            {data.devices_online}  {t("thiết bị đang kết nối")}
+            {data.devices_online}  {tc(data.devices_online, "thiết bị đang kết nối")}
             {data.devices_online === 0 && t(" · bật thiết bị hoặc mở trang Giả lập để thử")}
           </p>
           <h3>{t("Vòng")} {data.round}</h3>
@@ -794,7 +794,7 @@ export function Study({ token }: { token: string }) {
               {hardest.map(([cardId, n]) => (
                 <li key={cardId}>
                   <span>{byId.get(cardId)!.front}</span>
-                  <small>{t("quên")} {n}  {t("lần")}</small>
+                  <small>{t("quên")} {n}  {tc(n, "lần")}</small>
                 </li>
               ))}
             </ul>

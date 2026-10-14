@@ -5,7 +5,7 @@ import { useApp } from "../components";
 import { mastery } from "./results-grid";
 import { createStudyRequests } from "./study-plan-requests";
 import type { Choice, QuestionOptionKey, StudyGuideResult } from "../../../shared/protocol";
-import { getLang, locale, t } from "../i18n";
+import { getLang, locale, t, tc } from "../i18n";
 
 type ReviewDeck = { id: string; share_token: string; cards: number };
 const LETTERS: Choice[] = ["A", "B", "C", "D"];
@@ -102,7 +102,7 @@ function StudyPlanContent({ d, id }: { d: Data; id: string }) {
           <option value="class">{t("Cả lớp")}</option>
           {learners.map((s) => (
             <option key={s.id} value={s.id}>
-              {s.full_name} · {fmt(s.score)}  {t("điểm")}
+              {s.full_name} · {fmt(s.score)}  {tc(fmt(s.score), "điểm")}
             </option>
           ))}
         </select>
@@ -158,8 +158,8 @@ function StudyPlanContent({ d, id }: { d: Data; id: string }) {
       ) : student ? (
         <>
           <div className="sp-student">
-            <span className={`pill mastery-${mastery(student.score == null ? null : student.score * 10)}`}>{fmt(student.score)}  {t("điểm")}</span>
-            <span>{t("Đúng")} {student.C}/{d.N}  {t("câu")}</span>
+            <span className={`pill mastery-${mastery(student.score == null ? null : student.score * 10)}`}>{fmt(student.score)}  {tc(fmt(student.score), "điểm")}</span>
+            <span>{t("Đúng")} {student.C}/{d.N}  {tc(d.N, "câu")}</span>
             {studentTopics.map((topic) => (
               <span key={topic.topic} className="sp-topic mastery-low">
                 {topic.topic}
@@ -237,7 +237,7 @@ function StudyPlanContent({ d, id }: { d: Data; id: string }) {
       </div>
       {deck && (
         <div className="sp-deck">
-          <strong>{t("Đã tạo bộ")} {deck.cards}  {t("thẻ")}</strong>
+          <strong>{t("Đã tạo bộ")} {deck.cards}  {tc(deck.cards, "thẻ")}</strong>
           <a href={`/flashcards/${deck.id}`}>{t("Mở bộ thẻ")}</a>
           <code>{link}</code>
           <button
@@ -309,7 +309,7 @@ function StudyPlanContent({ d, id }: { d: Data; id: string }) {
           </div>
           {practiceDeck && (
             <div className="sp-deck">
-              <strong>{t("Đã tạo bộ")} {practiceDeck.cards}  {t("thẻ")}</strong>
+              <strong>{t("Đã tạo bộ")} {practiceDeck.cards}  {tc(practiceDeck.cards, "thẻ")}</strong>
               <a href={`/flashcards/${practiceDeck.id}`}>{t("Mở bộ thẻ")}</a>
               <code>{practiceLink}</code>
               <button onClick={() => void run(() => copyText(practiceLink), t("Đã chép"))}>{t("Chép link tự học")}</button>

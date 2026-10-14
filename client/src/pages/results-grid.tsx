@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api, fmt, eventLabel, errorLabel, type Data } from "../api";
 import { ChoiceShape, useApp } from "../components";
-import { t, locale } from "../i18n";
+import { t, locale, tc } from "../i18n";
 
 // Mastery bands used everywhere on the results page: <60% red, 60–79% amber, >=80% green.
 export const mastery = (pct: number | null | undefined) =>
@@ -97,7 +97,7 @@ export function ResultsSummary({ d }: { d: Data }) {
         <div>
           <dt>{t("Hoàn thành")}</dt>
           <dd>{pctText(completePct)}</dd>
-          <small>{d.stats.complete}/{d.stats.participants}  {t("học sinh · đủ")} {d.N}  {t("câu")}</small>
+          <small>{d.stats.complete}/{d.stats.participants}  {t("học sinh · đủ")} {d.N}  {tc(d.N, "câu")}</small>
         </div>
         <div>
           <dt>{t("Tỷ lệ đạt (≥")} {fmt(d.session.config.pass_mark)})</dt>

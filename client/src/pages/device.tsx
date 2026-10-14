@@ -8,7 +8,7 @@ import {
   type Ctx, type Device, type Key,
 } from "../../../shared/device-screen";
 import "./device.css";
-import { t } from "../i18n";
+import { t, useLang } from "../i18n";
 
 const OLED_W = 128, OLED_H = 32, ROW_Y = [0, 11, 22];
 // Join errors that the server answered definitively (the pending request id is dropped).
@@ -74,7 +74,9 @@ export function DevicePage() {
     } catch { /* The OLED keeps showing the entry prompt; ENT retries through studentApi. */ }
     setLoading(false);
   }
-  useEffect(() => { document.title = t("Thiết bị ảo · Lớp học tương tác"); void bootstrap(); }, []);
+  const lang = useLang();
+  useEffect(() => { document.title = t("Thiết bị ảo · Lớp học tương tác"); }, [lang]);
+  useEffect(() => { void bootstrap(); }, []);
   useEffect(() => {
     const timer = setInterval(() => { const t = Date.now(); setNow(t); update(tick(devRef.current, ctxRef.current, t)); }, 200);
     return () => clearInterval(timer);

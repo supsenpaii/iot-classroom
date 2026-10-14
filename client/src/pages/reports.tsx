@@ -4,7 +4,7 @@ import { DeleteSessionButton, Empty, Head, Icon, Status, useApp, useResource } f
 import { ResultsGrid, ResultsSummary } from "./results-grid";
 import { ScoreStats } from "./score-stats";
 import { StudyPlan } from "./study-plan";
-import { t, locale } from "../i18n";
+import { t, locale, tc } from "../i18n";
 function ResultImporter() {
   const fileInput = useRef<HTMLInputElement>(null);
   const classes = useResource<Data[]>("/classes"),
@@ -69,7 +69,7 @@ function ResultImporter() {
             <option value="">{t("Chọn bộ đề…")}</option>
             {banks.data?.map((bank: Data) => (
               <option key={bank.id} value={bank.id}>
-                {bank.name} · {bank.question_count}  {t("câu")}
+                {bank.name} · {bank.question_count}  {tc(bank.question_count, "câu")}
               </option>
             ))}
           </select>

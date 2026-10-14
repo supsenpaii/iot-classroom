@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Data } from "./api";
 import { createUuid } from "./uuid";
-import { t, translateServer } from "./i18n";
+import { t, translateServer, lazy, tk } from "./i18n";
 
 export class StudentApiError extends Error {
   constructor(message: string, public code: string, public status: number) { super(message); }
@@ -17,19 +17,19 @@ export async function studentApi(path: string, csrf = "", body?: unknown): Promi
   if (!res.ok) throw new StudentApiError(data.message ? translateServer(data.message) : t("Không thể thực hiện yêu cầu."), data.code, res.status);
   return data;
 }
-const answerErrors: Record<string, string> = {
+const answerErrors: Record<string, string> = lazy(() => ({
   QUESTION_CLOSED: t("Câu đã đóng hoặc hết giờ."), SESSION_PAUSED: t("Bài đang tạm dừng."),
   STALE_SEQUENCE: t("Đã có lựa chọn mới hơn. Đang đồng bộ lại."),
   DEVICE_NOT_ASSIGNED: t("Bạn không còn được ghép vào phòng. Hãy hỏi giáo viên."),
   ANSWER_LOCKED: t("Giáo viên đã khóa lựa chọn đầu tiên."),
   REQUEST_REUSED: t("Không thể gửi lại lựa chọn này. Hãy tải lại trang."),
   INVALID_PAYLOAD: t("Không thể gửi lựa chọn này. Hãy tải lại trang."),
-};
+}));
 export function useStudentQuiz(identity: Data, csrf: string) {
   const [data, setData] = useState<Data | null>(null);
   const [connected, setConnected] = useState(false);
   const [terminal, setTerminal] = useState(false);
-  const [status, setStatus] = useState(t("Đang kết nối…"));
+  const [status, setStatus] = useState(tk("Đang kết nối…"));
   const [notice, setNotice] = useState("");
   const [sending, setSending] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
@@ -86,7 +86,7 @@ export function useStudentQuiz(identity: Data, csrf: string) {
       connectTimer = setTimeout(connect, Math.min(10000, 1000 * 2 ** attempt++) + Math.random() * 300);
     }
     async function connect() {
-      synchronized = false; setConnected(false); setStatus(t("Đang kết nối máy chủ…"));
+      synchronized = false; setConnected(false); setStatus(tk("Đang kết nối máy chủ…"));
       try {
         const { ticket } = await studentApi("/ticket", csrf, {});
         if (stopped) return;
@@ -107,7 +107,7 @@ export function useStudentQuiz(identity: Data, csrf: string) {
             seq = Math.max(changedQuestion ? 0 : seq, incoming.current_answer?.seq || 0, pending?.seq || 0);
             state = incoming; clockOffset = incoming.server_time - Date.now();
             setOffset(clockOffset); setData(incoming);
-            synchronized = true; attempt = 0; setConnected(true); setStatus(t("Đã kết nối"));
+            synchronized = true; attempt = 0; setConnected(true); setStatus(tk("Đã kết nối"));
             if (!pending) {
               setSelected(incoming.current_answer?.choice || null);
               if (changedQuestion) setNotice("");
@@ -130,7 +130,7 @@ export function useStudentQuiz(identity: Data, csrf: string) {
               setNotice(t("Máy chủ chưa lưu được đáp án. Đang gửi lại…"));
               if (pending) transmit();
             } else if (!synchronized) {
-              setStatus(t("Không thể xác thực kết nối. Đang thử lại…")); active.close();
+              setStatus(tk("Không thể xác thực kết nối. Đang thử lại…")); active.close();
             } else {
               clearPending(); setSelected(state?.current_answer?.choice || null);
               setNotice(answerErrors[msg.code] || t("Không thể lưu đáp án. Hãy thử lại."));
@@ -142,10 +142,10 @@ export function useStudentQuiz(identity: Data, csrf: string) {
           synchronized = false; setConnected(false);
           if (e.code === 4001 || e.code === 4002) {
             setTerminal(true);
-            setStatus(e.code === 4002 ? t("Bài đang được mở ở tab khác. Đóng tab đó rồi kết nối lại.") : t("Bạn không còn trong phòng này hoặc quyền làm bài đã hết. Hãy hỏi giáo viên."));
+            setStatus(e.code === 4002 ? tk("Bài đang được mở ở tab khác. Đóng tab đó rồi kết nối lại.") : tk("Bạn không còn trong phòng này hoặc quyền làm bài đã hết. Hãy hỏi giáo viên."));
             return;
           }
-          setStatus(t("Mất kết nối · đang nối lại…")); reconnect();
+          setStatus(tk("Mất kết nối · đang nối lại…")); reconnect();
         };
         active.onerror = () => active.close();
       } catch (e) {

@@ -14,7 +14,7 @@ import "./pages/student.css";
 import "./styles.css";
 import { ThemeToggle } from "./theme";
 import "./theme.css";
-import { t } from "./i18n";
+import { t, useLang } from "./i18n";
 const Dashboard = lazy(() => import("./pages/manage").then(m => ({ default: m.Dashboard })));
 const Classes = lazy(() => import("./pages/manage").then(m => ({ default: m.Classes })));
 const Devices = lazy(() => import("./pages/manage").then(m => ({ default: m.Devices })));
@@ -32,7 +32,7 @@ const Polls = lazy(() => import("./pages/polls").then(m => ({ default: m.Polls }
 const AttendancePage = lazy(() => import("./pages/attendance").then(m => ({ default: m.AttendancePage })));
 const StudentPage = lazy(() => import("./pages/student").then(m => ({ default: m.StudentPage })));
 const DevicePage = lazy(() => import("./pages/device").then(m => ({ default: m.DevicePage })));
-const nav = [
+const nav = () => [
   ["/dashboard", "home", t("Tổng quan")],
   ["/question-banks", "file", t("Ngân hàng câu hỏi")],
   ["/flashcards", "cards", "Flashcard"],
@@ -43,6 +43,7 @@ const nav = [
   ["/reports", "chart", t("Báo cáo")],
 ];
 function App() {
+  useLang(); // re-render the whole app when the language changes
   const [user, setUser] = useState<Data | null>(null),
     [loading, setLoading] = useState(true),
     [message, setMessage] = useState(""),
@@ -281,7 +282,7 @@ function App() {
           </a>
           <p className="nav-caption">{t("KHÔNG GIAN DẠY HỌC")}</p>
           <nav>
-            {nav.map(([href, icon, label]) => (
+            {nav().map(([href, icon, label]) => (
               <a
                 key={href}
                 href={href}

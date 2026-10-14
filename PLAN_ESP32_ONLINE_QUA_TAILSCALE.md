@@ -500,3 +500,15 @@ B  AI → Gemini      ─┼─►  C  Đa ngôn ngữ VI/EN  ─►  D  QA cu�
 ```
 
 Nên chạy Phần D **sau Phần C** để rà luôn bản dịch tiếng Anh; nếu làm A/B trước thì có thể chạy D một lượt thử cho phần đã xong rồi chạy lại đầy đủ ở cuối.
+
+---
+
+## Cập nhật 2026-10-14: đổi ngôn ngữ không tải lại trang
+
+Thay đổi so với C2/C5 ở trên: `LangToggle` đổi ngôn ngữ ngay (`setLang`) và `App` render lại bằng `useLang()` (`useSyncExternalStore`). Ba quy ước để không giữ nhầm ngôn ngữ cũ:
+
+1. Bảng nhãn cấp module dùng `lazy(() => ({ ... }))` (hoặc hàm), không gán `t()` lúc import.
+2. Trạng thái và phép so sánh dùng khóa tiếng Việt thô `tk("...")`; hiển thị bằng `t(trạng_thái)`.
+3. Danh từ sau số đứng ngoài khóa dùng `tc(n, "câu")`; chuỗi có `{n}` tự đổi "1 students" thành "1 student" ở EN.
+
+Tiêu đề tab (`document.title`) cập nhật theo ngôn ngữ.

@@ -11,9 +11,9 @@ import {
   useResource,
 } from "../components";
 import { useActivitySocket } from "../socket";
-import { t, locale } from "../i18n";
+import { t, locale, tk, tc } from "../i18n";
 
-const TEMPLATES = [
+const TEMPLATES = () => [
   {
     label: t("Hiểu bài chưa?"),
     question: t("Bạn hiểu phần vừa học đến đâu?"),
@@ -68,7 +68,7 @@ function PollHome() {
         >
           <h2>{t("Tạo khảo sát")}</h2>
           <div className="poll-templates" role="group" aria-label={t("Mẫu có sẵn")}>
-            {TEMPLATES.map((t) => (
+            {TEMPLATES().map((t) => (
               <button
                 type="button"
                 key={t.label}
@@ -126,7 +126,7 @@ function PollHome() {
               <div>
                 <strong>{p.question}</strong>
                 <small>
-                  {new Date(p.created_at).toLocaleString(locale())} · {p.votes}  {t("ý kiến")}
+                  {new Date(p.created_at).toLocaleString(locale())} · {p.votes}  {tc(p.votes, "ý kiến")}
                 </small>
               </div>
               <span className="badge">{p.state === "RUNNING" ? t("Đang mở") : t("Đã đóng")}</span>
@@ -158,8 +158,8 @@ function PollLive({ id }: { id: string }) {
   if (!data)
     return (
       <Status
-        loading={!status.startsWith(t("Không"))}
-        error={status.startsWith(t("Không")) ? status : undefined}
+        loading={!status.startsWith(tk("Không"))}
+        error={status.startsWith(tk("Không")) ? t(status) : undefined}
       />
     );
   const open = data.state === "RUNNING",
@@ -171,7 +171,7 @@ function PollLive({ id }: { id: string }) {
         <div>
           <p className="eyebrow">
             
-            {t("KHẢO SÁT NHANH · ẨN DANH ·")} {open ? t("ĐANG NHẬN Ý KIẾN") : t("ĐÃ ĐÓNG")} · {status.toUpperCase()}
+            {t("KHẢO SÁT NHANH · ẨN DANH ·")} {open ? t("ĐANG NHẬN Ý KIẾN") : t("ĐÃ ĐÓNG")} · {t(status).toUpperCase()}
           </p>
           <h1>{data.question}</h1>
         </div>
@@ -205,7 +205,7 @@ function PollLive({ id }: { id: string }) {
         </div>
       </header>
       <p className="poll-meta">
-        <strong>{data.total_votes}</strong>  {t("ý kiến ·")} {data.devices_online}  {t("thiết bị đang kết nối")}
+        <strong>{data.total_votes}</strong>  {t("ý kiến ·")} {data.devices_online}  {tc(data.devices_online, "thiết bị đang kết nối")}
         {open && t(" · Bấm {v} trên thiết bị", { v: data.options.map((o: Data) => o.key).join(", ") })}
       </p>
       <div className="poll-options">

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { fmt, type Data } from "../api";
-import { t, locale } from "../i18n";
+import { t, locale, tc } from "../i18n";
 
 // Score summary, distribution, grade bands and per-question analysis for one session.
 const num = (v: number | null | undefined, digits = 1) =>
@@ -9,14 +9,14 @@ const num = (v: number | null | undefined, digits = 1) =>
     : v.toLocaleString(locale(), { minimumFractionDigits: 0, maximumFractionDigits: digits });
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 // Vietnamese grading bands on the /10 scale.
-const BANDS = [
+const BANDS = () => [
   { key: "gioi", label: t("Giỏi"), rule: "≥ 8", min: 8 },
   { key: "kha", label: t("Khá"), rule: t("6,5 – 8"), min: 6.5 },
   { key: "tb", label: t("Trung bình"), rule: t("5 – 6,5"), min: 5 },
   { key: "yeu", label: t("Yếu"), rule: t("3,5 – 5"), min: 3.5 },
   { key: "kem", label: t("Kém"), rule: t("< 3,5"), min: -Infinity },
 ];
-const bandOf = (score: number) => BANDS.find((b) => score >= b.min)!;
+const bandOf = (score: number) => BANDS().find((b) => score >= b.min)!;
 const difficulty = (p: number) => (p >= 0.7 ? [t("Dễ"), "easy"] : p >= 0.3 ? [t("Vừa"), "medium"] : [t("Khó"), "hard"]);
 const discrimination = (d: number) =>
   d >= 0.3
@@ -123,7 +123,7 @@ export function ScoreStats({ d }: { d: Data }) {
     y = (n: number) => T + 22 + (1 - n / maxCount) * (H - T - 22 - B),
     slot = (W - L - R) / 10,
     barW = slot * 0.62;
-  const bandCounts = BANDS.map((b) => ({ ...b, n: scores.filter((s: number) => bandOf(s).key === b.key).length }));
+  const bandCounts = BANDS().map((b) => ({ ...b, n: scores.filter((s: number) => bandOf(s).key === b.key).length }));
   const topics = new Map<string, number[]>();
   analysis.forEach(({ q, p }: { q: Data; p: number }) => {
     const t = (q.data.topic || "").trim();
@@ -226,7 +226,7 @@ export function ScoreStats({ d }: { d: Data }) {
               <ul className="ss-topics">
                 {topicRows.map((row) => (
                   <li key={row.topic} className={row.pct < 70 ? "topic-needs-review" : ""}>
-                    <span>{row.topic}<small>{row.n}  {t("câu")}</small></span>
+                    <span>{row.topic}<small>{row.n}  {tc(row.n, "câu")}</small></span>
                     <div className="ss-topic-track"><i style={{ width: `${row.pct}%` }} /></div>
                     <strong>{Math.round(row.pct)}%</strong>
                   </li>

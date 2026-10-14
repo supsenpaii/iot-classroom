@@ -1,4 +1,4 @@
-import { t, locale, translateServer, getLang } from "./i18n";
+import { t, locale, translateServer, getLang, lazy } from "./i18n";
 export type Data = Record<string, any>; // JSON API documents; inputs are validated by shared Zod schemas on the server.
 export type ApiError = Error & { code: string | undefined; details: unknown };
 type ApiErrorResponse = {
@@ -80,7 +80,7 @@ export const fmt = (value: number | null | undefined, suffix = "") =>
   value == null
     ? t("Chưa có điểm")
     : `${value.toLocaleString(locale(), { maximumFractionDigits: 1 })}${suffix}`;
-export const stateLabel: Record<string, string> = {
+export const stateLabel: Record<string, string> = lazy(() => ({
   LOBBY: t("Phòng chờ"),
   RUNNING: t("Đang diễn ra"),
   PAUSED: t("Tạm dừng"),
@@ -90,9 +90,9 @@ export const stateLabel: Record<string, string> = {
   CLOSED: t("Đã đóng"),
   PENDING: t("Chưa mở"),
   WAITING: t("Chờ ghép thiết bị"),
-};
+}));
 
-export const eventLabel: Record<string, string> = {
+export const eventLabel: Record<string, string> = lazy(() => ({
   start: t("Bắt đầu kiểm tra"),
   pause: t("Tạm dừng"),
   resume: t("Tiếp tục"),
@@ -113,8 +113,8 @@ export const eventLabel: Record<string, string> = {
   "answer.rejected": t("Đáp án không hợp lệ"),
   "reveal-results": t("Công bố kết quả lên màn chiếu"),
   "results.imported": t("Nhập kết quả có sẵn"),
-};
-export const errorLabel: Record<string, string> = {
+}));
+export const errorLabel: Record<string, string> = lazy(() => ({
   QUESTION_CLOSED: t("Câu đã đóng hoặc hết giờ"),
   SESSION_PAUSED: t("Buổi đang tạm dừng"),
   STALE_SEQUENCE: t("Gói cũ, đã có lựa chọn mới hơn"),
@@ -132,4 +132,4 @@ export const errorLabel: Record<string, string> = {
   POLL_CLOSED: t("Khảo sát đã đóng"),
   INVALID_CHOICE: t("Lựa chọn không có trong khảo sát"),
   ATTENDANCE_CLOSED: t("Điểm danh đã đóng"),
-};
+}));

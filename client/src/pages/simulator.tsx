@@ -4,11 +4,11 @@ import { api, stateLabel, errorLabel, type Data } from "../api";
 import { Head, Status, useApp, useResource } from "../components";
 import { socketUrl } from "../socket";
 import type { FlashcardRatePacket } from "../../../shared/protocol";
-import { t } from "../i18n";
-const ratingLabel: Record<string, string> = { KNOWN: t("Nhớ"), AGAIN: t("Chưa nhớ") };
+import { t, lazy, tk } from "../i18n";
+const ratingLabel: Record<string, string> = lazy(() => ({ KNOWN: t("Nhớ"), AGAIN: t("Chưa nhớ") }));
 function SimDevice({ device }: { device: Data }) {
   const [state, setState] = useState<Data>({ state: "WAITING" }),
-    [status, setStatus] = useState(t("Đang kết nối…")),
+    [status, setStatus] = useState(tk("Đang kết nối…")),
     [ack, setAck] = useState(t("Chưa gửi")),
     [offline, setOffline] = useState(false);
   const socket = useRef<WebSocket | null>(null),
@@ -130,7 +130,7 @@ function SimDevice({ device }: { device: Data }) {
   }
   useEffect(() => {
     if (offline) {
-      setStatus(t("Mất mạng mô phỏng"));
+      setStatus(tk("Mất mạng mô phỏng"));
       return;
     }
     let stopped = false,
@@ -138,7 +138,7 @@ function SimDevice({ device }: { device: Data }) {
       timer: ReturnType<typeof setTimeout>;
     async function connect() {
       try {
-        setStatus(attempt ? t("Đang nối lại…") : t("Đang kết nối…"));
+        setStatus(attempt ? tk("Đang nối lại…") : tk("Đang kết nối…"));
         const { ticket } = await api(`/devices/${device.id}/ticket`, "POST");
         if (stopped) return;
         const ws = new WebSocket(socketUrl());
@@ -153,7 +153,7 @@ function SimDevice({ device }: { device: Data }) {
             const old = current.current;
             current.current = msg.data;
             setState(msg.data);
-            setStatus(t("Đã kết nối"));
+            setStatus(tk("Đã kết nối"));
             if (
               old.question?.id !== msg.data.question?.id ||
               old.binding_id !== msg.data.binding_id
@@ -229,10 +229,10 @@ function SimDevice({ device }: { device: Data }) {
         ws.onclose = (e) => {
           if (stopped) return;
           if (e.code === 4001 || e.code === 4002) {
-            setStatus(t("Kết nối bị thu hồi hoặc thay thế"));
+            setStatus(tk("Kết nối bị thu hồi hoặc thay thế"));
             return;
           }
-          setStatus(t("Mất kết nối"));
+          setStatus(tk("Mất kết nối"));
           timer = setTimeout(
             connect,
             Math.min(10000, 1000 * 2 ** attempt++) + Math.random() * 300,
@@ -257,7 +257,7 @@ function SimDevice({ device }: { device: Data }) {
     <article className="card simulator-device">
       <div className="row spread">
         <h2>{device.label}</h2>
-        <span className="badge">{status}</span>
+        <span className="badge">{t(status)}</span>
       </div>
       {state.mode === "poll" ? (
         <p>
@@ -292,7 +292,7 @@ function SimDevice({ device }: { device: Data }) {
           <button
             key={c}
             className={`choice-${c.toLowerCase()}`}
-            disabled={offline || status !== t("Đã kết nối")}
+            disabled={offline || status !== tk("Đã kết nối")}
             onClick={() => choose(c)}
           >
             {c}

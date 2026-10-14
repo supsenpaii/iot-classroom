@@ -91,7 +91,7 @@ Bằng Chromium headless và API/WebSocket thật, trên server dựng tạm:
 - Nguyên nhân (đã xác minh): thiết kế có chủ đích của `client/src/i18n.tsx` (`window.location.reload()`), để các nhãn cấp module (`stateLabel`, `eventLabel`…) không cần dịch lúc render.
 - Cách sửa đề xuất: chuyển nhãn cấp module thành hàm (gọi `t()` lúc render), thêm `LangProvider` đổi `key` gốc cây React thay vì reload. Hoặc chỉ cảnh báo ("Trang sẽ tải lại") khi form đang sửa dở. Ước lượng: **M**.
 - Cách kiểm chứng sau sửa: `test-i18n` + tour VI↔EN không reload.
-- Trạng thái: Mới (đề xuất; xem mục 5)
+- Trạng thái: Đã sửa 2026-10-14: đổi ngôn ngữ render lại tại chỗ (`useLang`, `lazy`, trạng thái lưu khóa tiếng Việt); kiểm bằng trình duyệt: nội dung đang gõ còn nguyên, trang không tải lại
 
 ### BUG-005 · Trung bình · Đa ngôn ngữ · Không có số ít/số nhiều trong EN
 - Cách tái hiện: 1) Mở báo cáo buổi có 1 câu, chuyển EN.
@@ -100,7 +100,7 @@ Bằng Chromium headless và API/WebSocket thật, trên server dựng tạm:
 - Nguyên nhân (đã xác minh): `t()` chỉ thay `{slot}`; chuỗi gốc tiếng Việt không có số nhiều (`client/src/i18n.tsx`).
 - Cách sửa đề xuất: thêm `tn(n, one, other)` hoặc quy ước khóa `…|one`; áp dụng cho khoảng 25 chuỗi có `{length}`/`{count}`/`{n}`. Ước lượng: **M**.
 - Cách kiểm chứng sau sửa: mở rộng `test-i18n` để kiểm các cặp số ít/số nhiều.
-- Trạng thái: Mới
+- Trạng thái: Đã sửa 2026-10-14: `t()` đổi "1 students" thành "1 student"; `tc(n, "câu")` cho danh từ đứng sau số; `test-i18n` có ca chạy thật
 
 ### BUG-006 · Trung bình · Đa ngôn ngữ · Trình duyệt tiếng Anh tự thấy giao diện tiếng Anh
 - Cách tái hiện: 1) Học sinh có điện thoại đặt ngôn ngữ tiếng Anh mở `/student`.
