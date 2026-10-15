@@ -1,0 +1,4 @@
+(sym_lib_table
+	(version 7)
+	(lib (name "IOT")(type "KiCad")(uri "${KIPRJMOD}/IOT.kicad_sym")(options "")(descr "Custom symbols for IoT classroom clicker"))
+)

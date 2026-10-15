@@ -1,0 +1,38 @@
+﻿Reference,Qty,Value,Footprint,Link,Note,Datasheet
+,,,,,,
+Thế Giới IC ,,,,,,
+"C1,C5",2,10uF,Capacitor_SMD:C_0805_2012Metric,https://www.thegioiic.com/tu-gom-0805-10uf-16v,Tụ Gốm 0805 10uF 16V,
+"C3,C6,C8,C9,C10",5,100nF,Capacitor_SMD:C_0805_2012Metric,https://www.thegioiic.com/tu-gom-0805-100nf-0-1uf-50v,Tụ Gốm 0805 100nF (0.1uF) 50V,
+C4,1,4.7uF,Capacitor_SMD:C_0805_2012Metric,https://www.thegioiic.com/tu-gom-0805-4-7uf-50v,Tụ Gốm 0805 4.7uF 50V,
+C7,1,1uF,Capacitor_SMD:C_0805_2012Metric,https://www.thegioiic.com/tu-gom-0805-1uf-16v,Tụ Gốm 0805 1uF 16V,
+D1,1,SS14,Diode_SMD:D_SMA,https://www.thegioiic.com/ss14-sma-diode-schottky-1a-1n5819,SS14 SMA Diode Schottky 1A 1N5819,https://www.vishay.com/docs/88746/ss12.pdf
+D2,1,PWR (red),LED_SMD:LED_0805_2012Metric,https://www.thegioiic.com/led-do-0805-dan-smd-trong-suot,LED Đỏ 0805 Dán SMD Trong Suốt,
+D3,1,STATUS (green),LED_SMD:LED_0805_2012Metric,https://www.thegioiic.com/led-xanh-la-0805-dan-smd-trong-suot,LED Xanh Lá 0805 Dán SMD Trong Suốt,
+D4,1,USB (blue),LED_SMD:LED_0805_2012Metric,https://www.thegioiic.com/led-xanh-duong-0805-dan-smd-trong-suot,LED Xanh Dương 0805 Dán SMD Trong Suốt (báo cắm cáp USB-C),
+J2,1,USB-C 16P,Connector_USB:USB_C_Receptacle_HRO_TYPE-C-31-M-12,https://www.thegioiic.com/cong-usb-cai-3-1-type-c-16-chan-thang-dan-smd,Cổng USB Cái 3.1 Type C 16 Chân Thẳng Dán SMD,https://www.usb.org/sites/default/files/documents/usb_type-c.zip
+Q1,1,AO3401A,Package_TO_SOT_SMD:SOT-23,https://www.thegioiic.com/ao3401a-mosfet-kenh-p-30v-4a-sot23,AO3401A MOSFET Kênh P 30V 4A SOT23,http://www.aosmd.com/pdfs/datasheet/AO3401A.pdf
+"R1,R15",2,100k,Resistor_SMD:R_0805_2012Metric,https://www.thegioiic.com/dien-tro-100-kohm-0805-1-,Điện Trở 100 KOhm 0805 1%,
+"R2,R10,R16",3,1k,Resistor_SMD:R_0805_2012Metric,https://www.thegioiic.com/dien-tro-1-kohm-0805-5-,Điện Trở 1 KOhm 0805 5%,
+"R3,R4",2,5.1k,Resistor_SMD:R_0805_2012Metric,https://www.thegioiic.com/dien-tro-5-1-kohm-0805-5-,Điện Trở 5.1 KOhm 0805 5%,
+"R5,R6",2,22R,Resistor_SMD:R_0805_2012Metric,https://www.thegioiic.com/dien-tro-22-ohm-0805-5-,Điện Trở 22 Ohm 0805 5% (Khử nhiễu dùng 22 Ohm),
+"R7,R8,R11,R17",4,10k,Resistor_SMD:R_0805_2012Metric,https://www.thegioiic.com/dien-tro-10-kohm-0805-5-,Điện Trở 10 KOhm 0805 5%,
+"R12,R13",2,4.7k,Resistor_SMD:R_0805_2012Metric,https://www.thegioiic.com/dien-tro-4-7-kohm-0805-5-,Điện Trở 4.7 KOhm 0805 5%,
+R14,1,200k,Resistor_SMD:R_0805_2012Metric,https://www.thegioiic.com/dien-tro-200-kohm-0805-1-,Điện Trở 200 KOhm 0805 1%,
+SW1,1,MSS-22D18G2,IOT:SW_DPDT_MSS-22D18G2,https://www.thegioiic.com/mss-22d18g2-cong-tac-truot-6-chan-smd-2p2t,MSS-22D18G2 Công Tắc Trượt 6 Chân SMD 2P2T,
+"SW2,SW4",2,"RESET, BOOT",IOT:SW_SPST_3x4mm_2P,https://www.thegioiic.com/nut-nhan-3x4mm-cao-2-5mm-2-chan-smd,"Nút nhấn 3x4mm cao 2.5mm 2 chân SMD — SW2 = RESET, SW4 = BOOT",
+"SW3,SW5,SW6,SW7,SW8,SW9,SW10,SW11,SW12,SW13,SW14,SW15,SW16",13,"KEY (0-9, OK, MODE, DEL)",Button_Switch_SMD:SW_SPST_PTS645Sx43SMTR92,https://www.thegioiic.com/nut-nhan-6x6mm-cao-7mm-4-chan-smd,Nút nhấn 6x6mm cao 7mm 4 chân SMD — 13 phím bàn phím,
+U2,1,AMS1117-3.3,Package_TO_SOT_SMD:SOT-223-3_TabPin2,https://www.thegioiic.com/ams1117-3-3v-ic-on-ap-3-3v-1a-sot-223,AMS1117-3.3V IC Ổn Áp 3.3V 1A SOT-223,http://www.advanced-monolithic.com/pdf/ds1117.pdf
+,,,,,,
+IC Đây Rồi ,,,,,,
+C2,1,22uF Ta,Capacitor_Tantalum_SMD:CP_EIA-3528-21_Kemet-B,https://icdayroi.com/tu-tantalum-22uf-16v-smd3528,Tụ Tantalum 22uF 16V SMD3528,
+U3,1,USBLC6-2SC6,Package_TO_SOT_SMD:SOT-23-6,https://icdayroi.com/usblc6-2sc6-tvs-diode-5-25v-17v-sot23-6,USBLC6-2SC6 TVS diode chống ESD cho USB 5.25V 17V SOT23-6,https://www.st.com/resource/en/datasheet/usblc6-2.pdf
+,,,,,,
+Điện Tử Tuyết Nga,,,,,,
+U1,1,ESP32-C3-MINI-1-N4,IOT:ESP32-C3-MINI-1-N4,https://dientutuyetnga.com/products/thu-phat-wifi-esp32-c3-mini-1-n4-2-4ghz-ble-5-0,Thu Phát Wifi ESP32-C3-Mini-1-N4 2.4Ghz BLE 5.0,https://www.espressif.com/sites/default/files/documentation/esp32-c3-mini-1_datasheet_en.pdf
+,,,,,,
+Đã có,,,,,,
+"H1,H2,H3,H4",4,M3,MountingHole:MountingHole_3.2mm_M3_Pad_Via,,"Lỗ vít M3 mạ đồng nối GND (làm sẵn trên PCB, không phải mua)",
+J1,1,BATTERY 4xAAA,Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical,Header đã có,"Header đực 1x2 2.54mm — cắm dây hộp pin 4xAAA (đầu cái/jumper); chân vuông = 5V(+), chân tròn = GND",
+J3,1,OLED 0.91 I2C,Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical,Header đã có,"Header đực 1x4 2.54mm — nối OLED 0.91"" bằng 4 dây jumper theo nhãn GND-SCL-SDA-VCC (không cắm thẳng module)",
+,,,,,,
+TỔNG,57,,,,57 vị trí linh kiện; cần mua 51 (trừ 4 lỗ M3 làm sẵn trên PCB và 2 header J1/J3 đã có),

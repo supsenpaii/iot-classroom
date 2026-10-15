@@ -1,0 +1,74 @@
+HƯỚNG DẪN ĐẶT MẠCH — IOT CLASSROOM CLICKER (ESP32-C3)
+Ngày chốt file: 2026-10-01   |   Mạch: 50 x 80 mm, 2 lớp, bo 4 góc R4
+
+==================================================================
+1. FILE GỬI XƯỞNG (machin.cxtvn.com)
+==================================================================
+Tải lên đúng 1 file:  1_GuiXuong\IOT_Clicker_Gerber_50x80_2lop.zip
+Trong zip gồm:
+  IOT-F_Cu.gtl / IOT-B_Cu.gbl                 đồng mặt trên / mặt dưới
+  IOT-F_Mask.gts / IOT-B_Mask.gbs             phủ xanh (solder mask)
+  IOT-F_Silkscreen.gto / IOT-B_Silkscreen.gbo chữ trắng (logo HCMUTE ở mặt dưới)
+  IOT-F_Paste.gtp                             kem hàn (chỉ dùng khi đặt stencil)
+  IOT-Edge_Cuts.gm1                           viền mạch
+  IOT-PTH.drl / IOT-NPTH.drl                  file khoan (Excellon, đơn vị mm)
+
+==================================================================
+2. THÔNG SỐ CHỌN TRÊN TRANG ĐẶT HÀNG
+==================================================================
+  Vật liệu ..................... FR-4
+  Số lớp ....................... 2 lớp
+  Độ dày phíp .................. 1.6 mm
+  Độ dày đồng .................. 1.0 oz
+  Kiểu mạ ...................... Mạ vàng (khuyên dùng: pad phẳng, dễ hàn ESP32 chân
+                                 dưới bụng và USB-C bước 0.5 mm).
+                                 Muốn rẻ hơn: Mạ thiếc không chì.
+  Màu phủ ...................... Xanh lá
+  Kích thước đường mạch ........ 0.15 mm (6 mil)   (mạch dùng nhỏ nhất 0.2 mm)
+  Đường kính lỗ khoan .......... 0.3 mm            (lỗ nhỏ nhất trên mạch 0.3 mm)
+  Chip BGA pitch ............... Không có
+  Yêu cầu thêm ................. [x] Xác nhận file sản xuất
+                                 [ ] Không in linh kiện   <-- KHÔNG tick (sẽ mất chữ trắng)
+                                 [ ] Không in mã sản xuất (tuỳ chọn, nếu muốn mặt mạch sạch)
+                                 [ ] Ghép mạch / Impedance / Mạ nửa lỗ: không cần
+                                 [ ] Hàn linh kiện: cân nhắc nếu đặt từ 20 mạch trở lên
+  Stencil ...................... "Không khung" nếu sẽ quét kem hàn + khò/bếp gia nhiệt
+                                 cho ESP32 và USB-C; nếu hàn mỏ toàn bộ thì chọn "Không".
+
+==================================================================
+3. GHI CHÚ DÁN VÀO ĐƠN HÀNG
+==================================================================
+Mạch 50x80 mm, 2 lớp, bo góc R4. Có 4 lỗ oval (slot) mạ đồng 0.6x1.2 mm và
+0.6x1.7 mm cho chân vỏ cổng USB-C (trong file IOT-PTH.drl), 2 lỗ không mạ
+Ø0.65 mm (trong IOT-NPTH.drl). 4 lỗ vít M3 Ø3.2 mạ đồng. Logo in ở mặt dưới.
+
+==================================================================
+4. SỐ LIỆU ĐÃ KIỂM TRA (2026-10-01)
+==================================================================
+  ERC 0 lỗi, DRC 0 lỗi, schematic khớp PCB (57 linh kiện), không còn chân hở.
+  Đường mạch nhỏ nhất 0.2 mm, khe hở nhỏ nhất 0.2 mm.
+  Lỗ khoan: 112 lỗ (110 lỗ mạ gồm 4 slot, 2 lỗ không mạ), vòng đồng nhỏ nhất 0.15 mm.
+  Đồng cách mép mạch >= 0.5 mm, lỗ gần mép nhất 1.35 mm.
+  Chữ trắng nét >= 0.15 mm, không chữ nào đè lỗ khoan hay chồng nhau.
+  Vùng anten ESP32: không có đồng ở cả 2 lớp.
+  Linh kiện cách tâm lỗ vít M3 >= 4.68 mm (không vướng khi vặn vít).
+
+==================================================================
+5. HÀN LINH KIỆN (thư mục 3_HanLinhKien)
+==================================================================
+  SoDo_LapRap_MatTren_x2.pdf ... bản vẽ lắp ráp phóng to x2, có tên + giá trị từng linh kiện
+  In_TiLe_1-1_ThuLinhKien.pdf .. in ở chế độ "Actual size / 100%" (KHÔNG chọn Fit to page),
+                                 đặt thử phím 6x6, nút 3x4, công tắc MSS-22D18G2, cổng USB-C
+                                 lên giấy để kiểm tra chân khớp pad TRƯỚC khi đặt mạch.
+  SoDo_NguyenLy.pdf ............ sơ đồ nguyên lý
+  Anh3D_MatTren.png / Anh3D_MatDuoi.png ... ảnh 3D để đối chiếu
+  Danh sách mua linh kiện: 2_BOM\IOT_BOM_V2.csv (57 vị trí, cần mua 51).
+
+  Lưu ý khi hàn:
+  - ESP32-C3-MINI-1 có chân dưới bụng: dùng kem hàn + khò hoặc bếp gia nhiệt.
+  - Tụ C2 (tantalum) có cực: vạch trên thân = cực (+), trùng dấu + trên mạch.
+  - LED D2/D3/D4, diode D1: chú ý chiều theo vạch đánh dấu trên mạch.
+  - OLED nối vào J3 bằng 4 dây jumper theo nhãn GND - SCL - SDA - VCC
+    (không cắm thẳng module, vì module có thứ tự chân GND-VCC-SCL-SDA).
+  - Hộp pin 4xAAA cắm vào J1: chân vuông = 5V(+), chân tròn = GND.
+  - Khi cắm USB, nên gạt SW1 về OFF.

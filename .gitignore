@@ -17,3 +17,10 @@ AGENTS.md
 .claude/
 .cursor/
 *.prompt.md
+
+# KiCad local files
+hardware/kicad/*.kicad_prl
+hardware/kicad/*-backups/
+hardware/kicad/.history/
+hardware/kicad/fp-info-cache
+~*.lck
