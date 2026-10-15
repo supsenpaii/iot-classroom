@@ -224,7 +224,7 @@ Các cơ chế chính:
 
 ## 6. Cài đặt & chạy
 
-Yêu cầu **Node 24.21+** (`nvm install && nvm use`).
+Yêu cầu **Node 24.21+**.
 
 ```bash
 npm ci
