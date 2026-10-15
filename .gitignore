@@ -11,12 +11,11 @@ test-results/
 playwright-report/
 artifacts/
 
-# AI assistant notes and prompts stay local
-CLAUDE.md
-AGENTS.md
-.claude/
-.cursor/
-*.prompt.md
+# Local tool folders and notes stay out of the repo (README.md is the only doc)
+/.*/
+!/.github/
+*.md
+!/README.md
 
 # KiCad local files
 hardware/kicad/*.kicad_prl
