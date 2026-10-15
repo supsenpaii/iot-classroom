@@ -1,4 +1,4 @@
-# SmartClass — Lớp học tương tác IoT
+# SmartClass
 
 ![ESP32-C3](https://img.shields.io/badge/ESP32--C3-RISC--V%20·%20Wi--Fi%20·%20BLE-E7352C?logo=espressif&logoColor=white)
 ![KiCad](https://img.shields.io/badge/KiCad-10-314CB0?logo=kicad&logoColor=white)
@@ -27,9 +27,6 @@ Giáo viên chiếu câu hỏi, học sinh bấm đáp án trên thiết bị ES
 4. [Phần mềm Web](#4-phần-mềm-web)
 5. [Giao thức & độ tin cậy](#5-giao-thức--độ-tin-cậy)
 6. [Cài đặt & chạy](#6-cài-đặt--chạy)
-7. [Kiểm thử](#7-kiểm-thử)
-8. [Cấu trúc repo](#8-cấu-trúc-repo)
-9. [Nhóm thực hiện](#9-nhóm-thực-hiện)
 
 </td>
 <td width="62%" valign="top">
@@ -252,52 +249,3 @@ npm start                     # http://localhost:3000/register
 | `GEMINI_API_KEY` / `OPENROUTER_API_KEYS` | Bật tính năng AI ôn tập (chỉ lưu ở server) |
 
 Vận hành: `npm run db:backup`, `npm run db:restore -- <file> --confirm-replace`, `npm run teacher:reset-password`.
-
----
-
-## 7. Kiểm thử
-
-| Hạng mục | Kết quả |
-|---|---|
-| 22 script Node.js (`scripts/test-*.mjs`): tài khoản, ghép phòng, `/student`, `/device`, AI, i18n, đổi tên thiết bị… | 22/22 đạt, 54/54 mục |
-| Tải: 50 client WebSocket × 3 buổi × 6 câu | 900/900 đáp án, ACK p50 94 ms / p95 186 ms, 0 lỗi |
-| Giao diện: 17 trang × VI/EN × 390/768/1366 px × sáng/tối | Không tràn ngang, không sót chữ |
-| Ổn định: restart giữa buổi, bấm nhanh, lệch giờ +90 s | Đáp án giữ nguyên, mỗi câu một bản ghi |
-| ESP32 thật: làm bài kiểm tra, điểm danh qua Wi-Fi | Đạt |
-| Chưa kiểm thử | Khảo sát/flashcard trên ESP32, mất nguồn thật, 50 ESP32 thật, mạch PCB sau gia công |
-
-```bash
-npm run test:auth && npm run test:pairing && npm run test:student-web
-node scripts/test-device-rename.mjs
-```
-
----
-
-## 8. Cấu trúc repo
-
-```
-client/      React (trang giáo viên, màn chiếu, /student, /device, /simulator)
-server/      Express + WebSocket + quiz engine + migrations SQLite
-shared/      Kiểu dữ liệu & schema giao thức dùng chung
-firmware/    esp32-classroom (PlatformIO)
-hardware/    KiCad, Gerber, BOM, PDF
-deploy/      Dockerfile, compose.yml, Caddyfile
-samples/     Dữ liệu demo, mẫu câu hỏi
-scripts/     Kiểm thử tự động, seed demo, công cụ quản trị
-docs/images/ Ảnh dùng trong README
-```
-
-Simulator ESP32 độc lập: nhánh [`simu_device`](https://github.com/supsenpaii/iot-classroom/tree/simu_device).
-
----
-
-## 9. Nhóm thực hiện
-
-Báo cáo môn **Internet of Things**, Trường ĐH Sư phạm Kỹ thuật TP.HCM (HCMUTE), tháng 10/2026. GVHD: **Bùi Hà Đức**.
-
-| Thành viên |
-|---|
-| Lương Gia Bảo |
-| Trịnh Nhựt Phát |
-| Nguyễn Văn Nam |
-| Hồ Quốc Việt |
