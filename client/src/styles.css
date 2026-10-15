@@ -1041,6 +1041,8 @@ td select {
 .device-entry { border-bottom: 1px solid var(--border); }
 .device-entry .list-item { border-bottom: 0; }
 .device-id-button { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.device-rename { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.device-rename input { flex: 1 1 160px; min-width: 0; }
 .device-id-button[aria-expanded="true"] { border-color: var(--jade); color: var(--jade); }
 .device-connection { margin: -4px 0 16px 42px; padding: 16px; border: 1px solid var(--border); border-radius: 9px; background: #16233a; }
 .device-connection h3 { margin: 0 0 4px; font-size: 14px; }

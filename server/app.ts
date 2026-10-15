@@ -922,6 +922,19 @@ export function createApplication(db: DB, config: AppConfig) {
         res.json({ id: d.id, secret });
         break;
       }
+      case "rename": {
+        // Management label only: ID, secret, connection and bindings stay as they are.
+        const label = nameSchema.parse(req.body.label);
+        if (!d.revoked && one(db, "SELECT 1 FROM devices WHERE owner_teacher_id=? AND id<>? AND revoked=0 AND lower(label)=lower(?)", owner(req), d.id, label))
+          throw new AppError("DUPLICATE_LABEL", "Nhãn thiết bị đang được sử dụng", 409);
+        db.transaction(() => {
+          // Past reports keep the label each binding had when it was made.
+          quiz.preserveDeviceLabels(d.id);
+          db.prepare("UPDATE devices SET label=? WHERE id=?").run(label, d.id);
+        })();
+        res.json({ id: d.id, label });
+        break;
+      }
       case "revoke":
         db.transaction(() => {
           const sessions = all(db, "SELECT DISTINCT session_id FROM session_devices WHERE device_id=? AND active=1", d.id);

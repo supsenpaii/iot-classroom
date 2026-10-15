@@ -756,6 +756,8 @@ export function Devices() {
     { run, user } = useApp(),
     [selectedDevice, setSelectedDevice] = useState(""),
     [credentials, setCredentials] = useState<Record<string, string>>({}),
+    [renaming, setRenaming] = useState(""),
+    [newLabel, setNewLabel] = useState(""),
     [filter, setFilter] = useState<"active" | "offline" | "revoked">("active");
   const { setData } = r;
   useEffect(() => {
@@ -805,7 +807,33 @@ export function Devices() {
               <div className="list-item">
                 <Icon name="device" />
                 <div>
-                  <strong>{d.label}</strong>
+                  {renaming === d.id ? (
+                    <form
+                      className="device-rename"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        void run(async () => {
+                          await api(`/devices/${d.id}/rename`, "POST", { label: newLabel });
+                          setRenaming("");
+                          r.reload();
+                        }, t("Đã đổi tên thiết bị."));
+                      }}
+                    >
+                      <input
+                        aria-label={t("Tên mới cho {label}", { label: d.label })}
+                        value={newLabel}
+                        maxLength={150}
+                        required
+                        autoFocus
+                        onChange={(e) => setNewLabel(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Escape") setRenaming(""); }}
+                      />
+                      <button className="primary">{t("Lưu tên")}</button>
+                      <button type="button" onClick={() => setRenaming("")}>{t("Hủy")}</button>
+                    </form>
+                  ) : (
+                    <strong>{d.label}</strong>
+                  )}
                   <small>
                     {d.assigned_session ? t("Đã ghép vào phòng · ") : ""}
                     {d.revoked
@@ -828,6 +856,15 @@ export function Devices() {
                     }
                   >
                     Device ID: {d.id.slice(-6)}
+                  </button>
+                  <button
+                    disabled={renaming === d.id}
+                    onClick={() => {
+                      setNewLabel(d.label);
+                      setRenaming(d.id);
+                    }}
+                  >
+                    {t("Đổi tên")}
                   </button>
                   <button
                     onClick={() => {

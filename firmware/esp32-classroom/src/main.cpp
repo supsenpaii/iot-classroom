@@ -169,7 +169,25 @@ String answerNotice;
 uint32_t lastDisplayedSeconds = UINT32_MAX;
 bool lastWifiNoticeVisible = false, lastRenameNoticeVisible = false;
 
+// Live activities (attendance, quick poll, flashcard review) run beside the quiz
+// state: the server only sends them while the device is not in a running quiz,
+// so quiz fields are left untouched. liveMode is empty when none is running.
+String liveMode;
+String liveId;
+bool attendanceCheckedIn = false;
+uint8_t pollOptions = 4;
+String pollChoice;
+uint32_t cardRound = 0, cardIndex = 0, cardTotal = 0;
+String cardId, cardDisplayId, cardRating;
+// One request waits for ACK at a time; the same packet is resent until then.
+String livePendingId, livePendingPayload, livePendingLabel;
+unsigned long liveSentAt = 0;
+char liveQueuedKey = '\0';
+String liveQueuedDisplayId;
+String liveNotice;
+
 OledState oledState() {
+  if (!liveMode.isEmpty()) return OledState::EXAM;
   if (sessionState == "RUNNING" || sessionState == "PAUSED") return OledState::EXAM;
   if (sessionState == "FINISHED")
     return sessionId == dismissedResultSession && bindingId == dismissedResultBinding
@@ -338,6 +356,29 @@ void renderStatus() {
   oledPower.invalidate();
 }
 
+void drawLiveStatus() {
+  const String bottom = !livePendingId.isEmpty() ? "SENDING: " + livePendingLabel : liveNotice;
+  if (liveMode == "attendance") {
+    display.print("ATTENDANCE");
+    display.setCursor(0, 11);
+    display.print(attendanceCheckedIn ? "CHECKED IN" : "PRESS A TO CHECK IN");
+    display.setCursor(0, 22);
+    display.print(bottom);
+  } else if (liveMode == "poll") {
+    display.print("QUICK POLL");
+    display.setCursor(0, 11);
+    display.printf("CHOOSE A-%c", char('A' + pollOptions - 1));
+    display.setCursor(0, 22);
+    display.print(bottom.isEmpty() && !pollChoice.isEmpty() ? "VOTED: " + pollChoice : bottom);
+  } else {
+    display.printf("FLASHCARD %lu/%lu", (unsigned long)cardIndex, (unsigned long)cardTotal);
+    display.setCursor(0, 11);
+    display.print("A=KNOWN  B=AGAIN");
+    display.setCursor(0, 22);
+    display.print(bottom.isEmpty() && !cardRating.isEmpty() ? "SAVED: " + cardRating : bottom);
+  }
+}
+
 void drawOledStatus() {
   if (!oledReady || oledPower.sleeping()) return;
   display.clearDisplay();
@@ -352,6 +393,11 @@ void drawOledStatus() {
     // Cho ten Wi-Fi dai xuong dong tren OLED 128x32.
     display.setTextWrap(true);
     display.print(WiFi.SSID());
+    presentOledFrame();
+    return;
+  }
+  if (WiFi.status() == WL_CONNECTED && webSocketConnected && snapshotReady && !liveMode.isEmpty()) {
+    drawLiveStatus();
     presentOledFrame();
     return;
   }
@@ -479,6 +525,82 @@ void sendAnswer(char choice) {
   pendingSentAt = millis();
   Serial.printf("Da gui dap an %c, dang cho website xac nhan...\n", choice);
   renderStatus();
+}
+
+void clearLivePending() {
+  livePendingId = "";
+  livePendingPayload = "";
+  livePendingLabel = "";
+  liveQueuedKey = '\0';
+  liveQueuedDisplayId = "";
+}
+
+// Builds the packet from the snapshot identity at press time; retries never rebuild it.
+void sendLiveKey(char key) {
+  JsonDocument document;
+  document["v"] = 1;
+  livePendingId = String(DEVICE_ID) + "-" + String((uint32_t)esp_random(), HEX) + "-" + String(millis());
+  document["request_id"] = livePendingId;
+  if (liveMode == "attendance") {
+    document["type"] = "attendance.checkin";
+    document["attendance_id"] = liveId;
+    livePendingLabel = "CHECK-IN";
+  } else if (liveMode == "poll") {
+    document["type"] = "poll.vote";
+    document["poll_id"] = liveId;
+    document["choice"] = String(key);
+    livePendingLabel = String(key);
+  } else {
+    document["type"] = "flashcard.rate";
+    document["review_id"] = liveId;
+    document["card_id"] = cardId;
+    document["round"] = cardRound;
+    document["display_id"] = cardDisplayId;
+    document["rating"] = key == 'A' ? "KNOWN" : "AGAIN";
+    livePendingLabel = key == 'A' ? "KNOWN" : "AGAIN";
+  }
+  livePendingPayload = "";
+  serializeJson(document, livePendingPayload);
+  liveNotice = "";
+  webSocket.send(livePendingPayload);
+  liveSentAt = millis();
+  Serial.printf("Da gui %s %s, dang cho website xac nhan...\n", liveMode.c_str(), livePendingLabel.c_str());
+}
+
+void handleLiveKey(char key) {
+  const bool valid = liveMode == "attendance" ? key == 'A'
+      : liveMode == "poll" ? key >= 'A' && key < char('A' + pollOptions)
+      : key == 'A' || key == 'B';
+  if (!valid) {
+    if (liveMode == "poll" && key >= 'A' && key <= 'D') {
+      liveNotice = String("ONLY A-") + char('A' + pollOptions - 1);
+      renderStatus();
+    }
+    return;
+  }
+  if (!webSocketConnected || !snapshotReady || WiFi.status() != WL_CONNECTED) {
+    liveNotice = "OFFLINE, TRY AGAIN";
+  } else if (liveMode == "attendance" && attendanceCheckedIn) {
+    liveNotice = "";
+  } else if (!livePendingId.isEmpty()) {
+    // Keep the newest press; a flashcard press only counts for the card shown when pressed.
+    if (liveMode != "attendance") {
+      liveQueuedKey = key;
+      liveQueuedDisplayId = cardDisplayId;
+    }
+  } else {
+    sendLiveKey(key);
+  }
+  renderStatus();
+}
+
+void retryLiveRequest() {
+  if (!liveMode.isEmpty() && !livePendingId.isEmpty() && WiFi.status() == WL_CONNECTED &&
+      webSocketConnected && snapshotReady && millis() - liveSentAt >= ACK_RETRY_MS) {
+    webSocket.send(livePendingPayload);
+    liveSentAt = millis();
+    Serial.println("Chua co ACK; dang gui lai cung mot goi...");
+  }
 }
 
 void handleChoice(char choice) {
@@ -627,6 +749,10 @@ void handleKey(uint8_t button) {
   const char key = KEY_MAP[button - 1];
   Serial.printf("S%u -> %s\n", button,
                 key == '\b' ? "DELETE" : key == '\n' ? "ENTER" : String(key).c_str());
+  if (!liveMode.isEmpty()) {
+    handleLiveKey(key);
+    return;
+  }
   if (sessionState == "RUNNING" || sessionState == "PAUSED") {
     if (key >= 'A' && key <= 'D') handleChoice(key);
     return;
@@ -699,6 +825,47 @@ void handleWebSocketMessage(const String& payload) {
   } else if (strcmp(type, "session.snapshot") == 0) {
     if (!document["data"].is<JsonObject>()) return;
     JsonObject data = document["data"];
+    const String mode = String(data["mode"] | "quiz");
+    if (mode == "attendance" || mode == "poll" || mode == "flashcard") {
+      const String nextId = String(data["id"] | "");
+      const String nextDisplay = String(data["display_id"] | "");
+      if (mode != liveMode || nextId != liveId) {
+        clearLivePending();
+        liveNotice = "";
+        wakeOled();
+      } else if (mode == "flashcard" && nextDisplay != cardDisplayId) {
+        // New card or round: drop a queued press made for the old card and show it.
+        liveQueuedKey = '\0';
+        liveNotice = "";
+        wakeOled();
+      }
+      liveMode = mode;
+      liveId = nextId;
+      attendanceCheckedIn = data["checked_in"] | false;
+      pollOptions = constrain(data["options"] | 4, 2, 4);
+      pollChoice = String(data["current_choice"] | "");
+      cardRound = data["round"] | 0U;
+      cardDisplayId = nextDisplay;
+      cardId = String(data["card"]["id"] | "");
+      cardIndex = data["card"]["index"] | 0U;
+      cardTotal = data["card"]["total"] | 0U;
+      cardRating = String(data["current_rating"] | "");
+      if (mode == "attendance" && attendanceCheckedIn) clearLivePending();
+      snapshotReady = true;
+      Serial.printf("%s: %s\n", mode.c_str(),
+                    mode == "attendance" ? (attendanceCheckedIn ? "da diem danh" : "cho nhan A")
+                    : mode == "poll" ? (pollChoice.isEmpty() ? "chua chon" : pollChoice.c_str())
+                    : (cardRating.isEmpty() ? "chua danh gia" : cardRating.c_str()));
+      renderStatus();
+      return;
+    }
+    if (!liveMode.isEmpty()) {
+      liveMode = "";
+      liveId = "";
+      liveNotice = "";
+      clearLivePending();
+      wakeOled();
+    }
     const String nextSession = String(data["id"] | "");
     const String nextBinding = String(data["binding_id"] | "");
     const String nextQuestion = String(data["question"]["id"] | "");
@@ -779,6 +946,35 @@ void handleWebSocketMessage(const String& payload) {
       }
       renderStatus();
     }
+  } else if (strcmp(type, "attendance.ack") == 0 || strcmp(type, "poll.ack") == 0 ||
+             strcmp(type, "flashcard.ack") == 0) {
+    if (livePendingId.isEmpty() || String(document["request_id"] | "") != livePendingId) return;
+    const bool accepted = document["accepted"] | false;
+    const String code = document["code"] | "";
+    Serial.printf("Website da ACK %s: %s %s\n", type, accepted ? "thanh cong" : "khong chap nhan",
+                  code.c_str());
+    // A duplicate flashcard ACK confirms an older card, not the one shown now.
+    const bool current = !(document["duplicate"] | false) ||
+        String(document["display_id"] | "") == cardDisplayId;
+    if (accepted && current) {
+      if (liveMode == "attendance") attendanceCheckedIn = true;
+      else if (liveMode == "poll") pollChoice = livePendingLabel;
+      else cardRating = livePendingLabel;
+    }
+    liveNotice = accepted ? "" :
+        code == "DEVICE_NOT_ASSIGNED" ? "DEVICE NOT ASSIGNED" :
+        code == "DEVICE_BUSY" ? "DEVICE BUSY" :
+        code == "ATTENDANCE_CLOSED" || code == "POLL_CLOSED" || code == "REVIEW_CLOSED" ? "CLOSED" :
+        code == "CARD_CHANGED" || code == "ROUND_CHANGED" || code == "DISPLAY_CHANGED" ? "CARD CHANGED" :
+        "REJECTED";
+    const char queued = liveQueuedKey;
+    const bool queuedStillValid = liveMode != "flashcard" || liveQueuedDisplayId == cardDisplayId;
+    livePendingId = "";
+    livePendingPayload = "";
+    livePendingLabel = "";
+    liveQueuedKey = '\0';
+    if (queued != '\0' && queuedStillValid) sendLiveKey(queued);
+    renderStatus();
   } else if (strcmp(type, "button.ack") == 0) {
     const bool assigned = document["assigned"] | false;
     Serial.printf("Website da nhan nut thu; thiet bi %s duoc ghep hoc sinh.\n",
@@ -828,8 +1024,14 @@ void connectToWebsite() {
     webSocket.addHeader("X-Device-Id", DEVICE_ID);
     // ArduinoWebsockets tu them Origin cua GitHub. Ghi de bang dung origin cua
     // website de backend khong tu choi WebSocket handshake.
+    // WS_ORIGIN (tuy chon) phai trung PUBLIC_ORIGIN cua backend, vd. khi web
+    // chay sau proxy/Funnel con thiet bi noi thang IP LAN.
+#ifdef WS_ORIGIN
+    webSocket.addHeader("Origin", WS_ORIGIN);
+#else
     webSocket.addHeader(
         "Origin", String("http://") + WS_HOST + ":" + String(WS_PORT));
+#endif
     webSocket.onMessage([](WebsocketsMessage message) {
       handleWebSocketMessage(message.data());
     });
@@ -970,6 +1172,7 @@ void loop() {
     }
 
     retryPendingAnswer();
+    retryLiveRequest();
   }
 
   updateKeypad();
